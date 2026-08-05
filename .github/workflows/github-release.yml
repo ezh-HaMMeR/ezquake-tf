@@ -59,7 +59,7 @@ jobs:
 
     steps:
       - name: Install build dependencies
-        run: apt-get -qy update && apt-get -qy install curl file libfuse2 git make sudo
+        run: apt-get -qy update && apt-get -qy install curl file libfuse2t64 git make sudo
 
       - name: Check out code
         uses: actions/checkout@v4
