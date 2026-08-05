@@ -1,4 +1,10 @@
 # ezQuake — Modern QuakeWorld Client
+
+This repository is the ezquake-tf client, based on
+[MeMcCree/ezquake-source](https://github.com/MeMcCree/ezquake-source).
+
+Tagged GitHub releases provide Windows and Linux clients. Every client archive
+also includes the complete `qw` directory with ezquake-tf custom assets.
 Homepage: [https://ezquake.com][homepage]
 
 Community discord: [http://discord.quake.world][discord]

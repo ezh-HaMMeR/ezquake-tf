@@ -1,0 +1,115 @@
+name: GitHub release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+
+      - name: Build client
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: msbuild-x64
+          buildPreset: msbuild-x64-release
+
+      - name: Package client and custom assets
+        shell: pwsh
+        run: |
+          $package = "ezquake-tf-windows-x64"
+          New-Item -ItemType Directory -Path $package | Out-Null
+          Copy-Item "build-msbuild-x64/Release/ezquake.exe" $package
+          Copy-Item "qw" $package -Recurse
+          Compress-Archive -Path "$package/*" -DestinationPath "$package.zip" -CompressionLevel Optimal
+          $hash = (Get-FileHash "$package.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $package.zip" | Set-Content "$package.zip.sha256" -NoNewline
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            ezquake-tf-windows-x64.zip
+            ezquake-tf-windows-x64.zip.sha256
+          if-no-files-found: error
+
+  linux:
+    name: Linux x86_64
+    runs-on: ubuntu-latest
+    container:
+      image: debian:testing
+      options: --privileged
+
+    steps:
+      - name: Install build dependencies
+        run: apt-get -qy update && apt-get -qy install curl file libfuse2 git make sudo
+
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Build AppImage
+        run: git config --global --add safe.directory '*' && ./misc/appimage/appimage-manual_creation.sh
+
+      - name: Package client and custom assets
+        run: |
+          package=ezquake-tf-linux-x86_64
+          mkdir "$package"
+          cp ezQuake-x86_64.AppImage "$package/"
+          cp -a qw "$package/"
+          tar -czf "$package.tar.gz" "$package"
+          sha256sum "$package.tar.gz" > "$package.tar.gz.sha256"
+
+      - name: Upload Linux package
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release
+          path: |
+            ezquake-tf-linux-x86_64.tar.gz
+            ezquake-tf-linux-x86_64.tar.gz.sha256
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - windows
+      - linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release packages
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "${GITHUB_REF_NAME}"
+          release-assets/*
+          --repo "${GITHUB_REPOSITORY}"
+          --title "ezquake-tf ${GITHUB_REF_NAME}"
+          --generate-notes
+          --prerelease
