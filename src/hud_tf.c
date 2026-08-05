@@ -85,7 +85,6 @@ static void SCR_HUD_DrawFlaginfoIcon(hud_t* hud, int team, float scale, qbool bl
 {
 	extern mpic_t* sb_flags[2];
 	int x, y;
-	char t[128] = { 0 };
 	float alpha;
 
 	if (cl.spectator != cl.autocam || cl.flaginfo[team].state == FLAGINFO_NOTINIT)
@@ -197,49 +196,6 @@ static void SCR_HUD_DrawDispAmmoNails(hud_t* hud) { SCR_HUD_DrawDispenserStat(hu
 static void SCR_HUD_DrawDispAmmoRockets(hud_t* hud) { SCR_HUD_DrawDispenserStat(hud, DISP_AMMO_ROCKETS); }
 static void SCR_HUD_DrawDispAmmoCells(hud_t* hud) { SCR_HUD_DrawDispenserStat(hud, DISP_AMMO_CELLS); }
 static void SCR_HUD_DrawDispAmmoArmor(hud_t* hud) { SCR_HUD_DrawDispenserStat(hud, DISP_AMMO_ARMOR); }
-
-static void SCR_HUD_DrawSentryStatus(hud_t* hud)
-{
-	static cvar_t* scale = NULL, * big, * align, * proportional;
-	char t[128] = { 0 };
-	if (scale == NULL) {
-		// first time called
-		big = HUD_FindVar(hud, "big");
-		scale = HUD_FindVar(hud, "scale");
-		align = HUD_FindVar(hud, "align");
-		proportional = HUD_FindVar(hud, "proportional");
-	}
-	uint32_t sentry = cl.stats[STAT_SENTRY];
-	if (cl.spectator != cl.autocam || !(sentry & 1))
-		return;
-	snprintf(t, sizeof(t), "Sentry lvl%d %d hp\rShells: %d\rRockets: %d", (sentry >> 1) & ((1u << 2) - 1), (sentry >> 3) & ((1u << 9) - 1), (sentry >> 12) & ((1u << 8) - 1), (sentry >> 20) & ((1u << 6) - 1));
-	SCR_HUD_MultiLineString(hud, t, big->value, align->value, scale->value, proportional->value);
-}
-
-static void SCR_HUD_DrawDispenserStatus(hud_t* hud)
-{
-	static cvar_t* scale = NULL, * big, * align, * proportional;
-	char t[128] = { 0 };
-	if (scale == NULL) {
-		// first time called
-		big = HUD_FindVar(hud, "big");
-		scale = HUD_FindVar(hud, "scale");
-		align = HUD_FindVar(hud, "align");
-		proportional = HUD_FindVar(hud, "proportional");
-	}
-	uint32_t dispenser = cl.stats[STAT_DISP];
-	uint32_t dispenser_add = cl.stats[STAT_DISPADD];
-	if (cl.spectator != cl.autocam || !(dispenser & 1))
-		return;
-	snprintf(t, sizeof(t), "Dispenser %d hp\rShells: %d\rNails: %d\rRockets: %d\rCells: %d\rArmor: %d",
-		(dispenser >> 1) & ((1u << 8) - 1),
-		(dispenser >> 9) & ((1u << 9) - 1),
-		(dispenser >> 18) & ((1u << 10) - 1),
-		(dispenser_add >> 0) & ((1u << 9) - 1),
-		(dispenser_add >> 9) & ((1u << 9) - 1),
-		(dispenser_add >> 18) & ((1u << 9) - 1));
-	SCR_HUD_MultiLineString(hud, t, big->value, align->value, scale->value, proportional->value);
-}
 
 void SCR_HUD_DrawSentryIcon(hud_t* hud)
 {
@@ -549,10 +505,7 @@ static void SCR_HUD_DrawTfClock(hud_t* hud)
 
 static void SCR_HUD_DrawScoreBlue(hud_t* hud)
 {
-	int width, height;
-	int x, y;
 	int blue, red;
-	char t[80] = { 0 };
 	char* score = Info_ValueForKey(cl.serverinfo, "score");
 	if (!score[0]) return;
 
@@ -600,10 +553,7 @@ static void SCR_HUD_DrawScoreBlue(hud_t* hud)
 
 static void SCR_HUD_DrawScoreRed(hud_t* hud)
 {
-	int width, height;
-	int x, y;
 	int blue, red;
-	char t[80] = { 0 };
 	char* score = Info_ValueForKey(cl.serverinfo, "score");
 	if (!score[0]) return;
 
