@@ -59,7 +59,7 @@ jobs:
 
     steps:
       - name: Install build dependencies
-        run: apt-get -qy update && apt-get -qy install curl file libfuse2t64 git make sudo
+        run: apt-get -qy update && apt-get -qy install curl file git make sudo
 
       - name: Check out code
         uses: actions/checkout@v4
@@ -68,6 +68,8 @@ jobs:
           fetch-depth: 0
 
       - name: Build AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
         run: git config --global --add safe.directory '*' && ./misc/appimage/appimage-manual_creation.sh
 
       - name: Package client and custom assets
