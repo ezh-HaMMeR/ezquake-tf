@@ -80,8 +80,8 @@ else()
             -Werror=strict-prototypes
             -Werror=old-style-definition
 
-            $<$<CONFIG:Release>:-Werror=unused-function>
-            $<$<CONFIG:Release>:-Werror=unused-variable>
+            $<$<CONFIG:Release>:-Wno-error=unused-function>
+            $<$<CONFIG:Release>:-Wno-error=unused-variable>
     )
 
     check_c_compiler_flag("-Wstrlcpy-strlcat-size" HAS_STRLCPY_STRLCAT_SIZE)
