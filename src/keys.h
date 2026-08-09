@@ -212,6 +212,13 @@ typedef enum {
 
 } keynum_t;
 
+// Synthetic binding slots for Ctrl+key, Alt+key and Shift+key combinations.
+// Keep these above the legacy physical-key reserve (UNKNOWN + 256).
+#define KEY_COMBO_BASE          (UNKNOWN + 256)
+#define KEY_COMBO_MODIFIERS     3
+#define KEY_COMBO_STRIDE        UNKNOWN
+#define KEY_MAX_KEYS            (KEY_COMBO_BASE + KEY_COMBO_MODIFIERS * KEY_COMBO_STRIDE)
+
 
 typedef enum {
 	key_game,
@@ -229,9 +236,9 @@ typedef enum {
 #define KeyDestStartupDemo(x) ((x) >= key_startupdemo_menu && (x) <= key_startupdemo_browser)
 
 extern keydest_t	key_dest, key_dest_beforemm, key_dest_beforecon;
-extern char 	*keybindings[UNKNOWN + 256];
-extern int		key_repeats[UNKNOWN + 256];
-extern qbool	keydown[UNKNOWN + 256];
+extern char 	*keybindings[KEY_MAX_KEYS];
+extern int		key_repeats[KEY_MAX_KEYS];
+extern qbool	keydown[KEY_MAX_KEYS];
 extern int		key_lastpress;
 
 #ifdef WITH_IRC

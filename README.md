@@ -53,6 +53,21 @@ The supported payload is:
 //tinfo <0-based-client> <x> <y> <z> <health> <armor> <items> <nick> <shells> <nails> <rockets> <cells>
 ```
 
+## Modifier key bindings
+
+Bindings can use one native `Ctrl`, `Alt` or `Shift` modifier with any regular
+bindable key. Modifier names are case-insensitive, and combination bindings
+take precedence over the unmodified key while their modifier is held:
+
+```text
+bind Ctrl+c "cmd sg_reload"
+bind Alt+x "shownick"
+bind Shift+MOUSE3 "+zoom"
+```
+
+Combination bindings are preserved by `cfg_save`, listed by `bindlist`, and
+removed with the usual `unbind Ctrl+c` syntax.
+
 Homepage: [https://ezquake.com][homepage]
 
 Community discord: [http://discord.quake.world][discord]

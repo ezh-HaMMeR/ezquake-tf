@@ -93,14 +93,18 @@ int count_alias = 0;
 
 keydest_t	key_dest, key_dest_beforemm, key_dest_beforecon;
 
-char	*keybindings[UNKNOWN + 256];
-qbool	consolekeys[UNKNOWN + 256];	// if true, can't be rebound while in console
-qbool	hudeditorkeys[UNKNOWN + 256];	// if true, can't be rebound while in hud editor
-qbool	democontrolskey[UNKNOWN + 256];
-int		keyshift[UNKNOWN + 256];		// key to map to if shift held down in console
-int		key_repeats[UNKNOWN + 256];	// if > 1, it is autorepeating
-qbool	keydown[UNKNOWN + 256];
-qbool	keyactive[UNKNOWN + 256];
+char	*keybindings[KEY_MAX_KEYS];
+qbool	consolekeys[KEY_MAX_KEYS];	// if true, can't be rebound while in console
+qbool	hudeditorkeys[KEY_MAX_KEYS];	// if true, can't be rebound while in hud editor
+qbool	democontrolskey[KEY_MAX_KEYS];
+int		keyshift[KEY_MAX_KEYS];		// key to map to if shift held down in console
+int		key_repeats[KEY_MAX_KEYS];	// if > 1, it is autorepeating
+qbool	keydown[KEY_MAX_KEYS];
+qbool	keyactive[KEY_MAX_KEYS];
+
+// Synthetic combo key used by each physical key until its release event.
+static int key_combo_active[UNKNOWN];
+static qbool key_combo_suppressed[UNKNOWN];
 
 // SDL2 sends a KEYDOWN event and then an optional TEXTINPUT event for the actual character generated
 // This stores the last quake key (K_*) from the KEYDOWN, or 0 if any subsequent TEXTINPUT event should be ignored.
@@ -1603,12 +1607,67 @@ void Key_Message (int key, wchar unichar) {
 
 byte Key_CharacterToQuakeCode(char ch);
 
+typedef enum {
+	KEY_COMBO_CTRL,
+	KEY_COMBO_ALT,
+	KEY_COMBO_SHIFT
+} key_combo_modifier_t;
+
+static qbool Key_IsModifierKeyNumber(int key)
+{
+	return key == K_CTRL || key == K_LCTRL || key == K_RCTRL
+		|| key == K_ALT || key == K_LALT || key == K_RALT
+		|| key == K_SHIFT || key == K_LSHIFT || key == K_RSHIFT;
+}
+
+static int Key_ComboKeynum(key_combo_modifier_t modifier, int key)
+{
+	return KEY_COMBO_BASE + modifier * KEY_COMBO_STRIDE + key;
+}
+
+static int Key_StringToComboKeynum(const char *str)
+{
+	const char *separator = strchr(str, '+');
+	key_combo_modifier_t modifier;
+	int key;
+
+	if (!separator || !separator[1] || strchr(separator + 1, '+')) {
+		return -1;
+	}
+
+	if (separator - str == 4 && !strncasecmp(str, "Ctrl", 4)) {
+		modifier = KEY_COMBO_CTRL;
+	}
+	else if (separator - str == 3 && !strncasecmp(str, "Alt", 3)) {
+		modifier = KEY_COMBO_ALT;
+	}
+	else if (separator - str == 5 && !strncasecmp(str, "Shift", 5)) {
+		modifier = KEY_COMBO_SHIFT;
+	}
+	else {
+		return -1;
+	}
+
+	key = Key_StringToKeynum(separator + 1);
+	if (key < 0 || key >= UNKNOWN || Key_IsModifierKeyNumber(key)) {
+		return -1;
+	}
+
+	return Key_ComboKeynum(modifier, key);
+}
+
 int Key_StringToKeynum (const char *str)
 {
 	keyname_t *kn;
+	int combo_key;
 
 	if (!str || !str[0])
 		return -1;
+
+	combo_key = Key_StringToComboKeynum(str);
+	if (combo_key >= 0) {
+		return combo_key;
+	}
 
 	if (!str[1] && !con_bindphysical.value)
 	{
@@ -1633,6 +1692,18 @@ int Key_StringToKeynum (const char *str)
 char *Key_KeynumToString (int keynum) {
 	keyname_t *kn;
 	static char tinystr[2];
+	static char combostr[64];
+	static const char *modifier_names[KEY_COMBO_MODIFIERS] = { "Ctrl", "Alt", "Shift" };
+
+	if (keynum >= KEY_COMBO_BASE && keynum < KEY_MAX_KEYS) {
+		int encoded = keynum - KEY_COMBO_BASE;
+		int modifier = encoded / KEY_COMBO_STRIDE;
+		int key = encoded % KEY_COMBO_STRIDE;
+		const char *keyname = key == ';' ? "SEMICOLON" : Key_KeynumToString(key);
+
+		snprintf(combostr, sizeof(combostr), "%s+%s", modifier_names[modifier], keyname);
+		return combostr;
+	}
 
 	if (keynum == -1)
 		return "<KEY NOT FOUND>";
@@ -2096,10 +2167,95 @@ static qbool Key_ConsoleKey(int key)
 	return true;
 }
 
+static qbool Key_ComboModifierDown(key_combo_modifier_t modifier)
+{
+	switch (modifier) {
+		case KEY_COMBO_CTRL:
+			return keydown[K_CTRL] || keydown[K_LCTRL] || keydown[K_RCTRL];
+		case KEY_COMBO_ALT:
+			return keydown[K_ALT] || keydown[K_LALT] || keydown[K_RALT];
+		case KEY_COMBO_SHIFT:
+			return keydown[K_SHIFT] || keydown[K_LSHIFT] || keydown[K_RSHIFT];
+	}
+
+	return false;
+}
+
+static int Key_ModifiedBindingKey(int key)
+{
+	key_combo_modifier_t modifier;
+
+	if (key < 0 || key >= UNKNOWN || Key_IsModifierKeyNumber(key)) {
+		return key;
+	}
+
+	for (modifier = KEY_COMBO_CTRL; modifier < KEY_COMBO_MODIFIERS; modifier++) {
+		int combo_key = Key_ComboKeynum(modifier, key);
+
+		if (Key_ComboModifierDown(modifier) && keybindings[combo_key]) {
+			return combo_key;
+		}
+	}
+
+	return key;
+}
+
+static void Key_ReleaseComboBinding(int key, qbool suppress_physical_release)
+{
+	int binding_key = key_combo_active[key];
+	char *kb, cmd[1024];
+
+	key_combo_active[key] = 0;
+	key_combo_suppressed[key] = suppress_physical_release;
+	if (!binding_key || !(kb = keybindings[binding_key])) {
+		return;
+	}
+
+	if (Key_TryMovementProtected(kb, false, binding_key)) {
+		return;
+	}
+
+	if (kb[0] == '+' && keyactive[binding_key]) {
+		snprintf(cmd, sizeof(cmd), "-%s %i\n", kb + 1, binding_key);
+		Cbuf_AddText(cmd);
+		keyactive[binding_key] = false;
+	}
+}
+
+static int Key_PhysicalModifier(int key)
+{
+	if (key == K_LCTRL || key == K_RCTRL) {
+		return KEY_COMBO_CTRL;
+	}
+	if (key == K_LALT || key == K_RALT) {
+		return KEY_COMBO_ALT;
+	}
+	if (key == K_LSHIFT || key == K_RSHIFT) {
+		return KEY_COMBO_SHIFT;
+	}
+
+	return -1;
+}
+
+static void Key_ReleaseModifierCombos(key_combo_modifier_t modifier)
+{
+	int key;
+
+	for (key = 0; key < UNKNOWN; key++) {
+		int binding_key = key_combo_active[key];
+
+		if (binding_key >= KEY_COMBO_BASE
+			&& (binding_key - KEY_COMBO_BASE) / KEY_COMBO_STRIDE == modifier) {
+			Key_ReleaseComboBinding(key, true);
+		}
+	}
+}
+
 // Called by the system between frames for both key up and key down events Should NOT be called during an interrupt!
 void Key_EventEx (int key, wchar unichar, qbool down)
 {
 	char *kb, cmd[1024];
+	int binding_key;
 
 	// FIXME: disconnect: really FIXME CTRL+r or CTRL+[ with in_builinkeymap 1 cause to unichar < 32 
 	if (/*unichar < 32 ||*/ (unichar > 127 && unichar <= 256))
@@ -2115,6 +2271,14 @@ void Key_EventEx (int key, wchar unichar, qbool down)
 		Key_Event (K_WIN, down);
 
 	keydown[key] = down;
+
+	if (!down) {
+		int modifier = Key_PhysicalModifier(key);
+
+		if (modifier >= 0 && !Key_ComboModifierDown(modifier)) {
+			Key_ReleaseModifierCombos(modifier);
+		}
+	}
 
 	if (!down)
 		key_repeats[key] = 0;
@@ -2203,6 +2367,16 @@ void Key_EventEx (int key, wchar unichar, qbool down)
 			DemoControls_KeyEvent(key, unichar, down);
 		}
 
+		if (key < UNKNOWN && key_combo_suppressed[key]) {
+			key_combo_suppressed[key] = false;
+			return;
+		}
+
+		if (key < UNKNOWN && key_combo_active[key]) {
+			Key_ReleaseComboBinding(key, false);
+			return;
+		}
+
 		// Key up events only generate commands if the game key binding is a button command (leading + sign).
 		// These will occur even in console mode, to keep the character from continuing an action started before a
 		// console switch.  Button commands include the kenum as a parameter, so multiple downs can be matched with ups
@@ -2252,11 +2426,16 @@ void Key_EventEx (int key, wchar unichar, qbool down)
 	// if not a consolekey, send to the interpreter no matter what mode is
 	if (!Key_ConsoleKey(key)) 
 	{
-		kb = keybindings[key];
+		binding_key = Key_ModifiedBindingKey(key);
+		if (key < UNKNOWN) {
+			key_combo_suppressed[key] = false;
+			key_combo_active[key] = binding_key != key ? binding_key : 0;
+		}
+		kb = keybindings[binding_key];
 
 		if (kb) 
 		{
-			if (Key_TryMovementProtected(kb, down, key)) {
+			if (Key_TryMovementProtected(kb, down, binding_key)) {
 				// this was a protected movement binding and was executed
 				return;
 			}
@@ -2264,9 +2443,9 @@ void Key_EventEx (int key, wchar unichar, qbool down)
 			if (kb[0] == '+')
 			{	
 				// Button commands add keynum as a parm.
-				snprintf (cmd, sizeof (cmd), "%s %i\n", kb, key);
+				snprintf (cmd, sizeof (cmd), "%s %i\n", kb, binding_key);
 				Cbuf_AddText (cmd);
-				keyactive[key] = true;
+				keyactive[binding_key] = true;
 			} 
 			else 
 			{
