@@ -3,8 +3,11 @@
 This repository is the ezquake-tf client, based on
 [MeMcCree/ezquake-source](https://github.com/MeMcCree/ezquake-source).
 
-Tagged GitHub releases provide Windows and Linux clients. Every client archive
-also includes the complete `qw` directory with ezquake-tf custom assets.
+GitHub releases provide Windows and Linux clients. Release tags use the
+`vYYYY.MM.DD` format without a `-test` suffix. Packages are built locally by
+default; the manual GitHub Actions workflow is retained only as a fallback.
+Every client archive includes the complete `qw` directory with ezquake-tf
+custom assets.
 
 ## TF teammate status HUD
 
