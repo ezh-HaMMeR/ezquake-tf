@@ -4915,7 +4915,7 @@
       ]
     },
     "gl_lightning_size": {
-      "default": "3",
+      "default": "10",
       "desc": "Adjusts size of lightning particle beam.",
       "group-id": "35",
       "type": "float"

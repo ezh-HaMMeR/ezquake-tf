@@ -49,7 +49,7 @@ cvar_t		amf_hiderockets = { "cl_hiderockets", "0" };
 cvar_t		amf_stat_loss = { "r_damagestats", "0" };
 cvar_t		amf_lightning = { "gl_lightning", "0" }; // 1
 
-cvar_t		amf_lightning_size = { "gl_lightning_size", "3" };
+cvar_t		amf_lightning_size = { "gl_lightning_size", "10" };
 cvar_t		amf_lightning_sparks = { "gl_lightning_sparks", "0" }; // 0.4
 cvar_t		amf_lightning_sparks_size = { "gl_lightning_sparks_size", "300", CVAR_RULESET_MAX | CVAR_RULESET_MIN, NULL, 300, 300, 1 };
 cvar_t		amf_lightning_color = { "gl_lightning_color", "120 140 255", CVAR_COLOR };
@@ -367,5 +367,4 @@ void InitVXStuff(void)
 	Cvar_Register(&amf_cutf_tesla_effect);
 	Cvar_ResetCurrentGroup();
 }
-
 

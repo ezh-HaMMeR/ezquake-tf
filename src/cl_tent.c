@@ -75,6 +75,9 @@ cvar_t r_sgbloodColor = {"r_sgbloodColor", "73"};
 cvar_t r_shiftbeam = {"r_shiftbeam", "0"};
 cvar_t new_scanmode = {"new_scanmode", "0"};
 
+static qbool tf_scanner_friendly_requested;
+static int tf_scanner_last_class = -1;
+
 void CL_InitTEnts(void)
 {
 	cl_sfx_wizhit = S_PrecacheSound ("wizard/hit.wav");
@@ -103,6 +106,8 @@ void CL_ClearTEnts(void)
 	int i;
 
 	cl_explo_mod = cl_bolt1_mod = cl_bolt2_mod = cl_bolt3_mod = cl_beam_mod = NULL;
+	tf_scanner_friendly_requested = false;
+	tf_scanner_last_class = -1;
 
 	memset (&cl_beams, 0, sizeof(cl_beams));
 	memset (&cl_explosions, 0, sizeof(cl_explosions));
@@ -911,6 +916,39 @@ static void CL_ScannerBeamColor(int target, byte color[4])
 	color[3] = 179;
 }
 
+static void CL_EnsureTFScannerFriendly(void)
+{
+	cmd_alias_t *alias;
+	int playerclass = 0;
+
+	if (!new_scanmode.integer || !cl.teamfortress || cls.state != ca_active ||
+		cls.demoplayback || cl.spectator || cl.viewplayernum < 0 || cl.viewplayernum >= MAX_CLIENTS) {
+		tf_scanner_friendly_requested = false;
+		tf_scanner_last_class = -1;
+		return;
+	}
+
+	playerclass = cl.players[cl.viewplayernum].playerclass;
+	if (playerclass != tf_scanner_last_class) {
+		tf_scanner_last_class = playerclass;
+		tf_scanner_friendly_requested = false;
+	}
+
+	if (playerclass != PC_SCOUT || tf_scanner_friendly_requested) {
+		return;
+	}
+
+	// TF2003 provides this server alias as its compatibility-safe way to enable
+	// friendly scans. Retry on later frames until the alias has been received.
+	alias = Cmd_FindAlias("scanf_on");
+	if (!alias || !(alias->flags & ALIAS_SERVER)) {
+		return;
+	}
+
+	Cbuf_AddText("scanf_on\n");
+	tf_scanner_friendly_requested = true;
+}
+
 static void CL_UpdateBeams(void)
 {
 	int i;
@@ -928,6 +966,7 @@ static void CL_UpdateBeams(void)
 	byte scanner_color[4];
 	int scanner_limit = bound(0, new_scanmode.integer, 3);
 	beamstodraw = bound(1, amf_lightning.value, MAX_LIGHTNINGBEAMS);	
+	CL_EnsureTFScannerFriendly();
 
 	memset (&ent, 0, sizeof(entity_t));
 	ent.colormap = vid.colormap;

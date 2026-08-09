@@ -79,14 +79,14 @@ new_scanmode 0 // original scanner rendering (default)
 new_scanmode 1 // nearest player from each team
 new_scanmode 2 // two nearest players from each team
 new_scanmode 3 // three nearest players from each team
-gl_lightning_size 1 // scanner beam width
+gl_lightning_size 10 // scanner beam width (default)
 ```
 
 Blue targets use a blue beam and red targets use a red beam. Yellow and green
-are also supported for four-team games. The setting changes only targets that
-the TF2003 server already reported through the Scout scanner; target selection
-and scan range remain server-controlled. Regular Lightning Gun beams retain
-their existing rendering and color settings.
+are also supported for four-team games. For Scouts on TF2003 servers,
+`new_scanmode` enables the server-provided friendly scan mode so both allies and
+enemies can be shown. Target selection and scan range remain server-controlled.
+Regular Lightning Gun beams retain their existing rendering and color settings.
 
 Homepage: [https://ezquake.com][homepage]
 
