@@ -14,11 +14,24 @@ offers enemy display, and hides the local player by default.
 
 ```text
 hud_teammates_show 1
-hud_teammates_place screen
-hud_teammates_align_x right
-hud_teammates_align_y center
+hud_teammates_place speed
+hud_teammates_align_x center
+hud_teammates_align_y before
+hud_teammates_pos_y -20
+hud_teammates_frame 0.47059
+hud_teammates_frame_color "10 0 0"
 hud_teammates_layout "%p%n $x10%l$x11 %a/%H %w"
+hud_teammates_grow_up 1
+hud_teammates_weapon_style 0
+hud_teammates_weapon_icon_scale 0.65
+hud_teammates_show_ammo 1
 ```
+
+`hud_teammates_weapon_style 0` uses weapon icons; value `1` switches to the
+classic letter abbreviations. `hud_teammates_weapon_icon_scale` controls only
+the icon size. When `hud_teammates_grow_up` is enabled, additional teammates
+are added above the existing rows. The legacy `scr_teaminfo` overlay is
+automatically suppressed while this HUD element is enabled.
 
 The game server/mod must send `//tinfo` only to eligible teammates; the client
 does not infer other players' private health or inventory from network traffic.

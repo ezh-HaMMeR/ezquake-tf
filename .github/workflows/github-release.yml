@@ -5,6 +5,16 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Build only the selected package (tag pushes always build both)
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - windows
+          - linux
 
 permissions:
   contents: write
@@ -12,6 +22,7 @@ permissions:
 jobs:
   windows:
     name: Windows x64
+    if: github.event_name == 'push' || inputs.platform == 'all' || inputs.platform == 'windows'
     runs-on: windows-2022
 
     steps:
@@ -52,6 +63,7 @@ jobs:
 
   linux:
     name: Linux x86_64
+    if: github.event_name == 'push' || inputs.platform == 'all' || inputs.platform == 'linux'
     runs-on: ubuntu-latest
     container:
       image: debian:testing
