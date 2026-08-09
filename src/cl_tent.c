@@ -40,6 +40,9 @@ typedef struct
 	model_t *model;
 	float endtime;
 	vec3_t start, end;
+	qbool tf_scanner;
+	int tf_scanner_target;
+	float tf_scanner_distance;
 } beam_t;
 
 beam_t cl_beams[MAX_BEAMS];
@@ -70,6 +73,7 @@ cvar_t r_rlbloodColor_small = {"r_rlbloodColor_small", "225"};
 cvar_t r_rlbloodColor_big = {"r_rlbloodColor_big", "73"};
 cvar_t r_sgbloodColor = {"r_sgbloodColor", "73"};
 cvar_t r_shiftbeam = {"r_shiftbeam", "0"};
+cvar_t new_scanmode = {"new_scanmode", "0"};
 
 void CL_InitTEnts(void)
 {
@@ -90,6 +94,7 @@ void CL_InitTEntsCvar(void)
 	Cvar_Register(&r_rlbloodColor_big);
 	Cvar_Register(&r_sgbloodColor);
 	Cvar_Register(&r_shiftbeam);
+	Cvar_Register(&new_scanmode);
 	Cvar_ResetCurrentGroup();
 }
 
@@ -148,12 +153,48 @@ void CL_FreeExplosion(explosion_t *ex)
 	cl_free_explosions = ex;
 }
 
+static qbool CL_IsTFScannerBeam(int type, int ent, const vec3_t start, const vec3_t end, float *distance)
+{
+	frame_t *frame;
+	vec3_t segment, target_origin, delta;
+
+	if (!cl.teamfortress || type != 1 || !cl.validsequence || ent < 1 || ent > MAX_CLIENTS || ent == cl.viewplayernum + 1) {
+		return false;
+	}
+	if (!cl.players[ent - 1].name[0] || cl.players[ent - 1].spectator) {
+		return false;
+	}
+
+	// TF2003 sends scanner beams only to their owner. The endpoint is exactly
+	// one fifth of the way from the scanner to the detected player.
+	VectorSubtract(start, cl.simorg, delta);
+	if (VectorLength(delta) > 192) {
+		return false;
+	}
+
+	VectorSubtract(end, start, segment);
+	*distance = VectorLength(segment) * 5.0f;
+	if (*distance < 1.0f) {
+		return false;
+	}
+
+	VectorMA(start, 5.0f, segment, target_origin);
+	frame = &cl.frames[cl.validsequence & UPDATE_MASK];
+	VectorSubtract(target_origin, frame->playerstate[ent - 1].origin, delta);
+
+	// Allow for prediction and a stale player frame while keeping ordinary
+	// short-range lightning impacts out of the scanner path.
+	return VectorLength(delta) <= 192;
+}
+
 static void CL_ParseBeam(int type, vec3_t end)
 {
 	int ent, i;
 	vec3_t start;
 	beam_t *b;
 	struct model_s *m;
+	qbool tf_scanner;
+	float tf_scanner_distance = 0;
 
 	ent = MSG_ReadShort();
 
@@ -281,6 +322,8 @@ static void CL_ParseBeam(int type, vec3_t end)
 		playerbeam_update = true;
 	}
 
+	tf_scanner = CL_IsTFScannerBeam(type, ent, start, end, &tf_scanner_distance);
+
 	// Override any beam with the same entity.
 	for (i = 0, b = cl_beams; i < MAX_BEAMS; i++, b++) 
 	{
@@ -290,6 +333,9 @@ static void CL_ParseBeam(int type, vec3_t end)
 			b->endtime = cl.time + 0.2;
 			VectorCopy(start, b->start);
 			VectorCopy(end, b->end);
+			b->tf_scanner = tf_scanner;
+			b->tf_scanner_target = tf_scanner ? ent - 1 : -1;
+			b->tf_scanner_distance = tf_scanner_distance;
 			return;
 		}
 	}
@@ -304,6 +350,9 @@ static void CL_ParseBeam(int type, vec3_t end)
 			b->endtime = cl.time + 0.2;
 			VectorCopy(start, b->start);
 			VectorCopy(end, b->end);
+			b->tf_scanner = tf_scanner;
+			b->tf_scanner_target = tf_scanner ? ent - 1 : -1;
+			b->tf_scanner_distance = tf_scanner_distance;
 			return;
 		}
 	}
@@ -750,6 +799,118 @@ static float fakeshaft_policy (void)
 	}
 }
 
+static qbool CL_ScannerTargetsSameTeam(int target1, int target2)
+{
+	player_info_t *player1 = &cl.players[target1];
+	player_info_t *player2 = &cl.players[target2];
+
+	if (player1->team[0] && player2->team[0]) {
+		return !strcasecmp(player1->team, player2->team);
+	}
+	if (player1->team_no > 0 && player2->team_no > 0) {
+		return player1->team_no == player2->team_no;
+	}
+	if (player1->known_team_color && player2->known_team_color) {
+		return player1->known_team_color == player2->known_team_color;
+	}
+
+	// Two-team fallback when the mod has not supplied team names yet.
+	return player1->teammate == player2->teammate;
+}
+
+static qbool CL_ScannerBeamWithinLimit(int beam_index, int limit)
+{
+	beam_t *candidate = &cl_beams[beam_index];
+	int i;
+	int closer = 0;
+
+	for (i = 0; i < MAX_BEAMS; ++i) {
+		beam_t *other = &cl_beams[i];
+
+		if (i == beam_index || !other->model || other->endtime < cl.time || !other->tf_scanner) {
+			continue;
+		}
+		if (!CL_ScannerTargetsSameTeam(candidate->tf_scanner_target, other->tf_scanner_target)) {
+			continue;
+		}
+		if (other->tf_scanner_distance < candidate->tf_scanner_distance ||
+			(other->tf_scanner_distance == candidate->tf_scanner_distance && i < beam_index)) {
+			++closer;
+		}
+	}
+
+	return closer < limit;
+}
+
+static int CL_ScannerTargetTeam(int target)
+{
+	player_info_t *player = &cl.players[target];
+	int team = player->team_no;
+	int own_team;
+
+	if (team <= 0) {
+		switch (player->known_team_color) {
+			case 13: team = 1; break; // blue
+			case 4:  team = 2; break; // red
+			case 12: team = 3; break; // yellow
+			case 11: team = 4; break; // green
+			default: break;
+		}
+	}
+	if (team <= 0 && player->team[0]) {
+		if (!strcasecmp(player->team, "blue")) {
+			team = 1;
+		}
+		else if (!strcasecmp(player->team, "red")) {
+			team = 2;
+		}
+		else if (!strcasecmp(player->team, "yellow")) {
+			team = 3;
+		}
+		else if (!strcasecmp(player->team, "green")) {
+			team = 4;
+		}
+	}
+	if (team <= 0 && cl.viewplayernum >= 0 && cl.viewplayernum < MAX_CLIENTS && target != cl.viewplayernum) {
+		own_team = CL_ScannerTargetTeam(cl.viewplayernum);
+		if (player->teammate) {
+			team = own_team;
+		}
+		else if (own_team == 1) {
+			team = 2;
+		}
+		else if (own_team == 2) {
+			team = 1;
+		}
+	}
+
+	return team;
+}
+
+static void CL_ScannerBeamColor(int target, byte color[4])
+{
+	int team = CL_ScannerTargetTeam(target);
+
+	switch (team) {
+		case 1:
+			color[0] = 70; color[1] = 130; color[2] = 255;
+			break;
+		case 2:
+			color[0] = 255; color[1] = 70; color[2] = 55;
+			break;
+		case 3:
+			color[0] = 255; color[1] = 210; color[2] = 55;
+			break;
+		case 4:
+			color[0] = 70; color[1] = 220; color[2] = 90;
+			break;
+		default:
+			color[0] = 190; color[1] = 190; color[2] = 190;
+			break;
+	}
+	color[3] = 179;
+}
+
 static void CL_UpdateBeams(void)
 {
 	int i;
@@ -759,11 +920,13 @@ static void CL_UpdateBeams(void)
 	float d, yaw, pitch, forward, fakeshaft;
 	extern cvar_t v_viewheight;
 
-	float lg_size = bound(3, amf_lightning_size.value, 30);
+	float lg_size = bound(1, amf_lightning_size.value, 30);
 	int beamstodraw, j, k;
 	qbool sparks = false;
 	vec3_t beamstart[MAX_LIGHTNINGBEAMS], beamend[MAX_LIGHTNINGBEAMS];
 	vec3_t furthest_sparks;
+	byte scanner_color[4];
+	int scanner_limit = bound(0, new_scanmode.integer, 3);
 	beamstodraw = bound(1, amf_lightning.value, MAX_LIGHTNINGBEAMS);	
 
 	memset (&ent, 0, sizeof(entity_t));
@@ -780,6 +943,17 @@ static void CL_UpdateBeams(void)
 		}
 		if (b->entity >= 1 && b->entity <= MAX_CLIENTS && cl.intermission) {
 			continue;
+		}
+
+		if (b->tf_scanner && scanner_limit) {
+			if (!CL_ScannerBeamWithinLimit(i, scanner_limit)) {
+				continue;
+			}
+			if (qmb_initialized) {
+				CL_ScannerBeamColor(b->tf_scanner_target, scanner_color);
+				VX_ScannerBeam(b->start, b->end, scanner_color, bound(1, amf_lightning_size.value, 30));
+				continue;
+			}
 		}
 
 		// if coming from the player, update the start position
@@ -959,4 +1133,3 @@ void CL_UpdateTEnts (void)
 	CL_UpdateBeams();
 	CL_UpdateExplosions();
 }
-

@@ -599,6 +599,14 @@ void VX_LightningBeam(vec3_t start, vec3_t end)
 	AddParticle(p_lightningbeam, start, 1, 100, cls.frametime ? cls.frametime * 2 : 0.013, amf_lightning_color.color, end);
 }
 
+void VX_ScannerBeam(vec3_t start, vec3_t end, byte color[4], float width)
+{
+	// Beam particles divide their size by gl_particle_trail_width. Compensate
+	// here so gl_lightning_size represents the scanner's visible world width.
+	AddParticle(p_lightningbeam, start, 1, width * max(0.1f, amf_part_trailwidth.value),
+		cls.frametime ? cls.frametime * 2 : 0.013, color, end);
+}
+
 //VULT PARTICLES
 //Effect for when someone dies
 void VX_DeathEffect(vec3_t org)

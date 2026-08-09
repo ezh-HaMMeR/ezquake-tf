@@ -169,6 +169,7 @@ void ParticleTorchFire(entity_t* ent);
 void VX_TeslaCharge(vec3_t org);
 
 void VX_LightningBeam(vec3_t start, vec3_t end);
+void VX_ScannerBeam(vec3_t start, vec3_t end, byte color[4], float width);
 void VX_DeathEffect(vec3_t org);
 void VX_GibEffect(vec3_t org);
 void VX_DetpackExplosion(vec3_t org);

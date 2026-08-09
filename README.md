@@ -68,6 +68,26 @@ bind Shift+MOUSE3 "+zoom"
 Combination bindings are preserved by `cfg_save`, listed by `bindlist`, and
 removed with the usual `unbind Ctrl+c` syntax.
 
+## TF Scout scanner beams
+
+`new_scanmode` enables thin, team-colored Scout scanner beams without changing
+the server-controlled scan distance. The value is the maximum number of
+nearest detected players shown for each team:
+
+```text
+new_scanmode 0 // original scanner rendering (default)
+new_scanmode 1 // nearest player from each team
+new_scanmode 2 // two nearest players from each team
+new_scanmode 3 // three nearest players from each team
+gl_lightning_size 1 // scanner beam width
+```
+
+Blue targets use a blue beam and red targets use a red beam. Yellow and green
+are also supported for four-team games. The setting changes only targets that
+the TF2003 server already reported through the Scout scanner; target selection
+and scan range remain server-controlled. Regular Lightning Gun beams retain
+their existing rendering and color settings.
+
 Homepage: [https://ezquake.com][homepage]
 
 Community discord: [http://discord.quake.world][discord]
