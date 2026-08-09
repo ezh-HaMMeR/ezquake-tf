@@ -129,7 +129,7 @@ extern  int         host_screenupdatecount;
 
 // scr_teaminfo
 
-#define TEAMINFO_SHOWSELF() ((scr_teaminfo.integer == 1) && (scr_teaminfo_show_self.integer >= 1 && cls.mvdplayback))
+#define TEAMINFO_SHOWSELF() (scr_teaminfo_show_self.integer >= 1 && cls.mvdplayback)
 #define TEAMINFO_NICKLEN 5
 #define FONTWIDTH (8)
 

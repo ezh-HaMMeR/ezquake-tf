@@ -61,7 +61,8 @@ static cvar_t scr_teaminfo_show_countdown  = { "scr_teaminfo_show_countdown","1"
 static cvar_t scr_teaminfo_show_enemies    = { "scr_teaminfo_show_enemies","0" };
 static cvar_t scr_teaminfo_show_self       = { "scr_teaminfo_show_self",   "2" };
 static cvar_t scr_teaminfo_proportional    = { "scr_teaminfo_proportional", "0"};
-cvar_t scr_teaminfo                        = { "scr_teaminfo",             "1" };   // non-static for menu
+static cvar_t show_teammates_status        = { "show_teammates_status",    "0" };
+cvar_t scr_teaminfo                        = { "scr_teaminfo",             "0" };   // legacy name, non-static for menu
 
 static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int maxname, int maxloc, qbool width_only, float scale, const char* layout, int weapon_style, float weapon_icon_scale, int show_ammo, int show_countdown, int armor_style, int powerup_style, int flag_style, int low_health, qbool proportional);
 
@@ -694,21 +695,14 @@ void SCR_ClearTeamInfo(void)
 
 void SCR_Draw_TeamInfo(void)
 {
-	extern cvar_t scr_newHud;
-	hud_t *teammates_hud = HUD_Find("teammates");
 	int x, y, w, h;
 	int i, j, slots[MAX_CLIENTS], slots_num, maxname, maxloc;
 	char tmp[1024], *nick;
 
 	float	scale = bound(0.1, scr_teaminfo_scale.value, 10);
 
-	if (!cl.teamplay || !scr_teaminfo.integer) {
+	if (!cl.teamplay || (!show_teammates_status.integer && !scr_teaminfo.integer)) {
 		// non teamplay mode
-		return;
-	}
-
-	// Avoid drawing the legacy overlay when its new-HUD replacement is enabled.
-	if (scr_newHud.integer && teammates_hud && teammates_hud->show && teammates_hud->show->integer) {
 		return;
 	}
 
@@ -936,6 +930,7 @@ void TeamInfo_HudInit(void)
 	Cvar_Register(&scr_teaminfo_show_enemies);
 	Cvar_Register(&scr_teaminfo_show_self);
 	Cvar_Register(&scr_teaminfo_proportional);
+	Cvar_Register(&show_teammates_status);
 	Cvar_Register(&scr_teaminfo);
 
 	HUD_Register(

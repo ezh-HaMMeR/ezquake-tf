@@ -33,8 +33,17 @@ hud_teammates_show_ammo 1
 `hud_teammates_weapon_style 0` uses weapon icons; value `1` switches to the
 classic letter abbreviations. `hud_teammates_weapon_icon_scale` controls only
 the icon size. When `hud_teammates_grow_up` is enabled, additional teammates
-are added above the existing rows. The legacy `scr_teaminfo` overlay is
-automatically suppressed while this HUD element is enabled.
+are added above the existing rows.
+
+The original right-side team-status panel is hidden by default and is
+independent from the new HUD element. Enable it explicitly with:
+
+```text
+show_teammates_status 1
+```
+
+The legacy `scr_teaminfo 1` setting remains supported for configurations shared
+with an unmodified ezQuake client. Either setting enables the original panel.
 
 The game server/mod must send `//tinfo` only to eligible teammates; the client
 does not infer other players' private health or inventory from network traffic.
