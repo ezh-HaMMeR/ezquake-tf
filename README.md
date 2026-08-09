@@ -5,6 +5,29 @@ This repository is the ezquake-tf client, based on
 
 Tagged GitHub releases provide Windows and Linux clients. Every client archive
 also includes the complete `qw` directory with ezquake-tf custom assets.
+
+## TF teammate status HUD
+
+The `teammates` HUD element displays live status received from a compatible
+teamplay server. It accepts the existing ezQuake `//tinfo` protocol, never
+offers enemy display, and hides the local player by default.
+
+```text
+hud_teammates_show 1
+hud_teammates_place screen
+hud_teammates_align_x right
+hud_teammates_align_y center
+hud_teammates_layout "%p%n $x10%l$x11 %a/%H %w"
+```
+
+The game server/mod must send `//tinfo` only to eligible teammates; the client
+does not infer other players' private health or inventory from network traffic.
+The supported payload is:
+
+```text
+//tinfo <0-based-client> <x> <y> <z> <health> <armor> <items> <nick> <shells> <nails> <rockets> <cells>
+```
+
 Homepage: [https://ezquake.com][homepage]
 
 Community discord: [http://discord.quake.world][discord]
