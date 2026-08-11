@@ -603,16 +603,19 @@ void VX_ScannerBeam(vec3_t start, vec3_t end, byte color[4], float width)
 {
 	vec3_t segment_start, segment_end, segment_step;
 	int segment;
-	const int segment_count = 5;
+	int segment_count;
+	const float max_segment_length = 128.0f;
+	const int max_segment_count = 64;
 	float particle_width = width * max(0.1f, amf_part_trailwidth.value);
 	float particle_lifetime = cls.frametime ? cls.frametime * 2 : 0.013;
 
 	// Beam particles divide their size by gl_particle_trail_width. Compensate
 	// here so gl_lightning_size represents the scanner's visible world width.
-	// TF2003 sends the legacy Scanner endpoint at one fifth of the distance to
-	// the target. Repeating five pieces preserves that original texture scale
-	// while the client-side beam still reaches the target's exact center.
+	// Keep the lightning texture at a stable world scale instead of stretching
+	// a fixed number of copies over long scan100 beams. The safety cap is above
+	// the count needed for TF2003's maximum Scanner range.
 	VectorSubtract(end, start, segment_step);
+	segment_count = bound(1, (int)ceil(VectorLength(segment_step) / max_segment_length), max_segment_count);
 	VectorScale(segment_step, 1.0f / segment_count, segment_step);
 	VectorCopy(start, segment_start);
 
