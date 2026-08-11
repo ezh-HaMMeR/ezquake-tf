@@ -601,10 +601,33 @@ void VX_LightningBeam(vec3_t start, vec3_t end)
 
 void VX_ScannerBeam(vec3_t start, vec3_t end, byte color[4], float width)
 {
+	vec3_t segment_start, segment_end, segment_step;
+	int segment;
+	const int segment_count = 5;
+	float particle_width = width * max(0.1f, amf_part_trailwidth.value);
+	float particle_lifetime = cls.frametime ? cls.frametime * 2 : 0.013;
+
 	// Beam particles divide their size by gl_particle_trail_width. Compensate
 	// here so gl_lightning_size represents the scanner's visible world width.
-	AddParticle(p_lightningbeam, start, 1, width * max(0.1f, amf_part_trailwidth.value),
-		cls.frametime ? cls.frametime * 2 : 0.013, color, end);
+	// TF2003 sends the legacy Scanner endpoint at one fifth of the distance to
+	// the target. Repeating five pieces preserves that original texture scale
+	// while the client-side beam still reaches the target's exact center.
+	VectorSubtract(end, start, segment_step);
+	VectorScale(segment_step, 1.0f / segment_count, segment_step);
+	VectorCopy(start, segment_start);
+
+	for (segment = 0; segment < segment_count; ++segment) {
+		if (segment == segment_count - 1) {
+			VectorCopy(end, segment_end);
+		}
+		else {
+			VectorAdd(segment_start, segment_step, segment_end);
+		}
+
+		AddParticle(p_lightningbeam, segment_start, 1, particle_width,
+			particle_lifetime, color, segment_end);
+		VectorCopy(segment_end, segment_start);
+	}
 }
 
 //VULT PARTICLES
