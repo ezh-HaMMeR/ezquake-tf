@@ -158,12 +158,19 @@ void CL_FreeExplosion(explosion_t *ex)
 	cl_free_explosions = ex;
 }
 
-static qbool CL_IsTFScannerBeam(int type, int ent, const vec3_t start, const vec3_t end, float *distance)
+static qbool CL_IsTFScannerBeam(int type, int ent, const vec3_t start, const vec3_t end,
+	float *distance, vec3_t full_end)
 {
 	frame_t *frame;
+	player_state_t *target_state;
+	model_t *player_model = NULL;
 	vec3_t segment, target_origin, delta;
+	int axis;
 
-	if (!cl.teamfortress || type != 1 || !cl.validsequence || ent < 1 || ent > MAX_CLIENTS || ent == cl.viewplayernum + 1) {
+	if (!new_scanmode.integer || !cl.teamfortress || type != 1 || !cl.validsequence ||
+		ent < 1 || ent > MAX_CLIENTS || ent == cl.viewplayernum + 1 ||
+		cl.viewplayernum < 0 || cl.viewplayernum >= MAX_CLIENTS ||
+		cl.players[cl.viewplayernum].playerclass != PC_SCOUT) {
 		return false;
 	}
 	if (!cl.players[ent - 1].name[0] || cl.players[ent - 1].spectator) {
@@ -184,12 +191,37 @@ static qbool CL_IsTFScannerBeam(int type, int ent, const vec3_t start, const vec
 	}
 
 	VectorMA(start, 5.0f, segment, target_origin);
-	frame = &cl.frames[cl.validsequence & UPDATE_MASK];
-	VectorSubtract(target_origin, frame->playerstate[ent - 1].origin, delta);
+	frame = &cl.frames[cl.parsecount & UPDATE_MASK];
+	target_state = &frame->playerstate[ent - 1];
 
-	// Allow for prediction and a stale player frame while keeping ordinary
-	// short-range lightning impacts out of the scanner path.
-	return VectorLength(delta) <= 192;
+	// A player behind a wall can have no current playerinfo immediately after
+	// respawning. Only validate against playerstate when this packet actually
+	// updated it; otherwise the Scanner message is the freshest position.
+	if (target_state->messagenum == cl.parsecount) {
+		VectorSubtract(target_origin, target_state->origin, delta);
+		if (VectorLength(delta) > 192) {
+			return false;
+		}
+	}
+
+	// The protocol reconstruction yields target origin + 8. Convert it to the
+	// visual center used by the live-position path, retaining this as a full-
+	// distance fallback whenever the target is outside the current PVS.
+	VectorCopy(target_origin, full_end);
+	full_end[2] -= 8;
+	if (cl_modelindices[mi_player] > 0 && cl_modelindices[mi_player] < MAX_MODELS) {
+		player_model = cl.model_precache[cl_modelindices[mi_player]];
+	}
+	if (player_model) {
+		for (axis = 0; axis < 3; ++axis) {
+			full_end[axis] += 0.5f * (player_model->mins[axis] + player_model->maxs[axis]);
+		}
+	}
+	else {
+		full_end[2] += 4;
+	}
+
+	return true;
 }
 
 static void CL_ParseBeam(int type, vec3_t end)
@@ -200,6 +232,7 @@ static void CL_ParseBeam(int type, vec3_t end)
 	struct model_s *m;
 	qbool tf_scanner;
 	float tf_scanner_distance = 0;
+	vec3_t tf_scanner_end;
 
 	ent = MSG_ReadShort();
 
@@ -327,7 +360,7 @@ static void CL_ParseBeam(int type, vec3_t end)
 		playerbeam_update = true;
 	}
 
-	tf_scanner = CL_IsTFScannerBeam(type, ent, start, end, &tf_scanner_distance);
+	tf_scanner = CL_IsTFScannerBeam(type, ent, start, end, &tf_scanner_distance, tf_scanner_end);
 
 	// Override any beam with the same entity.
 	for (i = 0, b = cl_beams; i < MAX_BEAMS; i++, b++) 
@@ -337,7 +370,12 @@ static void CL_ParseBeam(int type, vec3_t end)
 			b->model = m;
 			b->endtime = cl.time + 0.2;
 			VectorCopy(start, b->start);
-			VectorCopy(end, b->end);
+			if (tf_scanner) {
+				VectorCopy(tf_scanner_end, b->end);
+			}
+			else {
+				VectorCopy(end, b->end);
+			}
 			b->tf_scanner = tf_scanner;
 			b->tf_scanner_target = tf_scanner ? ent - 1 : -1;
 			b->tf_scanner_distance = tf_scanner_distance;
@@ -354,7 +392,12 @@ static void CL_ParseBeam(int type, vec3_t end)
 			b->model = m;
 			b->endtime = cl.time + 0.2;
 			VectorCopy(start, b->start);
-			VectorCopy(end, b->end);
+			if (tf_scanner) {
+				VectorCopy(tf_scanner_end, b->end);
+			}
+			else {
+				VectorCopy(end, b->end);
+			}
 			b->tf_scanner = tf_scanner;
 			b->tf_scanner_target = tf_scanner ? ent - 1 : -1;
 			b->tf_scanner_distance = tf_scanner_distance;
@@ -921,6 +964,7 @@ static qbool CL_ScannerPlayerCenter(int player, vec3_t center)
 	frame_t *frame;
 	player_state_t *state;
 	model_t *model = NULL;
+	vec3_t drawn_origin;
 	int axis;
 
 	if (player < 0 || player >= MAX_CLIENTS) {
@@ -935,7 +979,10 @@ static qbool CL_ScannerPlayerCenter(int player, vec3_t center)
 	if (player == cl.viewplayernum && !cl.spectator) {
 		VectorCopy(cl.simorg, center);
 	}
-	else if (!CL_DrawnPlayerPosition(player, center, NULL)) {
+	else if (CL_DrawnPlayerPosition(player, drawn_origin, NULL)) {
+		VectorCopy(drawn_origin, center);
+	}
+	else {
 		if (state->messagenum != cl.parsecount) {
 			return false;
 		}
