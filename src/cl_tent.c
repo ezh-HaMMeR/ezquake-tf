@@ -916,6 +916,71 @@ static void CL_ScannerBeamColor(int target, byte color[4])
 	color[3] = 179;
 }
 
+static qbool CL_ScannerPlayerCenter(int player, vec3_t center)
+{
+	frame_t *frame;
+	player_state_t *state;
+	model_t *model = NULL;
+	int axis;
+
+	if (player < 0 || player >= MAX_CLIENTS) {
+		return false;
+	}
+
+	frame = &cl.frames[cl.parsecount & UPDATE_MASK];
+	state = &frame->playerstate[player];
+
+	// The local server origin can lag behind prediction.  Keep the Scanner
+	// attached to the position at which the local player is actually rendered.
+	if (player == cl.viewplayernum && !cl.spectator) {
+		VectorCopy(cl.simorg, center);
+	}
+	else if (!CL_DrawnPlayerPosition(player, center, NULL)) {
+		if (state->messagenum != cl.parsecount) {
+			return false;
+		}
+		VectorCopy(state->origin, center);
+	}
+
+	if (state->modelindex > 0 && state->modelindex < MAX_MODELS) {
+		model = cl.model_precache[state->modelindex];
+	}
+	if (!model && cl_modelindices[mi_player] > 0 && cl_modelindices[mi_player] < MAX_MODELS) {
+		model = cl.model_precache[cl_modelindices[mi_player]];
+	}
+
+	// Model bounds provide the actual visual midpoint rather than relying on
+	// the protocol's legacy origin + 8 approximation.
+	if (model) {
+		for (axis = 0; axis < 3; ++axis) {
+			center[axis] += 0.5f * (model->mins[axis] + model->maxs[axis]);
+		}
+	}
+
+	return true;
+}
+
+static void CL_UpdateScannerBeamEndpoints(void)
+{
+	int i;
+
+	for (i = 0; i < MAX_BEAMS; ++i) {
+		beam_t *beam = &cl_beams[i];
+		vec3_t delta;
+
+		if (!beam->model || beam->endtime < cl.time || !beam->tf_scanner) {
+			continue;
+		}
+		if (!CL_ScannerPlayerCenter(cl.viewplayernum, beam->start) ||
+			!CL_ScannerPlayerCenter(beam->tf_scanner_target, beam->end)) {
+			continue;
+		}
+
+		VectorSubtract(beam->end, beam->start, delta);
+		beam->tf_scanner_distance = VectorLength(delta);
+	}
+}
+
 static void CL_EnsureTFScannerFriendly(void)
 {
 	cmd_alias_t *alias;
@@ -967,6 +1032,9 @@ static void CL_UpdateBeams(void)
 	int scanner_limit = bound(0, new_scanmode.integer, 3);
 	beamstodraw = bound(1, amf_lightning.value, MAX_LIGHTNINGBEAMS);	
 	CL_EnsureTFScannerFriendly();
+	if (scanner_limit) {
+		CL_UpdateScannerBeamEndpoints();
+	}
 
 	memset (&ent, 0, sizeof(entity_t));
 	ent.colormap = vid.colormap;
