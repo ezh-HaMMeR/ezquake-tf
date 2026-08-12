@@ -57,6 +57,13 @@ function(git_extract_version target_var)
         )
 
         execute_process(
+                COMMAND ${GIT_EXECUTABLE} show -s --format=%cI HEAD
+                OUTPUT_VARIABLE GIT_COMMIT_DATETIME
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        )
+
+        execute_process(
                 COMMAND ${GIT_EXECUTABLE} describe --tags --always
                 OUTPUT_VARIABLE GIT_DESCRIBE
                 RESULT_VARIABLE GIT_DESCRIBE_RESULT
@@ -69,6 +76,7 @@ function(git_extract_version target_var)
         string(JSON GIT_DESCRIBE GET "${VERSION_CONTENT}" "version")
         string(JSON GIT_REVISION GET "${VERSION_CONTENT}" "revision")
         string(JSON GIT_COMMIT_HASH GET "${VERSION_CONTENT}" "commit")
+        string(JSON GIT_COMMIT_DATETIME GET "${VERSION_CONTENT}" "date")
     endif()
 
     if (NOT GIT_DESCRIBE)
@@ -83,12 +91,17 @@ function(git_extract_version target_var)
         set(GIT_COMMIT_HASH "0000000000000000000000000000000000000000")
     endif()
 
+    if (NOT GIT_COMMIT_DATETIME)
+        set(GIT_COMMIT_DATETIME "unknown")
+    endif()
+
     string(SUBSTRING ${GIT_COMMIT_HASH} 0 9 GIT_COMMIT_SHORT_HASH)
 
     add_library(${target_var} INTERFACE)
     target_compile_definitions(${target_var} INTERFACE
             REVISION=${GIT_REVISION}
             VERSION="${GIT_REVISION}~${GIT_COMMIT_SHORT_HASH}"
+            GIT_COMMIT_DATETIME="${GIT_COMMIT_DATETIME}"
     )
 
     set(VERSION_MAJOR 0)
@@ -107,6 +120,7 @@ function(git_extract_version target_var)
             REVISION      "${GIT_REVISION}"
             VERSION       "${GIT_REVISION}~${GIT_COMMIT_SHORT_HASH}"
             COMMIT        "${GIT_COMMIT_HASH}"
+            DATE          "${GIT_COMMIT_DATETIME}"
             GIT_DESCRIBE  "${GIT_DESCRIBE}"
             VERSION_MAJOR "${VERSION_MAJOR}"
             VERSION_MINOR "${VERSION_MINOR}"

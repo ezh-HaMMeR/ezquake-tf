@@ -7,9 +7,30 @@ workflow is a fallback, not the default release path.
 Every Windows and Linux package must include the complete repository `qw`
 directory and a SHA-256 sidecar.
 
+## Release metadata
+
+Before every release executable build:
+
+1. Update `EZQUAKE_TF_RELEASE_VERSION` in `src/version.h`.
+2. Commit all changes that belong to the release.
+3. Run the CMake configure preset again so the build receives the exact date
+   and time of the current `HEAD` commit.
+4. Build the executable and check that `/version` starts with these three
+   lines:
+
+```text
+ezquake-tf <release tag>
+Last commit: <HEAD commit date and time>
+Discord: http://dc.qwtf.net
+```
+
+The second line is generated from `git show -s --format=%cI HEAD`; it must not
+be replaced by the executable compilation time.
+
 ## Windows x64
 
 ```powershell
+cmake --preset msbuild-x64
 cmake --build --preset msbuild-x64-release
 $package = "ezquake-tf-windows-x64"
 New-Item -ItemType Directory -Path $package | Out-Null

@@ -81,6 +81,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define VERSION_NUMBER "3.6.6-dev"
 #define VERSION_MAX_LEN 32
 
+// ezquake-tf release metadata shown by the /version command.
+#define EZQUAKE_TF_RELEASE_VERSION "v2026.08.12"
+#define EZQUAKE_TF_DISCORD_URL "http://dc.qwtf.net"
+
+#ifndef GIT_COMMIT_DATETIME
+#define GIT_COMMIT_DATETIME "unknown"
+#endif
+
 void CL_Version_f(void);
 char *VersionString(void);
 char *VersionStringColour(void);

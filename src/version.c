@@ -53,8 +53,9 @@ CL_Version_f
 */
 void CL_Version_f (void)
 {
-	Com_Printf ("ezQuake %s\n", VersionString());
-	Com_Printf ("Exe: "__DATE__" "__TIME__"\n");
+	Com_Printf ("ezquake-tf %s\n", EZQUAKE_TF_RELEASE_VERSION);
+	Com_Printf ("Last commit: %s\n", GIT_COMMIT_DATETIME);
+	Com_Printf ("Discord: %s\n", EZQUAKE_TF_DISCORD_URL);
 
 #ifdef _DEBUG
 	Con_Printf("debug build\n");
