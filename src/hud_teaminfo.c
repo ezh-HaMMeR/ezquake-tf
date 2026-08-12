@@ -71,17 +71,40 @@ typedef struct teaminfo_grenade_layout_s {
 	int second_width;
 } teaminfo_grenade_layout_t;
 
-static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int maxname, int maxloc, const teaminfo_grenade_layout_t* grenades, qbool left_align_names, text_alignment_t loc_alignment, qbool width_only, float scale, const char* layout, int weapon_style, float weapon_icon_scale, int show_ammo, int show_countdown, int armor_style, int powerup_style, int flag_style, int low_health, qbool proportional);
+typedef struct teaminfo_block_vars_s {
+	cvar_t *width;
+	cvar_t *align;
+	cvar_t *scale;
+} teaminfo_block_vars_t;
+
+static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int maxname, int maxloc, const teaminfo_grenade_layout_t* grenades, const struct hud_teaminfo_vars_s* render_vars, qbool width_only, float scale, const char* layout, int weapon_style, float weapon_icon_scale, int show_ammo, int show_countdown, int armor_style, int powerup_style, int flag_style, int low_health, qbool proportional);
 
 typedef struct hud_teaminfo_vars_s {
 	cvar_t *weapon_style;
 	cvar_t *weapon_icon_scale;
 	cvar_t *grenade_style;
 	cvar_t *grenade_icon_scale;
+	cvar_t *armor_icon_scale;
+	cvar_t *armor_text_style;
+	cvar_t *powerup_icon_scale;
+	cvar_t *powerup_icon_style;
+	cvar_t *flag_icon_scale;
 	cvar_t *align_right;
 	cvar_t *loc_width;
 	cvar_t *loc_align;
 	cvar_t *name_width;
+	teaminfo_block_vars_t name;
+	teaminfo_block_vars_t location;
+	teaminfo_block_vars_t grenade;
+	teaminfo_block_vars_t weapon;
+	teaminfo_block_vars_t ammo;
+	teaminfo_block_vars_t respawn;
+	teaminfo_block_vars_t health;
+	teaminfo_block_vars_t frags;
+	teaminfo_block_vars_t armor;
+	teaminfo_block_vars_t powerup;
+	teaminfo_block_vars_t trackid;
+	teaminfo_block_vars_t flag;
 	cvar_t *show_ammo;
 	cvar_t *show_countdown;
 	cvar_t *show_enemies;
@@ -111,6 +134,57 @@ static text_alignment_t SCR_TeamInfoTextAlignment(const char* value)
 		default:
 			return text_align_right;
 	}
+}
+
+static void SCR_TeamInfoFindBlockVars(hud_t* hud, teaminfo_block_vars_t* block, const char* prefix)
+{
+	char name[64];
+
+	snprintf(name, sizeof(name), "%s_width", prefix);
+	block->width = HUD_FindVar(hud, name);
+	snprintf(name, sizeof(name), "%s_align", prefix);
+	block->align = HUD_FindVar(hud, name);
+	snprintf(name, sizeof(name), "%s_scale", prefix);
+	block->scale = HUD_FindVar(hud, name);
+}
+
+static float SCR_TeamInfoBlockScale(const teaminfo_block_vars_t* block)
+{
+	return block && block->scale ? max(0.01f, block->scale->value) : 1.0f;
+}
+
+static float SCR_TeamInfoBlockWidth(const teaminfo_block_vars_t* block, float natural_width, float font_width)
+{
+	return block && block->width && block->width->value > 0 ? block->width->value * font_width : natural_width;
+}
+
+static float SCR_TeamInfoAlignedX(float x, float slot_width, float content_width, const teaminfo_block_vars_t* block)
+{
+	text_alignment_t alignment = block && block->align ? SCR_TeamInfoTextAlignment(block->align->string) : text_align_left;
+
+	if (alignment == text_align_center) {
+		return x + (slot_width - content_width) / 2;
+	}
+	if (alignment == text_align_right) {
+		return x + slot_width - content_width;
+	}
+	return x;
+}
+
+static float SCR_TeamInfoDrawTextBlock(float x, int y, const char* text, int natural_chars,
+	const teaminfo_block_vars_t* block, text_alignment_t fallback_alignment,
+	qbool width_only, float scale, float alpha, qbool proportional)
+{
+	float block_scale = SCR_TeamInfoBlockScale(block);
+	float font_width = scale * FONT_WIDTH;
+	float content_width = natural_chars * font_width * block_scale;
+	float slot_width = SCR_TeamInfoBlockWidth(block, content_width, font_width);
+	text_alignment_t alignment = block && block->align ? SCR_TeamInfoTextAlignment(block->align->string) : fallback_alignment;
+
+	if (!width_only && text[0]) {
+		Draw_SStringAligned(x, y, text, scale * block_scale, alpha, proportional, alignment, x + slot_width);
+	}
+	return slot_width;
 }
 
 static const char* SCR_TeamInfoGrenadeCode(const char* code)
@@ -267,8 +341,8 @@ static void SCR_HUD_DrawTeamInfoBase(hud_t *hud, qbool teammates_only)
 	int i, j, k, slots[MAX_CLIENTS], slots_num, maxname, maxloc;
 	char tmp[1024], *nick;
 	float header_spacing;
+	float line_height_base;
 	qbool show_enemies, grow_up;
-	text_alignment_t loc_alignment;
 	teaminfo_grenade_layout_t grenade_layout = { 0 };
 	hud_teaminfo_vars_t *vars = teammates_only ? &hud_teammates_vars : &hud_teaminfo_vars;
 
@@ -283,6 +357,11 @@ static void SCR_HUD_DrawTeamInfoBase(hud_t *hud, qbool teammates_only)
 		vars->weapon_icon_scale = HUD_FindVar(hud, "weapon_icon_scale");
 		vars->grenade_style = teammates_only ? HUD_FindVar(hud, "grenade_style") : NULL;
 		vars->grenade_icon_scale = teammates_only ? HUD_FindVar(hud, "grenade_icon_scale") : NULL;
+		vars->armor_icon_scale = teammates_only ? HUD_FindVar(hud, "armor_icon_scale") : NULL;
+		vars->armor_text_style = teammates_only ? HUD_FindVar(hud, "armor_text_style") : NULL;
+		vars->powerup_icon_scale = teammates_only ? HUD_FindVar(hud, "powerup_icon_scale") : NULL;
+		vars->powerup_icon_style = teammates_only ? HUD_FindVar(hud, "powerup_icon_style") : NULL;
+		vars->flag_icon_scale = teammates_only ? HUD_FindVar(hud, "flag_icon_scale") : NULL;
 		vars->align_right = HUD_FindVar(hud, "align_right");
 		vars->loc_width = HUD_FindVar(hud, "loc_width");
 		vars->loc_align = teammates_only ? HUD_FindVar(hud, "loc_align") : NULL;
@@ -301,11 +380,24 @@ static void SCR_HUD_DrawTeamInfoBase(hud_t *hud, qbool teammates_only)
 		vars->proportional = HUD_FindVar(hud, "proportional");
 		vars->header_spacing = teammates_only ? NULL : HUD_FindVar(hud, "header_spacing");
 		vars->grow_up = teammates_only ? HUD_FindVar(hud, "grow_up") : NULL;
+		if (teammates_only) {
+			SCR_TeamInfoFindBlockVars(hud, &vars->name, "name");
+			SCR_TeamInfoFindBlockVars(hud, &vars->location, "loc");
+			SCR_TeamInfoFindBlockVars(hud, &vars->grenade, "grenade");
+			SCR_TeamInfoFindBlockVars(hud, &vars->weapon, "weapon");
+			SCR_TeamInfoFindBlockVars(hud, &vars->ammo, "ammo");
+			SCR_TeamInfoFindBlockVars(hud, &vars->respawn, "respawn");
+			SCR_TeamInfoFindBlockVars(hud, &vars->health, "health");
+			SCR_TeamInfoFindBlockVars(hud, &vars->frags, "frags");
+			SCR_TeamInfoFindBlockVars(hud, &vars->armor, "armor");
+			SCR_TeamInfoFindBlockVars(hud, &vars->powerup, "powerup");
+			SCR_TeamInfoFindBlockVars(hud, &vars->trackid, "trackid");
+			SCR_TeamInfoFindBlockVars(hud, &vars->flag, "flag");
+		}
 	}
 
 	show_enemies = !teammates_only && vars->show_enemies->integer;
 	grow_up = teammates_only && vars->grow_up->integer;
-	loc_alignment = teammates_only ? SCR_TeamInfoTextAlignment(vars->loc_align->string) : text_align_right;
 	grenade_layout.style = teammates_only ? bound(0, vars->grenade_style->integer, 1) : 0;
 	grenade_layout.icon_scale = teammates_only ? max(0.01f, vars->grenade_icon_scale->value) : 0.12f;
 
@@ -360,8 +452,39 @@ static void SCR_HUD_DrawTeamInfoBase(hud_t *hud, qbool teammates_only)
 	header_spacing = show_enemies ? max(0, vars->header_spacing->value) : 0;
 
 	// this doesn't draw anything, just calculate width
-	width = SCR_HudDrawTeamInfoPlayer(&ti_clients[0], 0, 0, maxname, maxloc, &grenade_layout, teammates_only, loc_alignment, true, vars->scale->value, vars->layout->string, vars->weapon_style->integer, vars->weapon_icon_scale->value, vars->show_ammo->integer, vars->show_countdown->integer, vars->armor_style->integer, vars->powerup_style->integer, vars->flag_style->integer, vars->low_health->integer, vars->proportional->integer);
-	line_height = (int)ceil(max(max(FONTWIDTH, vars->weapon_style->integer == 0 ? 16 * vars->weapon_icon_scale->value : FONTWIDTH), grenade_layout.style ? 100 * grenade_layout.icon_scale : FONTWIDTH) * vars->scale->value);
+	width = SCR_HudDrawTeamInfoPlayer(&ti_clients[0], 0, 0, maxname, maxloc, &grenade_layout, teammates_only ? vars : NULL, true, vars->scale->value, vars->layout->string, vars->weapon_style->integer, vars->weapon_icon_scale->value, vars->show_ammo->integer, vars->show_countdown->integer, vars->armor_style->integer, vars->powerup_style->integer, vars->flag_style->integer, vars->low_health->integer, vars->proportional->integer);
+	line_height_base = FONTWIDTH;
+	if (teammates_only) {
+		line_height_base = max(line_height_base, FONTWIDTH * SCR_TeamInfoBlockScale(&vars->name));
+		line_height_base = max(line_height_base, FONTWIDTH * SCR_TeamInfoBlockScale(&vars->location));
+		line_height_base = max(line_height_base, FONTWIDTH * SCR_TeamInfoBlockScale(&vars->grenade));
+		line_height_base = max(line_height_base, FONTWIDTH * SCR_TeamInfoBlockScale(&vars->weapon));
+		line_height_base = max(line_height_base, FONTWIDTH * SCR_TeamInfoBlockScale(&vars->ammo));
+		line_height_base = max(line_height_base, FONTWIDTH * SCR_TeamInfoBlockScale(&vars->respawn));
+		line_height_base = max(line_height_base, FONTWIDTH * SCR_TeamInfoBlockScale(&vars->health));
+		line_height_base = max(line_height_base, FONTWIDTH * SCR_TeamInfoBlockScale(&vars->frags));
+		line_height_base = max(line_height_base, FONTWIDTH * SCR_TeamInfoBlockScale(&vars->armor));
+		line_height_base = max(line_height_base, FONTWIDTH * SCR_TeamInfoBlockScale(&vars->powerup));
+		line_height_base = max(line_height_base, FONTWIDTH * SCR_TeamInfoBlockScale(&vars->trackid));
+		line_height_base = max(line_height_base, FONTWIDTH * SCR_TeamInfoBlockScale(&vars->flag));
+		if (vars->weapon_style->integer == 1) {
+			line_height_base = max(line_height_base, 16 * vars->weapon_icon_scale->value * SCR_TeamInfoBlockScale(&vars->weapon));
+		}
+		if (grenade_layout.style == 1) {
+			line_height_base = max(line_height_base, 100 * grenade_layout.icon_scale * SCR_TeamInfoBlockScale(&vars->grenade));
+		}
+		if (vars->armor_style->integer == 1) {
+			line_height_base = max(line_height_base, 24 * vars->armor_icon_scale->value * SCR_TeamInfoBlockScale(&vars->armor));
+		}
+		if (vars->powerup_style->integer == 1) {
+			line_height_base = max(line_height_base,
+				(vars->powerup_icon_style->integer == 1 ? 24.0f / 3 : 24 * vars->powerup_icon_scale->value) * SCR_TeamInfoBlockScale(&vars->powerup));
+		}
+		if (vars->flag_style->integer == 1) {
+			line_height_base = max(line_height_base, 16 * vars->flag_icon_scale->value * SCR_TeamInfoBlockScale(&vars->flag));
+		}
+	}
+	line_height = (int)ceil(line_height_base * vars->scale->value);
 	height = line_height * (show_enemies && vars->show_headers->integer ? slots_num + max(2 * n_teams - 1, 0) * header_spacing : slots_num);
 
 	if (hud_editor) {
@@ -404,7 +527,7 @@ static void SCR_HUD_DrawTeamInfoBase(hud_t *hud, qbool teammates_only)
 			for (j = 0; j < slots_num; j++) {
 				i = slots[j];
 				if (!strcmp(cl.players[i].team, sorted_teams[k].name)) {
-					SCR_HudDrawTeamInfoPlayer(&ti_clients[i], x, _y, maxname, maxloc, &grenade_layout, teammates_only, loc_alignment, false, vars->scale->value, vars->layout->string, vars->weapon_style->integer, vars->weapon_icon_scale->value, vars->show_ammo->integer, vars->show_countdown->integer, vars->armor_style->integer, vars->powerup_style->integer, vars->flag_style->integer, vars->low_health->integer, vars->proportional->integer);
+					SCR_HudDrawTeamInfoPlayer(&ti_clients[i], x, _y, maxname, maxloc, &grenade_layout, teammates_only ? vars : NULL, false, vars->scale->value, vars->layout->string, vars->weapon_style->integer, vars->weapon_icon_scale->value, vars->show_ammo->integer, vars->show_countdown->integer, vars->armor_style->integer, vars->powerup_style->integer, vars->flag_style->integer, vars->low_health->integer, vars->proportional->integer);
 					_y += line_height;
 				}
 			}
@@ -416,7 +539,7 @@ static void SCR_HUD_DrawTeamInfoBase(hud_t *hud, qbool teammates_only)
 			 grow_up ? j >= 0 : j < slots_num;
 			 j += grow_up ? -1 : 1) {
 			i = slots[j];
-			SCR_HudDrawTeamInfoPlayer(&ti_clients[i], x, _y, maxname, maxloc, &grenade_layout, teammates_only, loc_alignment, false, vars->scale->value, vars->layout->string, vars->weapon_style->integer, vars->weapon_icon_scale->value, vars->show_ammo->integer, vars->show_countdown->integer, vars->armor_style->integer, vars->powerup_style->integer, vars->flag_style->integer, vars->low_health->integer, vars->proportional->integer);
+			SCR_HudDrawTeamInfoPlayer(&ti_clients[i], x, _y, maxname, maxloc, &grenade_layout, teammates_only ? vars : NULL, false, vars->scale->value, vars->layout->string, vars->weapon_style->integer, vars->weapon_icon_scale->value, vars->show_ammo->integer, vars->show_countdown->integer, vars->armor_style->integer, vars->powerup_style->integer, vars->flag_style->integer, vars->low_health->integer, vars->proportional->integer);
 			_y += line_height;
 		}
 	}
@@ -437,12 +560,15 @@ qbool Has_Both_RL_and_LG(int flags)
 	return (flags & IT_ROCKET_LAUNCHER) && (flags & IT_LIGHTNING);
 }
 
-static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int maxname, int maxloc, const teaminfo_grenade_layout_t* grenades, qbool left_align_names, text_alignment_t loc_alignment, qbool width_only, float scale, const char* layout, int weapon_style, float weapon_icon_scale, int show_ammo, int show_countdown, int armor_style, int powerup_style, int flag_style, int low_health, qbool proportional)
+static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int maxname, int maxloc, const teaminfo_grenade_layout_t* grenades, const hud_teaminfo_vars_t* render_vars, qbool width_only, float scale, const char* layout, int weapon_style, float weapon_icon_scale, int show_ammo, int show_countdown, int armor_style, int powerup_style, int flag_style, int low_health, qbool proportional)
 {
 	extern cvar_t tp_name_rlg;
 	char *s, *loc, tmp[1024], tmp2[MAX_MACRO_STRING], locbuf[MAX_MACRO_STRING], *aclr, *txtclr;
 	float x_in = x; // save x
 	int i, a;
+	int normalized_weapon_style;
+	int normalized_armor_style;
+	int normalized_powerup_style;
 	qbool isDeadCA, isRespawning;
 	mpic_t *pic;
 	float width;
@@ -474,6 +600,17 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 		Com_DPrintf("SCR_Draw_TeamInfoPlayer: wrong client %d\n", i);
 		return 0;
 	}
+	normalized_weapon_style = render_vars ? weapon_style : !weapon_style;
+	if (render_vars) {
+		normalized_armor_style = armor_style == 1 ? 1 :
+			(render_vars->armor_text_style->integer == 2 ? 4 : render_vars->armor_text_style->integer == 1 ? 3 : 0);
+		normalized_powerup_style = powerup_style == 1 ?
+			(render_vars->powerup_icon_style->integer == 1 ? 2 : 1) : 3;
+	}
+	else {
+		normalized_armor_style = armor_style;
+		normalized_powerup_style = powerup_style;
+	}
 
 	// this limit len of string because TP_ParseFunChars() do not check overflow
 	strlcpy(tmp2, layout, sizeof(tmp2));
@@ -501,24 +638,34 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 	// parse/draw string like this "%n %h:%a %l %p %w"
 	//
 	for (; *s; s++) {
+		const teaminfo_block_vars_t* block = NULL;
+		float block_scale = 1.0f;
+		float slot_width;
+		float content_width;
+
 		switch ((int)s[0]) {
 			case '%':
 				s++; // advance
 
 				switch ((int)s[0]) {
 					case 'n': // draw name
-						width = maxname * font_width;
+						block = render_vars ? &render_vars->name : NULL;
 						if (!width_only) {
 							char *nick = TP_ParseFunChars(ti_cl->nick[0] ? ti_cl->nick : cl.players[i].shortname, false);
 							snprintf(tmp, sizeof(tmp), "%s%s", txtclr, nick);
-							Draw_SStringAligned(x, y, tmp, scale, alpha, proportional, left_align_names ? text_align_left : text_align_right, x + width);
 						}
+						else {
+							tmp[0] = 0;
+						}
+						width = SCR_TeamInfoDrawTextBlock(x, y, tmp, maxname, block, render_vars ? text_align_left : text_align_right, width_only, scale, alpha, proportional);
 						x += width;
 						break;
 					case 'w': // draw "best" weapon icon/name
 					case 'W': // draw "best" weapon icon/name
-						switch (weapon_style) {
-							case 1:
+						block = render_vars ? &render_vars->weapon : NULL;
+						block_scale = SCR_TeamInfoBlockScale(block);
+						switch (normalized_weapon_style) {
+							case 0: // text
 								if (!width_only) {
 									char *weap_str;
 									if (!ti_cl->has_tf_status && Has_Both_RL_and_LG(ti_cl->items)) {
@@ -530,20 +677,26 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 									char weap_white_stripped[32];
 									Util_SkipChars(weap_str, "{}", weap_white_stripped, 32);
 									snprintf(tmp, sizeof(tmp), "%s%s", txtclr, isDeadCA ? "--" : weap_white_stripped);
-									Draw_SStringAligned(x, y, tmp, scale, alpha, proportional, ((s[0] == 'W' || show_ammo) ? text_align_right : text_align_left), x + 3 * font_width);
 								}
-								x += 3 * font_width;
+								else {
+									tmp[0] = 0;
+								}
+								width = SCR_TeamInfoDrawTextBlock(x, y, tmp, 3, block, (s[0] == 'W' || show_ammo) ? text_align_right : text_align_left, width_only, scale, alpha, proportional);
+								x += width;
 								break;
-							default: // draw image by default
+							default: // icon
+								content_width = max(2 * font_width, 24 * weapon_icon_scale * scale * block_scale);
+								slot_width = SCR_TeamInfoBlockWidth(block, content_width, font_width);
 								if (!width_only) {
 									if (!isDeadCA && (pic = SCR_GetWeaponIconByFlag(SCR_TeamInfoWeaponFlag(ti_cl)))) {
-										Draw_SAlphaPic(x, y, pic, alpha, weapon_icon_scale * scale);
+										Draw_SAlphaPic(SCR_TeamInfoAlignedX(x, slot_width, content_width, block), y, pic, alpha, weapon_icon_scale * scale * block_scale);
 									}
 								}
-								x += max(2 * font_width, 24 * weapon_icon_scale * scale);
+								x += slot_width;
 								break;
 						}
 						if (show_ammo) {
+							block = render_vars ? &render_vars->ammo : NULL;
 							if (!width_only) {
 								if (isDeadCA || !SCR_TeamInfoWeaponHasAmmo(ti_cl)){
 									snprintf(tmp, sizeof(tmp), "%s", txtclr);
@@ -552,22 +705,27 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 									snprintf(tmp, sizeof(tmp), "%s:%d", txtclr, a);
 								}
 								
-								Draw_SStringAligned(x, y, tmp, scale, alpha, proportional, text_align_left, x + 4 * font_width);
-								
 							}
-							x += 4 * font_width;
+							else {
+								tmp[0] = 0;
+							}
+							x += SCR_TeamInfoDrawTextBlock(x, y, tmp, 4, block, text_align_left, width_only, scale, alpha, proportional);
 						}
 						break;
 					case 'k': // draw ammo
 					case 'K': // draw ammo
+						block = render_vars ? &render_vars->ammo : NULL;
 						if (!width_only) {
 							snprintf(tmp, sizeof(tmp), "%s%d", txtclr, a);
-							Draw_SStringAligned(x, y, tmp, scale, alpha, proportional, (s[0] == 'C' ? text_align_right : text_align_left), x + 3 * font_width);
 						}
-						x += 3 * font_width;
+						else {
+							tmp[0] = 0;
+						}
+						x += SCR_TeamInfoDrawTextBlock(x, y, tmp, 3, block, s[0] == 'k' ? text_align_right : text_align_left, width_only, scale, alpha, proportional);
 						break;
 					case 'r': // draw respawn time
 					case 'R': // draw respawn time
+						block = render_vars ? &render_vars->respawn : NULL;
 						if (!width_only) {
 							if (isRespawning)
 							{
@@ -577,12 +735,15 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 							{
 								snprintf(tmp, sizeof(tmp), "%s", " ");
 							}
-							Draw_SStringAligned(x, y, tmp, scale * 0.75, 1.0, proportional, (s[0] == 'r' ? text_align_right : text_align_left), x + 2 * font_width);
 						}
-						x += 2 * font_width;
+						else {
+							tmp[0] = 0;
+						}
+						x += SCR_TeamInfoDrawTextBlock(x, y, tmp, 2, block, s[0] == 'r' ? text_align_right : text_align_left, width_only, scale * 0.75f, 1.0f, proportional);
 						break;
 					case 'h': // draw health, padding with space on left side
 					case 'H': // draw health, padding with space on right side
+						block = render_vars ? &render_vars->health : NULL;
 						if (!width_only) {
 							if (isDeadCA){
 								snprintf(tmp, sizeof(tmp), "%s--", txtclr); // print dashes if dead
@@ -590,37 +751,56 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 							else {
 								snprintf(tmp, sizeof(tmp), "%s%d", (ti_cl->health < low_health ? "&cf00" : txtclr), ti_cl->health);
 							}
-							Draw_SStringAligned(x, y, tmp, scale, alpha, proportional, (s[0] == 'h' ? text_align_right : text_align_left), x + 3 * font_width);
 						}
-						x += 3 * font_width;
+						else {
+							tmp[0] = 0;
+						}
+						x += SCR_TeamInfoDrawTextBlock(x, y, tmp, 3, block, s[0] == 'h' ? text_align_right : text_align_left, width_only, scale, alpha, proportional);
 						break;
 
 					case 'f': // draw frags, space on left side
 					case 'F': // draw frags, space on right side
+						block = render_vars ? &render_vars->frags : NULL;
 						if (!width_only) {
-							snprintf(tmp, sizeof(tmp), (s[0] == 'f' ? "%s%3d" : "%s%-3d"), txtclr, cl.players[i].frags);
-							Draw_SStringAligned(x, y, tmp, scale, alpha, proportional, (s[0] == 'f' ? text_align_right : text_align_left), x + 3 * font_width);
+							snprintf(tmp, sizeof(tmp), "%s%d", txtclr, cl.players[i].frags);
 						}
-						x += 3 * FONTWIDTH * scale;
+						else {
+							tmp[0] = 0;
+						}
+						x += SCR_TeamInfoDrawTextBlock(x, y, tmp, 3, block, s[0] == 'f' ? text_align_right : text_align_left, width_only, scale, alpha, proportional);
 						break;
 
 					case 'a': // draw armor, padded with space on left side
 					case 'A': // draw armor, padded with space on right side
+						block = render_vars ? &render_vars->armor : NULL;
+						block_scale = SCR_TeamInfoBlockScale(block);
+						content_width = 3 * font_width * block_scale;
+						if (normalized_armor_style == 1) {
+							content_width += max(font_width * block_scale,
+								24 * (render_vars ? render_vars->armor_icon_scale->value : 1.0f / 3) * scale * block_scale);
+						}
+						else if (normalized_armor_style == 4) {
+							content_width += font_width * block_scale;
+						}
+						slot_width = SCR_TeamInfoBlockWidth(block, content_width, font_width);
+						{
+							float armor_x = SCR_TeamInfoAlignedX(x, slot_width, content_width, block);
 						//
 						// different styles of armor
 						//
 						aclr = txtclr;
-						switch (armor_style) {
+						switch (normalized_armor_style) {
 							case 1: // image prefixed armor value
 								if (!width_only) {
 									if (ti_cl->items & IT_ARMOR3)
-										Draw_SAlphaPic(x, y, sb_armor[2], alpha, 1.0 / 3 * scale);
+										Draw_SAlphaPic(armor_x, y, sb_armor[2], alpha, render_vars ? render_vars->armor_icon_scale->value * scale * block_scale : 1.0 / 3 * scale);
 									else if (ti_cl->items & IT_ARMOR2)
-										Draw_SAlphaPic(x, y, sb_armor[1], alpha, 1.0 / 3 * scale);
+										Draw_SAlphaPic(armor_x, y, sb_armor[1], alpha, render_vars ? render_vars->armor_icon_scale->value * scale * block_scale : 1.0 / 3 * scale);
 									else if (ti_cl->items & IT_ARMOR1)
-										Draw_SAlphaPic(x, y, sb_armor[0], alpha, 1.0 / 3 * scale);
+										Draw_SAlphaPic(armor_x, y, sb_armor[0], alpha, render_vars ? render_vars->armor_icon_scale->value * scale * block_scale : 1.0 / 3 * scale);
 								}
-								x += font_width;
+								armor_x += max(font_width * block_scale,
+									24 * (render_vars ? render_vars->armor_icon_scale->value : 1.0f / 3) * scale * block_scale);
 								break;
 							case 2: // colored background of armor value
 								/*
@@ -655,13 +835,13 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 							case 4: // armor value prefixed with letter
 								if (!width_only) {
 									if (ti_cl->items & IT_ARMOR3)
-										Draw_SStringAlpha(x, y, "r", scale, alpha, proportional);
+										Draw_SStringAlpha(armor_x, y, "r", scale * block_scale, alpha, proportional);
 									else if (ti_cl->items & IT_ARMOR2)
-										Draw_SStringAlpha(x, y, "y", scale, alpha, proportional);
+										Draw_SStringAlpha(armor_x, y, "y", scale * block_scale, alpha, proportional);
 									else if (ti_cl->items & IT_ARMOR1)
-										Draw_SStringAlpha(x, y, "g", scale, alpha, proportional);
+										Draw_SStringAlpha(armor_x, y, "g", scale * block_scale, alpha, proportional);
 								}
-								x += font_width;
+								armor_x += font_width * block_scale;
 								break;
 						}
 
@@ -673,13 +853,17 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 							else {
 								snprintf(tmp, sizeof(tmp), "%s%d", aclr, ti_cl->armor);
 							}
-							Draw_SStringAligned(x, y, tmp, scale, alpha, proportional, s[0] == 'A' ? text_align_left : text_align_right, x + 3 * font_width);
+							Draw_SStringAligned(armor_x, y, tmp, scale * block_scale, alpha, proportional,
+								block && block->align ? SCR_TeamInfoTextAlignment(block->align->string) : (s[0] == 'A' ? text_align_left : text_align_right),
+								x + slot_width);
 						}
-						x += 3 * font_width;
+						}
+						x += slot_width;
 						break;
 
 					case 'l': // draw location
-						width = maxloc * font_width;
+						block = render_vars ? &render_vars->location : NULL;
+						width = SCR_TeamInfoBlockWidth(block, maxloc * font_width * SCR_TeamInfoBlockScale(block), font_width);
 						if (!width_only) {
 							SCR_FormatTeamInfoLocation(ti_cl->org, locbuf, sizeof(locbuf));
 							loc = locbuf;
@@ -689,58 +873,77 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 							else {
 								snprintf(tmp, sizeof(tmp), "%s%s", txtclr, loc);
 							}
-							Draw_SStringAligned(x, y, tmp, scale, alpha, proportional, loc_alignment, x + width);
+							Draw_SStringAligned(x, y, tmp, scale * SCR_TeamInfoBlockScale(block), alpha, proportional,
+								block && block->align ? SCR_TeamInfoTextAlignment(block->align->string) : text_align_right, x + width);
 						}
 						x += width;
 						break;
 
 					case 'g': // draw TF2003 grenade inventory
 					case 'G':
+						block = render_vars ? &render_vars->grenade : NULL;
+						block_scale = SCR_TeamInfoBlockScale(block);
 						if (grenades && grenades->style) {
 							const char* gren1 = SCR_TeamInfoGrenadeCode(ti_cl->gren1_code);
 							const char* gren2 = SCR_TeamInfoGrenadeCode(ti_cl->gren2_code);
-							float icon_width = 100 * grenades->icon_scale * scale;
-							float first_width = grenades->first_width ? icon_width + (1 + grenades->first_width) * font_width : 0;
-							float second_width = grenades->second_width ? icon_width + (1 + grenades->second_width) * font_width : 0;
-							float spacing = first_width && second_width ? 3 * font_width : 0;
+							float icon_width = 100 * grenades->icon_scale * scale * block_scale;
+							float first_width = grenades->first_width ? icon_width + (1 + grenades->first_width) * font_width * block_scale : 0;
+							float second_width = grenades->second_width ? icon_width + (1 + grenades->second_width) * font_width * block_scale : 0;
+							float spacing = first_width && second_width ? 3 * font_width * block_scale : 0;
 
-							width = first_width + spacing + second_width;
+							content_width = first_width + spacing + second_width;
+							width = SCR_TeamInfoBlockWidth(block, content_width, font_width);
+							{
+								float grenade_x = SCR_TeamInfoAlignedX(x, width, content_width, block);
 							if (!width_only && ti_cl->has_tf_status) {
 								int icon = gren1 ? SCR_TeamInfoGrenadeIconIndex(ti_cl->gren1_type) : 0;
 								if (icon && sb_grens[icon]) {
-									Draw_SAlphaPic(x, y, sb_grens[icon], alpha, grenades->icon_scale * scale);
+									Draw_SAlphaPic(grenade_x, y, sb_grens[icon], alpha, grenades->icon_scale * scale * block_scale);
 									snprintf(tmp, sizeof(tmp), ":%d", ti_cl->gren1_count);
-									Draw_SStringAligned(x + icon_width, y, tmp, scale, alpha, proportional, text_align_left, x + first_width);
+									Draw_SStringAligned(grenade_x + icon_width, y, tmp, scale * block_scale, alpha, proportional, text_align_left, grenade_x + first_width);
 								}
 								icon = gren2 ? SCR_TeamInfoGrenadeIconIndex(ti_cl->gren2_type) : 0;
 								if (icon && sb_grens[icon]) {
-									float second_x = x + first_width + spacing;
-									Draw_SAlphaPic(second_x, y, sb_grens[icon], alpha, grenades->icon_scale * scale);
+									float second_x = grenade_x + first_width + spacing;
+									Draw_SAlphaPic(second_x, y, sb_grens[icon], alpha, grenades->icon_scale * scale * block_scale);
 									snprintf(tmp, sizeof(tmp), ":%d", ti_cl->gren2_count);
-									Draw_SStringAligned(second_x + icon_width, y, tmp, scale, alpha, proportional, text_align_left, second_x + second_width);
+									Draw_SStringAligned(second_x + icon_width, y, tmp, scale * block_scale, alpha, proportional, text_align_left, second_x + second_width);
 								}
+							}
 							}
 							x += width;
 						}
 						else if (grenades) {
-							float first_width = grenades->first_width * font_width;
-							float second_x = x + first_width + (grenades->second_width ? 3 * font_width : 0);
-							width = first_width + (grenades->second_width ? 3 * font_width + grenades->second_width * font_width : 0);
+							float first_width = grenades->first_width * font_width * block_scale;
+							float natural_width = first_width + (grenades->second_width ? 3 * font_width * block_scale + grenades->second_width * font_width * block_scale : 0);
+							width = SCR_TeamInfoBlockWidth(block, natural_width, font_width);
+							{
+								float grenade_x = SCR_TeamInfoAlignedX(x, width, natural_width, block);
+								float second_x = grenade_x + first_width + (grenades->second_width ? 3 * font_width * block_scale : 0);
 							if (!width_only) {
 								char first[64], second[64];
 
 								SCR_FormatTeamInfoGrenadePart(SCR_TeamInfoGrenadeCode(ti_cl->gren1_code), ti_cl->gren1_count, first, sizeof(first));
 								SCR_FormatTeamInfoGrenadePart(SCR_TeamInfoGrenadeCode(ti_cl->gren2_code), ti_cl->gren2_count, second, sizeof(second));
-								Draw_SStringAligned(x, y, first, scale, alpha, proportional, text_align_left, x + first_width);
+								Draw_SStringAligned(grenade_x, y, first, scale * block_scale, alpha, proportional, text_align_left, grenade_x + first_width);
 								if (grenades->second_width) {
-									Draw_SStringAligned(second_x, y, second, scale, alpha, proportional, text_align_left, second_x + grenades->second_width * font_width);
+									Draw_SStringAligned(second_x, y, second, scale * block_scale, alpha, proportional, text_align_left, second_x + grenades->second_width * font_width * block_scale);
 								}
+							}
 							}
 							x += width;
 						}
 						break;
 
 					case 'p': // draw powerups
+						block = render_vars ? &render_vars->powerup : NULL;
+						block_scale = SCR_TeamInfoBlockScale(block);
+						content_width = 3 * max(font_width * block_scale,
+							normalized_powerup_style == 1 ? 24 * (render_vars ? render_vars->powerup_icon_scale->value : 0.5f) * scale * block_scale : font_width * block_scale);
+						slot_width = SCR_TeamInfoBlockWidth(block, content_width, font_width);
+						{
+							float powerup_x = SCR_TeamInfoAlignedX(x, slot_width, content_width, block);
+							float powerup_step = content_width / 3;
 						if (show_countdown && check_ktx_ca_wo())
 						{
 							if (!width_only) {
@@ -752,106 +955,109 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 								{
 									snprintf(tmp, sizeof(tmp), "%s", " ");
 								}
-								Draw_SStringAligned(x, y, tmp, scale * 0.75, 1.0, proportional, text_align_right, x + 3 * font_width);
+								Draw_SStringAligned(powerup_x, y, tmp, scale * block_scale * 0.75, 1.0, proportional, text_align_right, powerup_x + content_width);
 							}
-							x += 3 * font_width;
-							break;
 						}
 						else {
-							switch (powerup_style) {
+							switch (normalized_powerup_style) {
 								case 1: // quad/pent/ring image
 									if (!width_only) {
 										if (ti_cl->items & IT_QUAD) {
-											Draw_SPic(x, y, sb_items[5], scale / 2);
-										}
-										x += font_width;
+										Draw_SPic(powerup_x, y, sb_items[5], (render_vars ? render_vars->powerup_icon_scale->value : 0.5f) * scale * block_scale);
+									}
+									powerup_x += powerup_step;
 										if (ti_cl->items & IT_INVULNERABILITY) {
-											Draw_SPic(x, y, sb_items[3], scale / 2);
+										Draw_SPic(powerup_x, y, sb_items[3], (render_vars ? render_vars->powerup_icon_scale->value : 0.5f) * scale * block_scale);
 										}
-										x += font_width;
+									powerup_x += powerup_step;
 										if (ti_cl->items & IT_INVISIBILITY) {
-											Draw_SPic(x, y, sb_items[2], scale / 2);
+										Draw_SPic(powerup_x, y, sb_items[2], (render_vars ? render_vars->powerup_icon_scale->value : 0.5f) * scale * block_scale);
 										}
-										x += font_width;
+									powerup_x += powerup_step;
 									}
 									else { 
-										x += 3 * font_width;
-									}
+								}
 									break;
 
 								case 2: // player powerup face
 									if (!width_only) {
 										if (sb_face_quad && (ti_cl->items & IT_QUAD)) {
-											Draw_SPic(x, y, sb_face_quad, scale / 3);
+											Draw_SPic(powerup_x, y, sb_face_quad, scale * block_scale / 3);
 										}
-										x += font_width;
+										powerup_x += powerup_step;
 										if (sb_face_invuln && (ti_cl->items & IT_INVULNERABILITY)) {
-											Draw_SPic(x, y, sb_face_invuln, scale / 3);
+											Draw_SPic(powerup_x, y, sb_face_invuln, scale * block_scale / 3);
 										}
-										x += font_width;
+										powerup_x += powerup_step;
 										if (sb_face_invis && (ti_cl->items & IT_INVISIBILITY)) {
-											Draw_SPic(x, y, sb_face_invis, scale / 3);
+											Draw_SPic(powerup_x, y, sb_face_invis, scale * block_scale / 3);
 										}
-										x += font_width;
-									}
-									else {
-										x += 3 * font_width;
+										powerup_x += powerup_step;
 									}
 									break;
 
-								case 3: // colored font (QPR)
+								case 0: // colored text (QPR)
+								case 3: // legacy teaminfo text style
 									if (!width_only) {
 										if (ti_cl->items & IT_QUAD) {
-											Draw_SString(x, y, "&c03fQ", scale, proportional);
+										Draw_SString(powerup_x, y, "&c03fQ", scale * block_scale, proportional);
 										}
-										x += font_width;
+									powerup_x += powerup_step;
 										if (ti_cl->items & IT_INVULNERABILITY) {
-											Draw_SString(x, y, "&cf00P", scale, proportional);
+										Draw_SString(powerup_x, y, "&cf00P", scale * block_scale, proportional);
 										}
-										x += font_width;
+									powerup_x += powerup_step;
 										if (ti_cl->items & IT_INVISIBILITY) {
-											Draw_SString(x, y, "&cff0R", scale, proportional);
+										Draw_SString(powerup_x, y, "&cff0R", scale * block_scale, proportional);
 										}
-										x += font_width;
+									powerup_x += powerup_step;
 									}
 									else {
-										x += 3 * font_width;
-									}
+								}
 									break;
 							}
 						}
+						}
+						x += slot_width;
 						break;
 
 					case 't':
-						if (!width_only) {
-							sprintf(tmp, "%s%i", txtclr, Player_GetTrackId(cl.players[ti_cl->client].userid));
-							Draw_SStringAlpha(x, y, tmp, scale, alpha, proportional);
-						}
-						x += (Player_GetTrackId(cl.players[ti_cl->client].userid) >= 10 ? 2 : 1) * font_width;
+						block = render_vars ? &render_vars->trackid : NULL;
+						snprintf(tmp, sizeof(tmp), "%s%i", txtclr, Player_GetTrackId(cl.players[ti_cl->client].userid));
+						width = SCR_TeamInfoDrawTextBlock(x, y, tmp, Player_GetTrackId(cl.players[ti_cl->client].userid) >= 10 ? 2 : 1, block, text_align_left, width_only, scale, alpha, proportional);
+						x += width;
 						break;
 
 					case 'c':
+						block = render_vars ? &render_vars->flag : NULL;
+						block_scale = SCR_TeamInfoBlockScale(block);
+						content_width = font_width * block_scale;
+						slot_width = SCR_TeamInfoBlockWidth(block, content_width, font_width);
+						{
+							float flag_x = SCR_TeamInfoAlignedX(x, slot_width, content_width, block);
 						switch (flag_style) {
 							case 1:
 								if (!width_only) {
 									if (ti_cl->items & IT_KEY1) {
-										Draw_SPic(x, y, sb_items[0], scale / 2);
+										Draw_SPic(flag_x, y, sb_items[0], (render_vars ? render_vars->flag_icon_scale->value : 0.5f) * scale * block_scale);
 									} else if (ti_cl->items & IT_KEY2) {
-										Draw_SPic(x, y, sb_items[1], scale / 2);
+										Draw_SPic(flag_x, y, sb_items[1], (render_vars ? render_vars->flag_icon_scale->value : 0.5f) * scale * block_scale);
 									}
 								}
 								break;
-							case 2:
+							case 0: // text
+							case 2: // legacy teaminfo text style
 								if (!width_only) {
 									if (ti_cl->items & IT_KEY1) {
-										Draw_SString(x, y, "&cf00B", scale, proportional);
+										Draw_SString(flag_x, y, "&cf00B", scale * block_scale, proportional);
 									} else if (ti_cl->items & IT_KEY2) {
-										Draw_SString(x, y, "&c00fR", scale, proportional);
+										Draw_SString(flag_x, y, "&c00fR", scale * block_scale, proportional);
 									}
 								}
 								break;
 						}
-						x += font_width;
+						}
+						x += slot_width;
 						break;
 
 					case '%': // wow, %% result in one %, how smart
@@ -955,7 +1161,7 @@ void SCR_Draw_TeamInfo(void)
 	y = vid.height * 0.6 + scr_teaminfo_y.value;
 
 	// this does't draw anything, just calculate width
-	w = SCR_HudDrawTeamInfoPlayer(&ti_clients[0], 0, 0, maxname, maxloc, 0, false, text_align_right, true, scr_teaminfo_scale.value, scr_teaminfo_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_teaminfo_show_ammo.integer, scr_teaminfo_show_countdown.integer, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_teaminfo_proportional.integer);
+	w = SCR_HudDrawTeamInfoPlayer(&ti_clients[0], 0, 0, maxname, maxloc, 0, NULL, true, scr_teaminfo_scale.value, scr_teaminfo_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_teaminfo_show_ammo.integer, scr_teaminfo_show_countdown.integer, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_teaminfo_proportional.integer);
 	h = slots_num * scale;
 
 	for (j = 0; j < slots_num; j++) {
@@ -970,7 +1176,7 @@ void SCR_Draw_TeamInfo(void)
 			Draw_AlphaRectangleRGB(x, y, w, h * FONTWIDTH, 0, true, RGBAVECT_TO_COLOR(col));
 		}
 
-		SCR_HudDrawTeamInfoPlayer(&ti_clients[i], x, y, maxname, maxloc, 0, false, text_align_right, false, scr_teaminfo_scale.value, scr_teaminfo_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_teaminfo_show_ammo.integer, scr_teaminfo_show_countdown.integer, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_teaminfo_proportional.integer);
+		SCR_HudDrawTeamInfoPlayer(&ti_clients[i], x, y, maxname, maxloc, 0, NULL, false, scr_teaminfo_scale.value, scr_teaminfo_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_teaminfo_show_ammo.integer, scr_teaminfo_show_countdown.integer, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_teaminfo_proportional.integer);
 
 		y += FONTWIDTH * scale;
 	}
@@ -1199,19 +1405,57 @@ void TeamInfo_HudInit(void)
 		"align_right", "0",
 		"loc_width", "15",
 		"loc_align", "right",
+		"loc_scale", "1",
 		"name_width", "0",
+		"name_align", "left",
+		"name_scale", "1",
 		"low_health", "25",
-		"armor_style", "3",
-		"weapon_style", "0",
+		"armor_style", "0",
+		"armor_text_style", "1",
+		"armor_width", "0",
+		"armor_align", "right",
+		"armor_scale", "1",
+		"armor_icon_scale", "0.333333",
+		"weapon_style", "1",
+		"weapon_width", "0",
+		"weapon_align", "left",
+		"weapon_scale", "1",
 		"weapon_icon_scale", "0.65",
 		"grenade_style", "0",
+		"grenade_width", "0",
+		"grenade_align", "left",
+		"grenade_scale", "1",
 		"grenade_icon_scale", "0.12",
+		"ammo_width", "0",
+		"ammo_align", "left",
+		"ammo_scale", "1",
+		"respawn_width", "0",
+		"respawn_align", "right",
+		"respawn_scale", "1",
+		"health_width", "0",
+		"health_align", "left",
+		"health_scale", "1",
+		"frags_width", "0",
+		"frags_align", "right",
+		"frags_scale", "1",
 		"show_ammo", "1",
 		"show_countdown", "1",
 		"show_self", "0",
 		"scale", "1",
 		"powerup_style", "1",
+		"powerup_icon_style", "0",
+		"powerup_width", "0",
+		"powerup_align", "left",
+		"powerup_scale", "1",
+		"powerup_icon_scale", "0.5",
 		"flag_style", "1",
+		"flag_width", "0",
+		"flag_align", "left",
+		"flag_scale", "1",
+		"flag_icon_scale", "0.5",
+		"trackid_width", "0",
+		"trackid_align", "left",
+		"trackid_scale", "1",
 		"proportional", "0",
 		"grow_up", "1",
 		NULL
@@ -1337,7 +1581,7 @@ void SCR_Draw_ShowNick(void)
 	y = vid.height * 0.6 + scr_shownick_y.value;
 
 	// this does't draw anything, just calculate width
-	w = SCR_HudDrawTeamInfoPlayer(&shownick, 0, 0, maxname, maxloc, 0, false, text_align_right, true, scale, scr_shownick_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_shownick_show_ammo.integer, 0, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_shownick_proportional.integer);
+	w = SCR_HudDrawTeamInfoPlayer(&shownick, 0, 0, maxname, maxloc, 0, NULL, true, scale, scr_shownick_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_shownick_show_ammo.integer, 0, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_shownick_proportional.integer);
 	h = FONTWIDTH * scale;
 
 	x = (scr_shownick_align_right ? (vid.width - w) - FONTWIDTH : FONTWIDTH);
@@ -1349,5 +1593,5 @@ void SCR_Draw_ShowNick(void)
 	Draw_AlphaRectangleRGB(x, y, w, h, 0, true, RGBAVECT_TO_COLOR(col));
 
 	// draw shownick
-	SCR_HudDrawTeamInfoPlayer(&shownick, x, y, maxname, maxloc, 0, false, text_align_right, false, scale, scr_shownick_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_shownick_show_ammo.integer, 0, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_shownick_proportional.integer);
+	SCR_HudDrawTeamInfoPlayer(&shownick, x, y, maxname, maxloc, 0, NULL, false, scale, scr_shownick_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_shownick_show_ammo.integer, 0, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_shownick_proportional.integer);
 }

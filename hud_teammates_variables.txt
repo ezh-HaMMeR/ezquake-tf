@@ -1,0 +1,214 @@
+HUD_TEAMMATES: ПОЛНЫЙ СПРАВОЧНИК ПЕРЕМЕННЫХ
+============================================================
+
+ОБЩИЕ ПАРАМЕТРЫ ЭЛЕМЕНТА
+
+hud_teammates_show "0"
+    0 — скрыть HUD, 1 — показать HUD.
+
+hud_teammates_draw "1"
+    Разрешает отрисовку элемента. При 0 размер элемента сохраняется, но
+    содержимое не рисуется.
+
+hud_teammates_order
+    Порядок отрисовки HUD-элемента относительно остальных элементов.
+
+hud_teammates_place ""
+    Элемент, относительно которого размещается hud_teammates. Пустое значение
+    означает размещение относительно экрана.
+
+hud_teammates_align_x "right"
+    Горизонтальная привязка всего элемента: left, center или right.
+
+hud_teammates_align_y "center"
+    Вертикальная привязка всего элемента: top, center, bottom, before, after.
+
+hud_teammates_pos_x "0"
+hud_teammates_pos_y "0"
+    Смещение всего элемента по горизонтали и вертикали.
+
+hud_teammates_align_right "0"
+    Дополнительное старое смещение всего содержимого вправо. Обычно оставляется 0.
+
+hud_teammates_frame "0.47059"
+    Прозрачность общего фона элемента: 0 — без фона, 1 — непрозрачный фон.
+
+hud_teammates_frame_color "10 0 0"
+    Цвет общего фона в формате RGB.
+
+hud_teammates_item_opacity "1"
+    Общая прозрачность содержимого элемента.
+
+hud_teammates_scale "1"
+    Общий масштаб всего элемента, включая все блоки.
+
+hud_teammates_proportional "0"
+    0 — обычный фиксированный шрифт Quake, 1 — пропорциональный шрифт.
+
+hud_teammates_grow_up "1"
+    1 — новые строки добавляются вверх, 0 — вниз.
+
+hud_teammates_show_self "0"
+    0 — не показывать собственную строку, ненулевое значение — показывать.
+
+hud_teammates_layout "%p%n $x10%l$x11 $x10%g $x11 %a/%H %w"
+    Порядок и оформление блоков. Поддерживаемые маркеры:
+      %n — никнейм;
+      %l — местоположение;
+      %g или %G — гранаты;
+      %w или %W — активное оружие и, при show_ammo 1, его боезапас;
+      %k или %K — отдельный блок активного боезапаса;
+      %r или %R — время до респавна;
+      %h или %H — здоровье;
+      %f или %F — фраги;
+      %a или %A — броня;
+      %p — усиления или время респавна в поддерживаемых CA-режимах;
+      %t — track-id игрока;
+      %c — переносимый флаг;
+      %% — символ процента.
+    Остальной текст и специальные символы ($x10, $x11 и т. п.) рисуются как есть.
+
+
+ЕДИНЫЕ ПАРАМЕТРЫ БЛОКОВ
+
+Каждый блок имеет одинаковые базовые возможности:
+
+hud_teammates_<block>_width
+    Ширина блока в знакоместах базового шрифта. 0 — автоматическая ширина.
+
+hud_teammates_<block>_align
+    Выравнивание содержимого внутри блока: left, center или right.
+
+hud_teammates_<block>_scale
+    Индивидуальный масштаб блока, умножаемый на общий hud_teammates_scale.
+
+Полный список блочных переменных и их значения по умолчанию:
+
+  hud_teammates_name_width "0"
+  hud_teammates_name_align "left"
+  hud_teammates_name_scale "1"
+
+  hud_teammates_loc_width "15"
+  hud_teammates_loc_align "right"
+  hud_teammates_loc_scale "1"
+
+  hud_teammates_grenade_width "0"
+  hud_teammates_grenade_align "left"
+  hud_teammates_grenade_scale "1"
+
+  hud_teammates_weapon_width "0"
+  hud_teammates_weapon_align "left"
+  hud_teammates_weapon_scale "1"
+
+  hud_teammates_ammo_width "0"
+  hud_teammates_ammo_align "left"
+  hud_teammates_ammo_scale "1"
+
+  hud_teammates_respawn_width "0"
+  hud_teammates_respawn_align "right"
+  hud_teammates_respawn_scale "1"
+
+  hud_teammates_health_width "0"
+  hud_teammates_health_align "left"
+  hud_teammates_health_scale "1"
+
+  hud_teammates_frags_width "0"
+  hud_teammates_frags_align "right"
+  hud_teammates_frags_scale "1"
+
+  hud_teammates_armor_width "0"
+  hud_teammates_armor_align "right"
+  hud_teammates_armor_scale "1"
+
+  hud_teammates_powerup_width "0"
+  hud_teammates_powerup_align "left"
+  hud_teammates_powerup_scale "1"
+
+  hud_teammates_trackid_width "0"
+  hud_teammates_trackid_align "left"
+  hud_teammates_trackid_scale "1"
+
+  hud_teammates_flag_width "0"
+  hud_teammates_flag_align "left"
+  hud_teammates_flag_scale "1"
+
+
+ОРУЖИЕ И БОЕЗАПАС
+
+hud_teammates_weapon_style "1"
+    0 — текстовое обозначение оружия, 1 — иконка оружия.
+
+hud_teammates_weapon_icon_scale "0.65"
+    Масштаб иконки оружия внутри блока weapon. Используется при style 1.
+
+hud_teammates_show_ammo "1"
+    1 — после оружия показывать текущий активный боезапас, 0 — скрыть.
+    Выравнивание, ширина и масштаб этого значения задаются блоком ammo.
+
+
+ГРАНАТЫ
+
+hud_teammates_grenade_style "0"
+    0 — текстовые названия гранат, 1 — иконки гранат.
+
+hud_teammates_grenade_icon_scale "0.12"
+    Масштаб гранатных иконок внутри блока grenade. Используется при style 1.
+
+
+БРОНЯ
+
+hud_teammates_armor_style "0"
+    0 — текстовое значение брони, 1 — иконка типа брони и числовое значение.
+
+hud_teammates_armor_text_style "1"
+    Вид текста при armor_style 0:
+    0 — обычное число;
+    1 — число, окрашенное в цвет типа брони;
+    2 — буквенное обозначение типа брони и число.
+
+hud_teammates_armor_icon_scale "0.333333"
+    Масштаб иконки брони при armor_style 1.
+
+hud_teammates_low_health "25"
+    Порог здоровья, ниже которого значение здоровья окрашивается красным.
+
+
+УСИЛЕНИЯ
+
+hud_teammates_powerup_style "1"
+    0 — цветные буквы Q/P/R, 1 — иконки усилений.
+
+hud_teammates_powerup_icon_style "0"
+    Набор иконок при powerup_style 1:
+    0 — стандартные иконки усилений;
+    1 — иконки-лица игрока.
+
+hud_teammates_powerup_icon_scale "0.5"
+    Масштаб стандартных иконок при powerup_style 1.
+
+hud_teammates_show_countdown "1"
+    В поддерживаемых Clan Arena режимах разрешает показывать в блоке powerup
+    обратный отсчёт до респавна.
+
+
+ФЛАГ
+
+hud_teammates_flag_style "1"
+    0 — текстовое цветное обозначение флага, 1 — иконка флага.
+
+hud_teammates_flag_icon_scale "0.5"
+    Масштаб иконки флага при flag_style 1.
+
+
+ПРИМЕР НАСТРОЙКИ
+
+hud_teammates_show "1"
+hud_teammates_loc_width "15"
+hud_teammates_loc_align "center"
+hud_teammates_weapon_style "1"
+hud_teammates_weapon_icon_scale "0.65"
+hud_teammates_grenade_style "1"
+hud_teammates_grenade_icon_scale "0.12"
+hud_teammates_health_width "4"
+hud_teammates_health_align "right"
+hud_teammates_health_scale "1.1"

@@ -27,17 +27,19 @@ hud_teammates_layout "%p%n $x10%l$x11 $x10%g $x11 %a/%H %w"
 hud_teammates_loc_width 15
 hud_teammates_loc_align right
 hud_teammates_grow_up 1
-hud_teammates_weapon_style 0
+hud_teammates_weapon_style 1
 hud_teammates_weapon_icon_scale 0.65
 hud_teammates_show_ammo 1
 hud_teammates_grenade_style 0
 hud_teammates_grenade_icon_scale 0.12
 ```
 
-`hud_teammates_weapon_style 0` uses weapon icons; value `1` switches to the
-classic letter abbreviations. `hud_teammates_weapon_icon_scale` controls only
-the icon size. When `hud_teammates_grow_up` is enabled, additional teammates
-are added above the existing rows.
+For all applicable HUD blocks, style `0` means text and style `1` means icons.
+`hud_teammates_weapon_icon_scale` controls only the weapon icon size. Every
+layout block has individual `_width`, `_align` and `_scale` settings; graphical
+blocks also expose `_icon_scale`. The complete reference is in
+`hud_teammates_variables.txt`. When `hud_teammates_grow_up` is enabled,
+additional teammates are added above the existing rows.
 
 With the extended TF2003 `//tinfo` format, `%w` shows the active weapon and its
 active ammo count instead of guessing the best owned weapon. `%g` displays both
