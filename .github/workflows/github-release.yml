@@ -2,16 +2,6 @@ name: Fallback release package build
 
 on:
   workflow_dispatch:
-    inputs:
-      platform:
-        description: Build only the selected fallback package
-        required: true
-        default: all
-        type: choice
-        options:
-          - all
-          - windows
-          - linux
 
 permissions:
   contents: read
@@ -19,7 +9,6 @@ permissions:
 jobs:
   windows:
     name: Windows x64
-    if: inputs.platform == 'all' || inputs.platform == 'windows'
     runs-on: windows-2022
 
     steps:
@@ -56,45 +45,4 @@ jobs:
           path: |
             ezquake-tf-windows-x64.zip
             ezquake-tf-windows-x64.zip.sha256
-          if-no-files-found: error
-
-  linux:
-    name: Linux x86_64
-    if: inputs.platform == 'all' || inputs.platform == 'linux'
-    runs-on: ubuntu-latest
-    container:
-      image: debian:testing
-      options: --privileged
-
-    steps:
-      - name: Install build dependencies
-        run: apt-get -qy update && apt-get -qy install curl file git make sudo
-
-      - name: Check out code
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-          fetch-depth: 0
-
-      - name: Build AppImage
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: "1"
-        run: git config --global --add safe.directory '*' && ./misc/appimage/appimage-manual_creation.sh
-
-      - name: Package client and custom assets
-        run: |
-          package=ezquake-tf-linux-x86_64
-          mkdir "$package"
-          cp ezQuake-x86_64.AppImage "$package/"
-          cp -a qw "$package/"
-          tar -czf "$package.tar.gz" "$package"
-          sha256sum "$package.tar.gz" > "$package.tar.gz.sha256"
-
-      - name: Upload Linux package
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-release
-          path: |
-            ezquake-tf-linux-x86_64.tar.gz
-            ezquake-tf-linux-x86_64.tar.gz.sha256
           if-no-files-found: error

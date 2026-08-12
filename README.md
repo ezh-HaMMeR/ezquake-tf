@@ -3,7 +3,7 @@
 This repository is the ezquake-tf client, based on
 [MeMcCree/ezquake-source](https://github.com/MeMcCree/ezquake-source).
 
-GitHub releases provide Windows and Linux clients. Release tags use the
+GitHub releases currently provide the Windows x64 client. Release tags use the
 `vYYYY.MM.DD` format without a `-test` suffix. Packages are built locally by
 default; the manual GitHub Actions workflow is retained only as a fallback.
 Every client archive includes the complete `qw` directory with ezquake-tf
@@ -23,11 +23,13 @@ hud_teammates_align_y before
 hud_teammates_pos_y -20
 hud_teammates_frame 0.47059
 hud_teammates_frame_color "10 0 0"
-hud_teammates_layout "%p%n $x10%l$x11 $x10 %g $x11 %a/%H %w"
+hud_teammates_layout "%p%n $x10%l$x11 $x10%g $x11 %a/%H %w"
 hud_teammates_grow_up 1
 hud_teammates_weapon_style 0
 hud_teammates_weapon_icon_scale 0.65
 hud_teammates_show_ammo 1
+hud_teammates_grenade_style 0
+hud_teammates_grenade_icon_scale 0.12
 ```
 
 `hud_teammates_weapon_style 0` uses weapon icons; value `1` switches to the
@@ -37,8 +39,12 @@ are added above the existing rows.
 
 With the extended TF2003 `//tinfo` format, `%w` shows the active weapon and its
 active ammo count instead of guessing the best owned weapon. `%g` displays both
-grenade types and counts. The location (`%l`) and grenade (`%g`) columns in
-`hud_teammates` automatically size themselves to the visible contents.
+grenade types and counts in aligned columns. Set `hud_teammates_grenade_style 1`
+to replace the grenade names with their icons; `grenade_icon_scale` controls
+their size. Nickname (`%n`), location (`%l`) and grenade (`%g`) columns size
+themselves to the visible contents by default. Positive `name_width` and
+`loc_width` values set explicit nickname and location widths. Location tokens
+`$red` and `$blue` are rendered as the corresponding colored lamps.
 
 The original right-side team-status panel is hidden by default and is
 independent from the new HUD element. Enable it explicitly with:
