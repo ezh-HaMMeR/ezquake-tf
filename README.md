@@ -23,7 +23,7 @@ hud_teammates_align_y before
 hud_teammates_pos_y -20
 hud_teammates_frame 0.47059
 hud_teammates_frame_color "10 0 0"
-hud_teammates_layout "%p%n $x10%l$x11 %a/%H %w"
+hud_teammates_layout "%p%n $x10%l$x11 $x10 %g $x11 %a/%H %w"
 hud_teammates_grow_up 1
 hud_teammates_weapon_style 0
 hud_teammates_weapon_icon_scale 0.65
@@ -34,6 +34,11 @@ hud_teammates_show_ammo 1
 classic letter abbreviations. `hud_teammates_weapon_icon_scale` controls only
 the icon size. When `hud_teammates_grow_up` is enabled, additional teammates
 are added above the existing rows.
+
+With the extended TF2003 `//tinfo` format, `%w` shows the active weapon and its
+active ammo count instead of guessing the best owned weapon. `%g` displays both
+grenade types and counts. The location (`%l`) and grenade (`%g`) columns in
+`hud_teammates` automatically size themselves to the visible contents.
 
 The original right-side team-status panel is hidden by default and is
 independent from the new HUD element. Enable it explicitly with:
@@ -52,6 +57,9 @@ The supported payload is:
 ```text
 //tinfo <0-based-client> <x> <y> <z> <health> <armor> <items> <nick> <shells> <nails> <rockets> <cells>
 ```
+
+TF2003 may append active-weapon, active-ammo and two grenade inventory groups;
+older 12-field servers remain supported.
 
 ## Modifier key bindings
 

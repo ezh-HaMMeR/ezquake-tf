@@ -64,7 +64,7 @@ static cvar_t scr_teaminfo_proportional    = { "scr_teaminfo_proportional", "0"}
 static cvar_t show_teammates_status        = { "show_teammates_status",    "0" };
 cvar_t scr_teaminfo                        = { "scr_teaminfo",             "0" };   // legacy name, non-static for menu
 
-static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int maxname, int maxloc, qbool width_only, float scale, const char* layout, int weapon_style, float weapon_icon_scale, int show_ammo, int show_countdown, int armor_style, int powerup_style, int flag_style, int low_health, qbool proportional);
+static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int maxname, int maxloc, int maxgrens, qbool width_only, float scale, const char* layout, int weapon_style, float weapon_icon_scale, int show_ammo, int show_countdown, int armor_style, int powerup_style, int flag_style, int low_health, qbool proportional);
 
 typedef struct hud_teaminfo_vars_s {
 	cvar_t *weapon_style;
@@ -91,6 +91,77 @@ typedef struct hud_teaminfo_vars_s {
 static hud_teaminfo_vars_t hud_teaminfo_vars;
 static hud_teaminfo_vars_t hud_teammates_vars;
 
+static const char* SCR_TeamInfoGrenadeCode(const char* code)
+{
+	return code[0] && strcmp(code, "-") ? code : NULL;
+}
+
+static void SCR_FormatTeamInfoGrenades(const ti_player_t* ti_cl, char* result, size_t result_size)
+{
+	const char* gren1 = SCR_TeamInfoGrenadeCode(ti_cl->gren1_code);
+	const char* gren2 = SCR_TeamInfoGrenadeCode(ti_cl->gren2_code);
+
+	if (!ti_cl->has_tf_status) {
+		result[0] = 0;
+	}
+	else if (gren1 && gren2) {
+		snprintf(result, result_size, "%s: %d  %s: %d", gren1, ti_cl->gren1_count, gren2, ti_cl->gren2_count);
+	}
+	else if (gren1) {
+		snprintf(result, result_size, "%s: %d", gren1, ti_cl->gren1_count);
+	}
+	else if (gren2) {
+		snprintf(result, result_size, "%s: %d", gren2, ti_cl->gren2_count);
+	}
+	else {
+		strlcpy(result, "-", result_size);
+	}
+}
+
+static int SCR_TeamInfoWeaponFlag(const ti_player_t* ti_cl)
+{
+	const char* code = ti_cl->active_weapon_code;
+
+	if (!ti_cl->has_tf_status) {
+		return BestWeaponFromStatItems(ti_cl->items);
+	}
+	if (!strcmp(code, "sg") || !strcmp(code, "sr") || !strcmp(code, "ar") || !strcmp(code, "mg") || !strcmp(code, "tg")) {
+		return IT_SHOTGUN;
+	}
+	if (!strcmp(code, "ssg")) {
+		return IT_SUPER_SHOTGUN;
+	}
+	if (!strcmp(code, "ng") || !strcmp(code, "rg")) {
+		return IT_NAILGUN;
+	}
+	if (!strcmp(code, "sng")) {
+		return IT_SUPER_NAILGUN;
+	}
+	if (!strcmp(code, "gl")) {
+		return IT_GRENADE_LAUNCHER;
+	}
+	if (!strcmp(code, "rl")) {
+		return IT_ROCKET_LAUNCHER;
+	}
+	if (!strcmp(code, "lg") || !strcmp(code, "ft") || !strcmp(code, "axe")) {
+		return IT_LIGHTNING;
+	}
+	return 0;
+}
+
+static const char* SCR_TeamInfoWeaponCode(const ti_player_t* ti_cl)
+{
+	if (ti_cl->has_tf_status) {
+		return ti_cl->active_weapon_code[0] ? ti_cl->active_weapon_code : "-";
+	}
+	return TP_ItemName(BestWeaponFromStatItems(ti_cl->items));
+}
+
+static qbool SCR_TeamInfoWeaponHasAmmo(const ti_player_t* ti_cl)
+{
+	return !ti_cl->has_tf_status || (strcmp(ti_cl->active_ammo_code, "none") && strcmp(ti_cl->active_ammo_code, "-"));
+}
+
 static int HUD_CompareTeamInfoSlots(const void* lhs_, const void* rhs_)
 {
 	int lhs = *(const int*)lhs_;
@@ -114,7 +185,7 @@ static int HUD_CompareTeamInfoSlots(const void* lhs_, const void* rhs_)
 static void SCR_HUD_DrawTeamInfoBase(hud_t *hud, qbool teammates_only)
 {
 	int x, y, _y, width, height, line_height;
-	int i, j, k, slots[MAX_CLIENTS], slots_num, maxname, maxloc;
+	int i, j, k, slots[MAX_CLIENTS], slots_num, maxname, maxloc, maxgrens;
 	char tmp[1024], *nick;
 	float header_spacing;
 	qbool show_enemies, grow_up;
@@ -161,7 +232,7 @@ static void SCR_HUD_DrawTeamInfoBase(hud_t *hud, qbool teammates_only)
 	}
 
 	// fill data we require to draw teaminfo
-	for (maxloc = maxname = slots_num = i = 0; i < MAX_CLIENTS; i++) {
+	for (maxgrens = maxloc = maxname = slots_num = i = 0; i < MAX_CLIENTS; i++) {
 		if (!cl.players[i].name[0] || cl.players[i].spectator || !ti_clients[i].time || ti_clients[i].time + 5 < r_refdef2.time) {
 			continue;
 		}
@@ -183,20 +254,26 @@ static void SCR_HUD_DrawTeamInfoBase(hud_t *hud, qbool teammates_only)
 		strlcpy(tmp, TP_LocationName(ti_clients[i].org), sizeof(tmp));
 		maxloc = max(maxloc, strlen(TP_ParseFunChars(tmp, false)));
 
+		SCR_FormatTeamInfoGrenades(&ti_clients[i], tmp, sizeof(tmp));
+		maxgrens = max(maxgrens, strlen(tmp));
+
 		slots[slots_num++] = i;
 	}
 
 	qsort(slots, slots_num, sizeof(slots[0]), HUD_CompareTeamInfoSlots);
 
-	// well, better use fixed loc length
-	maxloc = bound(0, vars->loc_width->integer, 100);
+	// Keep legacy teaminfo width behavior. hud_teammates sizes location and
+	// grenade columns from the currently displayed contents.
+	if (!teammates_only) {
+		maxloc = bound(0, vars->loc_width->integer, 100);
+	}
 	// limit name length
 	maxname = bound(0, maxname, vars->name_width->integer);
 
 	header_spacing = show_enemies ? max(0, vars->header_spacing->value) : 0;
 
 	// this doesn't draw anything, just calculate width
-	width = SCR_HudDrawTeamInfoPlayer(&ti_clients[0], 0, 0, maxname, maxloc, true, vars->scale->value, vars->layout->string, vars->weapon_style->integer, vars->weapon_icon_scale->value, vars->show_ammo->integer, vars->show_countdown->integer, vars->armor_style->integer, vars->powerup_style->integer, vars->flag_style->integer, vars->low_health->integer, vars->proportional->integer);
+	width = SCR_HudDrawTeamInfoPlayer(&ti_clients[0], 0, 0, maxname, maxloc, maxgrens, true, vars->scale->value, vars->layout->string, vars->weapon_style->integer, vars->weapon_icon_scale->value, vars->show_ammo->integer, vars->show_countdown->integer, vars->armor_style->integer, vars->powerup_style->integer, vars->flag_style->integer, vars->low_health->integer, vars->proportional->integer);
 	line_height = (int)ceil(max(FONTWIDTH, vars->weapon_style->integer == 0 ? 16 * vars->weapon_icon_scale->value : FONTWIDTH) * vars->scale->value);
 	height = line_height * (show_enemies && vars->show_headers->integer ? slots_num + max(2 * n_teams - 1, 0) * header_spacing : slots_num);
 
@@ -240,7 +317,7 @@ static void SCR_HUD_DrawTeamInfoBase(hud_t *hud, qbool teammates_only)
 			for (j = 0; j < slots_num; j++) {
 				i = slots[j];
 				if (!strcmp(cl.players[i].team, sorted_teams[k].name)) {
-					SCR_HudDrawTeamInfoPlayer(&ti_clients[i], x, _y, maxname, maxloc, false, vars->scale->value, vars->layout->string, vars->weapon_style->integer, vars->weapon_icon_scale->value, vars->show_ammo->integer, vars->show_countdown->integer, vars->armor_style->integer, vars->powerup_style->integer, vars->flag_style->integer, vars->low_health->integer, vars->proportional->integer);
+					SCR_HudDrawTeamInfoPlayer(&ti_clients[i], x, _y, maxname, maxloc, maxgrens, false, vars->scale->value, vars->layout->string, vars->weapon_style->integer, vars->weapon_icon_scale->value, vars->show_ammo->integer, vars->show_countdown->integer, vars->armor_style->integer, vars->powerup_style->integer, vars->flag_style->integer, vars->low_health->integer, vars->proportional->integer);
 					_y += line_height;
 				}
 			}
@@ -252,7 +329,7 @@ static void SCR_HUD_DrawTeamInfoBase(hud_t *hud, qbool teammates_only)
 			 grow_up ? j >= 0 : j < slots_num;
 			 j += grow_up ? -1 : 1) {
 			i = slots[j];
-			SCR_HudDrawTeamInfoPlayer(&ti_clients[i], x, _y, maxname, maxloc, false, vars->scale->value, vars->layout->string, vars->weapon_style->integer, vars->weapon_icon_scale->value, vars->show_ammo->integer, vars->show_countdown->integer, vars->armor_style->integer, vars->powerup_style->integer, vars->flag_style->integer, vars->low_health->integer, vars->proportional->integer);
+			SCR_HudDrawTeamInfoPlayer(&ti_clients[i], x, _y, maxname, maxloc, maxgrens, false, vars->scale->value, vars->layout->string, vars->weapon_style->integer, vars->weapon_icon_scale->value, vars->show_ammo->integer, vars->show_countdown->integer, vars->armor_style->integer, vars->powerup_style->integer, vars->flag_style->integer, vars->low_health->integer, vars->proportional->integer);
 			_y += line_height;
 		}
 	}
@@ -273,7 +350,7 @@ qbool Has_Both_RL_and_LG(int flags)
 	return (flags & IT_ROCKET_LAUNCHER) && (flags & IT_LIGHTNING);
 }
 
-static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int maxname, int maxloc, qbool width_only, float scale, const char* layout, int weapon_style, float weapon_icon_scale, int show_ammo, int show_countdown, int armor_style, int powerup_style, int flag_style, int low_health, qbool proportional)
+static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int maxname, int maxloc, int maxgrens, qbool width_only, float scale, const char* layout, int weapon_style, float weapon_icon_scale, int show_ammo, int show_countdown, int armor_style, int powerup_style, int flag_style, int low_health, qbool proportional)
 {
 	extern cvar_t tp_name_rlg;
 	char *s, *loc, tmp[1024], tmp2[MAX_MACRO_STRING], *aclr, *txtclr;
@@ -315,7 +392,7 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 	strlcpy(tmp2, TP_ParseFunChars(tmp2, false), sizeof(tmp2));
 	s = tmp2;
 
-	switch (BestWeaponFromStatItems(ti_cl->items)){
+	switch (ti_cl->has_tf_status ? 0 : BestWeaponFromStatItems(ti_cl->items)){
 		case IT_LIGHTNING:
 			a = ti_cl->cells;
 			break;
@@ -328,7 +405,7 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 			a = ti_cl->nails;
 			break;
 		default:
-			a = ti_cl->shells;
+			a = ti_cl->has_tf_status ? ti_cl->active_ammo : ti_cl->shells;
 			break;
 	}
 
@@ -356,11 +433,11 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 							case 1:
 								if (!width_only) {
 									char *weap_str;
-									if (Has_Both_RL_and_LG(ti_cl->items)) {
+									if (!ti_cl->has_tf_status && Has_Both_RL_and_LG(ti_cl->items)) {
 										weap_str = tp_name_rlg.string;
 									} 
 									else {
-										weap_str = TP_ItemName(BestWeaponFromStatItems(ti_cl->items));
+										weap_str = (char*)SCR_TeamInfoWeaponCode(ti_cl);
 									}
 									char weap_white_stripped[32];
 									Util_SkipChars(weap_str, "{}", weap_white_stripped, 32);
@@ -371,7 +448,7 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 								break;
 							default: // draw image by default
 								if (!width_only) {
-									if (!isDeadCA && (pic = SCR_GetWeaponIconByFlag(BestWeaponFromStatItems(ti_cl->items)))) {
+									if (!isDeadCA && (pic = SCR_GetWeaponIconByFlag(SCR_TeamInfoWeaponFlag(ti_cl)))) {
 										Draw_SAlphaPic(x, y, pic, alpha, weapon_icon_scale * scale);
 									}
 								}
@@ -380,7 +457,7 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 						}
 						if (show_ammo) {
 							if (!width_only) {
-								if (isDeadCA){
+								if (isDeadCA || !SCR_TeamInfoWeaponHasAmmo(ti_cl)){
 									snprintf(tmp, sizeof(tmp), "%s", txtclr);
 								} 
 								else {
@@ -528,6 +605,19 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 								snprintf(tmp, sizeof(tmp), "%s%s", txtclr, loc);
 							}
 							Draw_SStringAligned(x, y, tmp, scale, alpha, proportional, text_align_right, x + width);
+						}
+						x += width;
+						break;
+
+					case 'g': // draw TF2003 grenade inventory
+					case 'G':
+						width = maxgrens * font_width;
+						if (!width_only) {
+							SCR_FormatTeamInfoGrenades(ti_cl, tmp, sizeof(tmp));
+							if (tmp[0]) {
+								Draw_SStringAligned(x, y, tmp, scale, alpha, proportional,
+									s[0] == 'G' ? text_align_left : text_align_right, x + width);
+							}
 						}
 						x += width;
 						break;
@@ -747,7 +837,7 @@ void SCR_Draw_TeamInfo(void)
 	y = vid.height * 0.6 + scr_teaminfo_y.value;
 
 	// this does't draw anything, just calculate width
-	w = SCR_HudDrawTeamInfoPlayer(&ti_clients[0], 0, 0, maxname, maxloc, true, scr_teaminfo_scale.value, scr_teaminfo_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_teaminfo_show_ammo.integer, scr_teaminfo_show_countdown.integer, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_teaminfo_proportional.integer);
+	w = SCR_HudDrawTeamInfoPlayer(&ti_clients[0], 0, 0, maxname, maxloc, 0, true, scr_teaminfo_scale.value, scr_teaminfo_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_teaminfo_show_ammo.integer, scr_teaminfo_show_countdown.integer, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_teaminfo_proportional.integer);
 	h = slots_num * scale;
 
 	for (j = 0; j < slots_num; j++) {
@@ -762,7 +852,7 @@ void SCR_Draw_TeamInfo(void)
 			Draw_AlphaRectangleRGB(x, y, w, h * FONTWIDTH, 0, true, RGBAVECT_TO_COLOR(col));
 		}
 
-		SCR_HudDrawTeamInfoPlayer(&ti_clients[i], x, y, maxname, maxloc, false, scr_teaminfo_scale.value, scr_teaminfo_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_teaminfo_show_ammo.integer, scr_teaminfo_show_countdown.integer, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_teaminfo_proportional.integer);
+		SCR_HudDrawTeamInfoPlayer(&ti_clients[i], x, y, maxname, maxloc, 0, false, scr_teaminfo_scale.value, scr_teaminfo_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_teaminfo_show_ammo.integer, scr_teaminfo_show_countdown.integer, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_teaminfo_proportional.integer);
 
 		y += FONTWIDTH * scale;
 	}
@@ -806,6 +896,29 @@ void Parse_TeamInfo(char *s)
 	ti_clients[client].nails = atoi(Cmd_Argv(10));
 	ti_clients[client].rockets = atoi(Cmd_Argv(11));
 	ti_clients[client].cells = atoi(Cmd_Argv(12));
+
+	if (Cmd_Argc() >= 25) {
+		ti_clients[client].has_tf_status = true;
+		ti_clients[client].active_weapon = atoi(Cmd_Argv(13));
+		strlcpy(ti_clients[client].active_weapon_code, Cmd_Argv(14), sizeof(ti_clients[client].active_weapon_code));
+		strlcpy(ti_clients[client].active_ammo_code, Cmd_Argv(15), sizeof(ti_clients[client].active_ammo_code));
+		ti_clients[client].active_ammo = atoi(Cmd_Argv(16));
+		ti_clients[client].medikit_ammo = atoi(Cmd_Argv(17));
+		ti_clients[client].detpack_ammo = atoi(Cmd_Argv(18));
+		ti_clients[client].gren1_type = atoi(Cmd_Argv(19));
+		strlcpy(ti_clients[client].gren1_code, Cmd_Argv(20), sizeof(ti_clients[client].gren1_code));
+		ti_clients[client].gren1_count = atoi(Cmd_Argv(21));
+		ti_clients[client].gren2_type = atoi(Cmd_Argv(22));
+		strlcpy(ti_clients[client].gren2_code, Cmd_Argv(23), sizeof(ti_clients[client].gren2_code));
+		ti_clients[client].gren2_count = atoi(Cmd_Argv(24));
+	}
+	else {
+		ti_clients[client].has_tf_status = false;
+		ti_clients[client].active_weapon_code[0] = 0;
+		ti_clients[client].active_ammo_code[0] = 0;
+		ti_clients[client].gren1_code[0] = 0;
+		ti_clients[client].gren2_code[0] = 0;
+	}
 }
 
 void Parse_CAInfo(char *s)
@@ -821,6 +934,7 @@ void Parse_CAInfo(char *s)
 	}
 
 	if (!cls.mvdplayback) {
+		ti_clients[client].has_tf_status = false;
 		ti_clients[client].client = client; // no, its not stupid
 		ti_clients[client].time = r_refdef2.time;
 		ti_clients[client].org[0] = atoi(Cmd_Argv(2));
@@ -895,6 +1009,7 @@ static void Update_TeamInfo(void)
 		ti_clients[i].nails = bound(0, st[STAT_NAILS], 999);
 		ti_clients[i].rockets = bound(0, st[STAT_ROCKETS], 999);
 		ti_clients[i].cells = bound(0, st[STAT_CELLS], 999);
+		ti_clients[i].has_tf_status = false;
 		ti_clients[i].nick[0] = 0; // sad, we don't have nick, will use name
 	}
 }
@@ -962,7 +1077,7 @@ void TeamInfo_HudInit(void)
 		"teammates", NULL, "Show live status for teammates only.",
 		HUD_NO_GROW, ca_active, 0, SCR_HUD_DrawTeammates,
 		"0", "", "right", "center", "0", "0", "0.47059", "10 0 0", NULL,
-		"layout", "%p%n $x10%l$x11 %a/%H %w",
+		"layout", "%p%n $x10%l$x11 $x10 %g $x11 %a/%H %w",
 		"align_right", "0",
 		"loc_width", "5",
 		"name_width", "6",
@@ -1101,7 +1216,7 @@ void SCR_Draw_ShowNick(void)
 	y = vid.height * 0.6 + scr_shownick_y.value;
 
 	// this does't draw anything, just calculate width
-	w = SCR_HudDrawTeamInfoPlayer(&shownick, 0, 0, maxname, maxloc, true, scale, scr_shownick_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_shownick_show_ammo.integer, 0, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_shownick_proportional.integer);
+	w = SCR_HudDrawTeamInfoPlayer(&shownick, 0, 0, maxname, maxloc, 0, true, scale, scr_shownick_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_shownick_show_ammo.integer, 0, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_shownick_proportional.integer);
 	h = FONTWIDTH * scale;
 
 	x = (scr_shownick_align_right ? (vid.width - w) - FONTWIDTH : FONTWIDTH);
@@ -1113,5 +1228,5 @@ void SCR_Draw_ShowNick(void)
 	Draw_AlphaRectangleRGB(x, y, w, h, 0, true, RGBAVECT_TO_COLOR(col));
 
 	// draw shownick
-	SCR_HudDrawTeamInfoPlayer(&shownick, x, y, maxname, maxloc, false, scale, scr_shownick_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_shownick_show_ammo.integer, 0, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_shownick_proportional.integer);
+	SCR_HudDrawTeamInfoPlayer(&shownick, x, y, maxname, maxloc, 0, false, scale, scr_shownick_order.string, scr_teaminfo_weapon_style.integer, 0.5, scr_shownick_show_ammo.integer, 0, scr_teaminfo_armor_style.integer, scr_teaminfo_powerup_style.integer, scr_teaminfo_flag_style.integer, scr_teaminfo_low_health.integer, scr_shownick_proportional.integer);
 }
