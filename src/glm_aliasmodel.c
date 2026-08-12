@@ -33,6 +33,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_buffers.h"
 #include "r_program.h"
 #include "r_renderer.h"
+#include "teamplay.h"
 
 void GLM_StateBeginAliasModelZPassBatch(void);
 void GLM_StateBeginAliasModelBatch(qbool translucent, qbool additive);
@@ -112,15 +113,43 @@ static int cached_mode;
 
 #define GET_COLOR_VALUES(colr) (float[]){(float)gl_outline_color_##colr.color[0] / 255.0f,(float)gl_outline_color_##colr.color[1] / 255.0f,(float)gl_outline_color_##colr.color[2] / 255.0f}
 
+static void R_OutlineForceColor(const cvar_t *force_color, const float fallback[3], float result[3])
+{
+	byte rgb[3];
+	int palette_color;
+
+	if (TP_ParseRGBColor(force_color->string, rgb)) {
+		result[0] = rgb[0] / 255.0f;
+		result[1] = rgb[1] / 255.0f;
+		result[2] = rgb[2] / 255.0f;
+		return;
+	}
+	if (force_color->value >= 0) {
+		palette_color = 16 * bound(0, force_color->integer, 13) + 8;
+		result[0] = host_basepal[palette_color * 3] / 255.0f;
+		result[1] = host_basepal[palette_color * 3 + 1] / 255.0f;
+		result[2] = host_basepal[palette_color * 3 + 2] / 255.0f;
+		return;
+	}
+	VectorCopy(fallback, result);
+}
+
 static void R_SetAliasModelUniforms(int mode)
 {
 	extern cvar_t gl_outline_use_player_color, gl_outline_color_model, gl_outline_color_team, gl_outline_color_enemy;
 	float scale = RuleSets_ModelOutlineScale();
 	float *color_model, *color_enemy, *color_team;
+	float force_color_enemy[3], force_color_team[3];
 	int use_player_color = gl_outline_use_player_color.integer;
 	color_model = GET_COLOR_VALUES(model);
 	color_enemy = gl_outline_color_enemy.string[0] ? GET_COLOR_VALUES(enemy) : color_model;
 	color_team  = gl_outline_color_team .string[0] ? GET_COLOR_VALUES(team)  : color_model;
+	if (use_player_color == 3 && cl.teamfortress) {
+		R_OutlineForceColor(&cl_enemytopcolor, color_enemy, force_color_enemy);
+		R_OutlineForceColor(&cl_teamtopcolor, color_team, force_color_team);
+		color_enemy = force_color_enemy;
+		color_team = force_color_team;
+	}
 
 	if (cached_mode != mode) {
 		R_ProgramUniform1i(r_program_uniform_aliasmodel_drawmode, mode);

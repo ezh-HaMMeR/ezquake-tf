@@ -5149,10 +5149,28 @@
     },
     "gl_outline_use_player_color": {
       "default": "0",
-      "desc": "Use the top and bottom color for drawing player outlines",
+      "desc": "Controls which colors are used for drawing player outlines.",
       "group-id": "35",
       "remarks": "Requires vid_renderer 1",
-      "type": "boolean"
+      "type": "enum",
+      "values": [
+        {
+          "description": "Use gl_outline_color_team and gl_outline_color_enemy.",
+          "name": "0"
+        },
+        {
+          "description": "Use each player's translated top and bottom colors.",
+          "name": "1"
+        },
+        {
+          "description": "Compatible alias for mode 1.",
+          "name": "2"
+        },
+        {
+          "description": "In Team Fortress, use teamcolor and enemycolor; otherwise use the standard team/enemy outline colors.",
+          "name": "3"
+        }
+      ]
     },
     "gl_outline_world_normal_threshold": {
       "default": "0.997",
