@@ -14865,6 +14865,23 @@
         }
       ]
     },
+    "scan_color": {
+      "default": "0",
+      "desc": "Selects how enhanced TF Scout scanner beams are colored.",
+      "group-id": "35",
+      "remarks": "Only affects beams drawn by new_scanmode 1-3. Custom colors use the first value from teamcolor or enemycolor and support both Quake palette indices and RGB RRGGBB values. If the selected force color is off, the current team color is used.",
+      "type": "enum",
+      "values": [
+        {
+          "description": "Use the detected player's current team color.",
+          "name": "0"
+        },
+        {
+          "description": "Use teamtopcolor for teammates and enemytopcolor for enemies.",
+          "name": "1"
+        }
+      ]
+    },
     "noaim": {
       "default": "1",
       "desc": "This variable toggles whether a server-sided aiming-help should be used when shooting rockets (not possible when the server variable \"sv_aim\" is set to \"0\").",

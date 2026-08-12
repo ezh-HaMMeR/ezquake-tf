@@ -28,6 +28,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "utils.h"
 #include "qsound.h"
 #include "qmb_particles.h"
+#include "teamplay.h"
 
 extern cvar_t gl_no24bit;
 
@@ -74,6 +75,7 @@ cvar_t r_rlbloodColor_big = {"r_rlbloodColor_big", "73"};
 cvar_t r_sgbloodColor = {"r_sgbloodColor", "73"};
 cvar_t r_shiftbeam = {"r_shiftbeam", "0"};
 cvar_t new_scanmode = {"new_scanmode", "0"};
+cvar_t scan_color = {"scan_color", "0"};
 
 static qbool tf_scanner_friendly_requested;
 static int tf_scanner_last_class = -1;
@@ -98,6 +100,7 @@ void CL_InitTEntsCvar(void)
 	Cvar_Register(&r_sgbloodColor);
 	Cvar_Register(&r_shiftbeam);
 	Cvar_Register(&new_scanmode);
+	Cvar_Register(&scan_color);
 	Cvar_ResetCurrentGroup();
 }
 
@@ -938,6 +941,29 @@ static int CL_ScannerTargetTeam(int target)
 static void CL_ScannerBeamColor(int target, byte color[4])
 {
 	int team = CL_ScannerTargetTeam(target);
+	int color_mode = bound(0, scan_color.integer, 1);
+	const cvar_t *force_color;
+	byte rgb[3];
+	int palette_color;
+
+	if (color_mode == 1) {
+		force_color = TP_TFVisualTeammate(target) ? &cl_teamtopcolor : &cl_enemytopcolor;
+		if (TP_ParseRGBColor(force_color->string, rgb)) {
+			color[0] = rgb[0];
+			color[1] = rgb[1];
+			color[2] = rgb[2];
+			color[3] = 179;
+			return;
+		}
+		if (force_color->value >= 0) {
+			palette_color = 16 * bound(0, force_color->integer, 13) + 8;
+			color[0] = host_basepal[palette_color * 3];
+			color[1] = host_basepal[palette_color * 3 + 1];
+			color[2] = host_basepal[palette_color * 3 + 2];
+			color[3] = 179;
+			return;
+		}
+	}
 
 	switch (team) {
 		case 1:
