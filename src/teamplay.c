@@ -36,6 +36,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void OnChangeSkinForcing(cvar_t *var, char *string, qbool *cancel);
 void OnChangeColorForcing(cvar_t *var, char *string, qbool *cancel);
 void OnChangeSkinAndColorForcing(cvar_t *var, char *string, qbool *cancel);
+int TP_CurrentTrackNum(void);
 
 cvar_t cl_parseSay = {"cl_parseSay", "1"};
 cvar_t cl_parseFunChars = {"cl_parseFunChars", "1"};
@@ -1844,9 +1845,14 @@ void TP_UpdateSkins(void)
 qbool TP_NeedRefreshSkins(void)
 {
 	extern cvar_t r_enemyskincolor, r_teamskincolor;
+	byte rgb[3];
 
 	if (cl.teamfortress) {
-		return false;
+		return !(cl.fpd & FPD_NO_FORCE_COLOR) &&
+			(cl_teamtopcolor.value >= 0 || cl_teambottomcolor.value >= 0 ||
+			 cl_enemytopcolor.value >= 0 || cl_enemybottomcolor.value >= 0 ||
+			 TP_ParseRGBColor(cl_teamtopcolor.string, rgb) || TP_ParseRGBColor(cl_teambottomcolor.string, rgb) ||
+			 TP_ParseRGBColor(cl_enemytopcolor.string, rgb) || TP_ParseRGBColor(cl_enemybottomcolor.string, rgb));
 	}
 
 	if ((cl_enemyskin.string[0] || cl_teamskin.string[0] || cl_enemypentskin.string[0] || cl_teampentskin.string[0] ||
@@ -1904,15 +1910,82 @@ void OnChangeColorForcing(cvar_t *var, char *string, qbool *cancel)
 	return;
 }
 
+qbool TP_ParseRGBColor(const char *string, byte rgb[3])
+{
+	const char *hex = string;
+	int i;
+
+	if (hex[0] == '#') {
+		hex++;
+	}
+	if (strlen(hex) != 6) {
+		return false;
+	}
+	for (i = 0; i < 6; i++) {
+		if (!isxdigit((unsigned char)hex[i])) {
+			return false;
+		}
+	}
+	for (i = 0; i < 3; i++) {
+		rgb[i] = (HexToInt(hex[i * 2]) << 4) | HexToInt(hex[i * 2 + 1]);
+	}
+	return true;
+}
+
+qbool TP_TFVisualTeammate(int slot)
+{
+	int pov = TP_CurrentTrackNum();
+	player_info_t *viewer;
+	player_info_t *player;
+	int viewer_team_color;
+
+	if (!cl.teamfortress || slot < 0 || slot >= MAX_CLIENTS) {
+		return false;
+	}
+	if (pov < 0 || pov >= MAX_CLIENTS) {
+		return cl.teamplay && !strcmp(cl.players[slot].team, TP_SkinForcingTeam());
+	}
+	if (slot == pov) {
+		return true;
+	}
+
+	viewer = &cl.players[pov];
+	player = &cl.players[slot];
+
+	// TF2003 supplies the real team separately from the visible disguise colors.
+	if (viewer->team_no > 0 && player->team_no > 0) {
+		if (viewer->team_no == player->team_no) {
+			return true;
+		}
+	}
+	else if (viewer->team[0] && !strcmp(viewer->team, player->team)) {
+		return true;
+	}
+
+	// Only an enemy Spy may borrow the viewer's visible team color.  This keeps
+	// the disguise intact without allowing arbitrary enemy colors to look friendly.
+	if (player->playerclass != PC_SPY) {
+		return false;
+	}
+	viewer_team_color = viewer->known_team_color;
+	if (!viewer_team_color) {
+		viewer_team_color = Utils_TF_TeamToColor(viewer->team);
+	}
+	return viewer_team_color > 0 && player->real_bottomcolor == viewer_team_color;
+}
+
 void TP_ColorForcing (cvar_t *topcolor, cvar_t *bottomcolor)
 {
 	int	top, bottom;
+	byte rgb[3];
 
 	if (Cmd_Argc() == 1) {
 		if (topcolor->integer == -1 && bottomcolor->integer == -1)
 			Com_Printf ("\"%s\" is \"off\"\n", Cmd_Argv(0));
+		else if (!strcmp(topcolor->string, bottomcolor->string))
+			Com_Printf ("\"%s\" is \"%s\"\n", Cmd_Argv(0), topcolor->string);
 		else
-			Com_Printf ("\"%s\" is \"%i %i\"\n", Cmd_Argv(0), topcolor->integer, bottomcolor->integer);
+			Com_Printf ("\"%s\" is \"%s %s\"\n", Cmd_Argv(0), topcolor->string, bottomcolor->string);
 		return;
 	}
 
@@ -1924,8 +1997,34 @@ void TP_ColorForcing (cvar_t *topcolor, cvar_t *bottomcolor)
 	}
 
 	if (Cmd_Argc() == 2) {
+		if (TP_ParseRGBColor(Cmd_Argv(1), rgb)) {
+			Cvar_Set(topcolor, Cmd_Argv(1));
+			Cvar_Set(bottomcolor, Cmd_Argv(1));
+			TP_RefreshSkins();
+			return;
+		}
 		top = bottom = atoi(Cmd_Argv(1));
 	} else {
+		qbool top_rgb = TP_ParseRGBColor(Cmd_Argv(1), rgb);
+		qbool bottom_rgb = TP_ParseRGBColor(Cmd_Argv(2), rgb);
+		if (top_rgb || bottom_rgb) {
+			if (top_rgb) {
+				Cvar_Set(topcolor, Cmd_Argv(1));
+			}
+			else {
+				top = min(13, atoi(Cmd_Argv(1)) & 15);
+				Cvar_SetValue(topcolor, top);
+			}
+			if (bottom_rgb) {
+				Cvar_Set(bottomcolor, Cmd_Argv(2));
+			}
+			else {
+				bottom = min(13, atoi(Cmd_Argv(2)) & 15);
+				Cvar_SetValue(bottomcolor, bottom);
+			}
+			TP_RefreshSkins();
+			return;
+		}
 		top = atoi(Cmd_Argv(1));
 		bottom = atoi(Cmd_Argv(2));
 	}

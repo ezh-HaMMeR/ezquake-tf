@@ -144,10 +144,18 @@ typedef struct player_info_s
 	unsigned char   topcolor;
 	unsigned char   bottomcolor;
 	qbool           teammate;
+	qbool           topcolor_rgb;
+	qbool           bottomcolor_rgb;
+	byte            forced_topcolor_rgb[3];
+	byte            forced_bottomcolor_rgb[3];
 
 	unsigned char   _topcolor;
 	unsigned char   _bottomcolor;
 	qbool           _teammate;
+	qbool           _topcolor_rgb;
+	qbool           _bottomcolor_rgb;
+	byte            _forced_topcolor_rgb[3];
+	byte            _forced_bottomcolor_rgb[3];
 
 	unsigned char   real_topcolor;
 	unsigned char   real_bottomcolor;

@@ -662,6 +662,28 @@ static void R_BlendPlayerSkin(skin_t* skin, qbool teammate, int playernum, byte*
 	Q_free(specific);
 }
 
+static void Skin_SetRGBTranslationRamp(unsigned translate32[256], int range, const byte rgb[3])
+{
+	int i, peak = 1;
+
+	for (i = 0; i < 16; i++) {
+		byte *shade = (byte *)&d_8to24table[range + i];
+		peak = max(peak, max(shade[0], max(shade[1], shade[2])));
+	}
+	for (i = 0; i < 16; i++) {
+		unsigned color = 0;
+		byte *shade = (byte *)&d_8to24table[range + i];
+		byte *out = (byte *)&color;
+		int brightness = max(shade[0], max(shade[1], shade[2]));
+
+		out[0] = rgb[0] * brightness / peak;
+		out[1] = rgb[1] * brightness / peak;
+		out[2] = rgb[2] * brightness / peak;
+		out[3] = 255;
+		translate32[range + i] = color;
+	}
+}
+
 //Translates a skin texture by the per-player color lookup
 void R_TranslatePlayerSkin(int playernum)
 {
@@ -687,13 +709,21 @@ void R_TranslatePlayerSkin(int playernum)
 		player->skin = NULL;
 	}
 
-	if (player->_topcolor == player->topcolor && player->_bottomcolor == player->bottomcolor && player->skin && player->teammate == player->_teammate) {
+	if (player->_topcolor == player->topcolor && player->_bottomcolor == player->bottomcolor &&
+		player->_topcolor_rgb == player->topcolor_rgb && player->_bottomcolor_rgb == player->bottomcolor_rgb &&
+		(!player->topcolor_rgb || !memcmp(player->_forced_topcolor_rgb, player->forced_topcolor_rgb, 3)) &&
+		(!player->bottomcolor_rgb || !memcmp(player->_forced_bottomcolor_rgb, player->forced_bottomcolor_rgb, 3)) &&
+		player->skin && player->teammate == player->_teammate) {
 		return;
 	}
 
 	player->_topcolor = player->topcolor;
 	player->_bottomcolor = player->bottomcolor;
 	player->_teammate = player->teammate;
+	player->_topcolor_rgb = player->topcolor_rgb;
+	player->_bottomcolor_rgb = player->bottomcolor_rgb;
+	memcpy(player->_forced_topcolor_rgb, player->forced_topcolor_rgb, 3);
+	memcpy(player->_forced_bottomcolor_rgb, player->forced_bottomcolor_rgb, 3);
 
 	if (!player->skin) {
 		Skin_Find(player);
@@ -779,6 +809,12 @@ void R_TranslatePlayerSkin(int playernum)
 
 	for (i = 0; i < 256; i++) {
 		translate32[i] = d_8to24table[translate[i]];
+	}
+	if (player->topcolor_rgb) {
+		Skin_SetRGBTranslationRamp(translate32, TOP_RANGE, player->forced_topcolor_rgb);
+	}
+	if (player->bottomcolor_rgb) {
+		Skin_SetRGBTranslationRamp(translate32, BOTTOM_RANGE, player->forced_bottomcolor_rgb);
 	}
 
 	out = pixels;

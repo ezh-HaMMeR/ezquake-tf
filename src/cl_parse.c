@@ -2026,15 +2026,21 @@ void CL_NewTranslation (int slot)
 	player->topcolor = player->real_topcolor;
 	player->bottomcolor = player->real_bottomcolor;
 	player->teammate = false;
+	player->topcolor_rgb = false;
+	player->bottomcolor_rgb = false;
 
 	skinforcing_team = TP_SkinForcingTeam();
 
-	if (!cl.teamfortress && !(cl.fpd & FPD_NO_FORCE_COLOR)) {
+	if (!(cl.fpd & FPD_NO_FORCE_COLOR)) {
 		qbool lockedTeams = TP_TeamLockSpecified();
 		qbool teammate = false;
+		byte rgb[3];
 
 		// it's me or it's teamplay and he's my teammate
-		if (cl.spectator && slot == cl.spec_track && !lockedTeams) {
+		if (cl.teamfortress) {
+			teammate = TP_TFVisualTeammate(slot);
+		}
+		else if (cl.spectator && slot == cl.spec_track && !lockedTeams) {
 			teammate = true;
 		}
 		else if (!cl.spectator && slot == cl.playernum) {
@@ -2048,18 +2054,38 @@ void CL_NewTranslation (int slot)
 
 		if (teammate) {
 			if (cl_teamtopcolor.integer != -1) {
-				player->topcolor = cl_teamtopcolor.value;
+				if ((player->topcolor_rgb = TP_ParseRGBColor(cl_teamtopcolor.string, rgb))) {
+					memcpy(player->forced_topcolor_rgb, rgb, 3);
+				}
+				else {
+					player->topcolor = cl_teamtopcolor.value;
+				}
 			}
 			if (cl_teambottomcolor.integer != -1) {
-				player->bottomcolor = cl_teambottomcolor.value;
+				if ((player->bottomcolor_rgb = TP_ParseRGBColor(cl_teambottomcolor.string, rgb))) {
+					memcpy(player->forced_bottomcolor_rgb, rgb, 3);
+				}
+				else {
+					player->bottomcolor = cl_teambottomcolor.value;
+				}
 			}
 		}
 		else if (slot != cl.playernum) {
 			if (cl_enemytopcolor.integer != -1) {
-				player->topcolor = cl_enemytopcolor.value;
+				if ((player->topcolor_rgb = TP_ParseRGBColor(cl_enemytopcolor.string, rgb))) {
+					memcpy(player->forced_topcolor_rgb, rgb, 3);
+				}
+				else {
+					player->topcolor = cl_enemytopcolor.value;
+				}
 			}
 			if (cl_enemybottomcolor.integer != -1) {
-				player->bottomcolor = cl_enemybottomcolor.value;
+				if ((player->bottomcolor_rgb = TP_ParseRGBColor(cl_enemybottomcolor.string, rgb))) {
+					memcpy(player->forced_bottomcolor_rgb, rgb, 3);
+				}
+				else {
+					player->bottomcolor = cl_enemybottomcolor.value;
+				}
 			}
 		}
 	}
@@ -4095,7 +4121,13 @@ void CL_ParseServerMessage (void)
 				int j = MSG_ReadLong();
 				int idx = MSG_ReadLong();
 				int val = MSG_ReadLong();
-				cl.players[j].tfinfo[idx] = val;
+				if (j >= 0 && j < MAX_CLIENTS && idx >= 0 && idx < (int)(sizeof(cl.players[j].tfinfo) / sizeof(cl.players[j].tfinfo[0]))) {
+					qbool visual_identity_changed = idx <= 1 && cl.players[j].tfinfo[idx] != val;
+					cl.players[j].tfinfo[idx] = val;
+					if (visual_identity_changed && TP_NeedRefreshSkins()) {
+						TP_RefreshSkins();
+					}
+				}
 				break;
 			}
 	}
