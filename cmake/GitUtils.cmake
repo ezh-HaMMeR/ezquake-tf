@@ -93,6 +93,14 @@ function(git_extract_version target_var)
 
     if (NOT GIT_COMMIT_DATETIME)
         set(GIT_COMMIT_DATETIME "unknown")
+    else()
+        # Keep /version player-friendly: YYYY-MM-DD HH:MM:SS without ISO separators or timezone.
+        string(REGEX REPLACE
+                "^([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9])T([0-9][0-9]:[0-9][0-9]:[0-9][0-9]).*$"
+                "\\1 \\2"
+                GIT_COMMIT_DATETIME
+                "${GIT_COMMIT_DATETIME}"
+        )
     endif()
 
     string(SUBSTRING ${GIT_COMMIT_HASH} 0 9 GIT_COMMIT_SHORT_HASH)

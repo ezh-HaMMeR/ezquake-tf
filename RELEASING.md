@@ -20,12 +20,13 @@ Before every release executable build:
 
 ```text
 ezquake-tf <release tag>
-Last commit: <HEAD commit date and time>
+Last commit: YYYY-MM-DD HH:MM:SS
 Discord: http://dc.qwtf.net
 ```
 
-The second line is generated from `git show -s --format=%cI HEAD`; it must not
-be replaced by the executable compilation time.
+The second line is generated from `git show -s --format=%cI HEAD`, then the ISO
+separator and timezone are removed for display. It must not be replaced by the
+executable compilation time.
 
 ## Windows x64
 
