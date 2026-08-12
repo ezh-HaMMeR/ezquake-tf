@@ -2031,7 +2031,10 @@ void CL_NewTranslation (int slot)
 
 	skinforcing_team = TP_SkinForcingTeam();
 
-	if (!(cl.fpd & FPD_NO_FORCE_COLOR)) {
+	// ezquake-tf is paired with the user's TF2003 server: allow its local
+	// team/enemy palette translations even when the generic FPD bit is set.
+	// Non-TF force colors and every force-skin path continue to respect FPD.
+	if (cl.teamfortress || !(cl.fpd & FPD_NO_FORCE_COLOR)) {
 		qbool lockedTeams = TP_TeamLockSpecified();
 		qbool teammate = false;
 		byte rgb[3];

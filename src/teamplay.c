@@ -1848,11 +1848,10 @@ qbool TP_NeedRefreshSkins(void)
 	byte rgb[3];
 
 	if (cl.teamfortress) {
-		return !(cl.fpd & FPD_NO_FORCE_COLOR) &&
-			(cl_teamtopcolor.value >= 0 || cl_teambottomcolor.value >= 0 ||
+		return cl_teamtopcolor.value >= 0 || cl_teambottomcolor.value >= 0 ||
 			 cl_enemytopcolor.value >= 0 || cl_enemybottomcolor.value >= 0 ||
 			 TP_ParseRGBColor(cl_teamtopcolor.string, rgb) || TP_ParseRGBColor(cl_teambottomcolor.string, rgb) ||
-			 TP_ParseRGBColor(cl_enemytopcolor.string, rgb) || TP_ParseRGBColor(cl_enemybottomcolor.string, rgb));
+			 TP_ParseRGBColor(cl_enemytopcolor.string, rgb) || TP_ParseRGBColor(cl_enemybottomcolor.string, rgb);
 	}
 
 	if ((cl_enemyskin.string[0] || cl_teamskin.string[0] || cl_enemypentskin.string[0] || cl_teampentskin.string[0] ||
