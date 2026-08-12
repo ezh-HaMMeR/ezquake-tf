@@ -24,6 +24,8 @@ hud_teammates_pos_y -20
 hud_teammates_frame 0.47059
 hud_teammates_frame_color "10 0 0"
 hud_teammates_layout "%p%n $x10%l$x11 $x10%g $x11 %a/%H %w"
+hud_teammates_loc_width 15
+hud_teammates_loc_align right
 hud_teammates_grow_up 1
 hud_teammates_weapon_style 0
 hud_teammates_weapon_icon_scale 0.65
@@ -42,8 +44,10 @@ active ammo count instead of guessing the best owned weapon. `%g` displays both
 grenade types and counts in aligned columns. Set `hud_teammates_grenade_style 1`
 to replace the grenade names with their icons; `grenade_icon_scale` controls
 their size. Nickname (`%n`), location (`%l`) and grenade (`%g`) columns size
-themselves to the visible contents by default. Positive `name_width` and
-`loc_width` values set explicit nickname and location widths. Location tokens
+themselves to the visible contents by default, except that `loc_width` defaults
+to 15 characters. Positive `name_width` and `loc_width` values set explicit
+nickname and location widths; set either to `0` for automatic sizing.
+`hud_teammates_loc_align` accepts `left`, `center` or `right`. Location tokens
 `$red` and `$blue` are rendered as the corresponding colored lamps.
 
 The original right-side team-status panel is hidden by default and is
