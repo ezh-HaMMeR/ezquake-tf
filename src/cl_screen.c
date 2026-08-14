@@ -820,6 +820,8 @@ static void SCR_DrawElements(void)
 				HUD_Editor_Draw();
 
 				DemoControls_Draw();
+				/* Held bind help has priority over centerprints, status bars and HUD elements. */
+				SCR_MyBinds_Draw();
 			}
 		}
 

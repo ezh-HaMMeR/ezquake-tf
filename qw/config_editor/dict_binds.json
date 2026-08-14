@@ -348,6 +348,21 @@
       "description_en": "Show the team scoreboard while the key is held."
     },
     {
+      "id": "show_my_binds",
+      "scope": [
+        "global"
+      ],
+      "command": "+showmybinds",
+      "label": "Подсказка по биндам",
+      "description": "Показывать активные общие и классовые бинды, пока удерживается клавиша.",
+      "group": "Интерфейс",
+      "order": 245,
+      "max_keys": 2,
+      "conflict_policy": "ask",
+      "label_en": "Show bind help",
+      "description_en": "Show active global and class binds while the key is held."
+    },
+    {
       "id": "pause_alias",
       "scope": [
         "global"

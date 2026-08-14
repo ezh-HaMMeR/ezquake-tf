@@ -23,10 +23,27 @@ $Id: cl_screen.c,v 1.156 2007-10-29 00:56:47 qqshka Exp $
 #include "keys.h"
 #include "menu.h"
 #include "hud.h"
+#include "cfg_editor_dictionary.h"
+#include "textencoding.h"
+
+#define MYBINDS_MAX_ROWS 128
+#define MYBINDS_KEY_SIZE 64
+#define MYBINDS_CHAR_WIDTH 8
+#define MYBINDS_LINE_HEIGHT 8
+
+typedef struct mybinds_row_s {
+	char keys[MYBINDS_KEY_SIZE];
+	const char *label;
+} mybinds_row_t;
 
 static cvar_t scr_centertime  = { "scr_centertime",  "2" };
 static cvar_t scr_centershift = { "scr_centershift", "0" };
 static cvar_t scr_centerspeed = { "scr_centerspeed", "8" };
+static cvar_t showmybinds = { "showmybinds", "0" };
+
+static cfg_editor_dictionary_t mybinds_dictionary;
+static qbool mybinds_dictionary_attempted;
+static qbool mybinds_dictionary_loaded;
 
 /**************************** CENTER PRINTING ********************************/
 
@@ -37,6 +54,161 @@ static float scr_centertime_off;
 static int   scr_center_lines;
 static int   scr_erase_lines;
 static int   scr_erase_center;
+
+static const char *SCR_MyBindsClassScope(void)
+{
+	static const char *scopes[] = {
+		NULL, "class:scout", "class:sniper", "class:soldier", "class:demoman",
+		"class:medic", "class:hwguy", "class:pyro", "class:spy", "class:engineer"
+	};
+	const player_info_t *player;
+
+	if (cls.state != ca_active || !cl.teamfortress || cl.spectator ||
+		cl.playernum < 0 || cl.playernum >= MAX_CLIENTS || key_dest != key_game)
+		return NULL;
+	player = &cl.players[cl.playernum];
+	if (player->spectator || player->playerclass < PC_SCOUT || player->playerclass > PC_ENGINEER ||
+		(player->team_no <= 0 && !player->team[0]))
+		return NULL;
+	return scopes[player->playerclass];
+}
+
+static qbool SCR_MyBindsLoadDictionary(void)
+{
+	char settings[MAX_OSPATH], binds[MAX_OSPATH], error[512] = { 0 };
+
+	if (mybinds_dictionary_attempted)
+		return mybinds_dictionary_loaded;
+	mybinds_dictionary_attempted = true;
+	CFGDictionary_Init(&mybinds_dictionary);
+	snprintf(settings, sizeof(settings), "%s/qw/config_editor/dict_settings.json", com_basedir);
+	snprintf(binds, sizeof(binds), "%s/qw/config_editor/dict_binds.json", com_basedir);
+	mybinds_dictionary_loaded = CFGDictionary_Load(&mybinds_dictionary,
+		settings, binds, error, sizeof(error));
+	if (!mybinds_dictionary_loaded)
+		Com_Printf("Unable to load bind help dictionary: %s\n", error);
+	return mybinds_dictionary_loaded;
+}
+
+static qbool SCR_MyBindsDefinitionApplies(const cfg_bind_definition_t *definition,
+	const char *class_scope)
+{
+	size_t i;
+	for (i = 0; i < definition->scope_count; ++i)
+		if (!strcmp(definition->scopes[i], "global") || !strcmp(definition->scopes[i], class_scope))
+			return true;
+	return false;
+}
+
+static qbool SCR_MyBindsBindingMatches(const cfg_bind_definition_t *definition,
+	const char *binding)
+{
+	if (!binding)
+		return false;
+	return definition->case_sensitive ? !strcmp(binding, definition->command) :
+		!strcasecmp(binding, definition->command);
+}
+
+static int SCR_MyBindsCollect(mybinds_row_t rows[MYBINDS_MAX_ROWS], const char *class_scope)
+{
+	qbool english = false;
+	cvar_t *language = Cvar_Find("menu_language");
+	int count = 0;
+	size_t definition_index;
+
+	if (language)
+		english = !strcasecmp(language->string, "English");
+	for (definition_index = 0;
+		definition_index < mybinds_dictionary.bind_count && count < MYBINDS_MAX_ROWS;
+		++definition_index) {
+		const cfg_bind_definition_t *definition = &mybinds_dictionary.binds[definition_index];
+		int key;
+
+		if (!SCR_MyBindsDefinitionApplies(definition, class_scope))
+			continue;
+		rows[count].keys[0] = '\0';
+		for (key = 0; key < KEY_MAX_KEYS; ++key) {
+			const char *key_name;
+			if (!SCR_MyBindsBindingMatches(definition, keybindings[key]))
+				continue;
+			key_name = Key_KeynumToString(key);
+			if (!key_name || !*key_name)
+				continue;
+			if (rows[count].keys[0])
+				strlcat(rows[count].keys, " / ", sizeof(rows[count].keys));
+			strlcat(rows[count].keys, key_name, sizeof(rows[count].keys));
+		}
+		if (!rows[count].keys[0])
+			continue;
+		rows[count].label = english ? definition->label_en : definition->label;
+		++count;
+	}
+	return count;
+}
+
+static int SCR_MyBindsUTF8Length(const char *text)
+{
+	int input = 0, characters = 0, length = text ? (int)strlen(text) : 0;
+	while (input < length) {
+		TextEncodingDecodeUTF8((char *)text, &input);
+		++input;
+		++characters;
+	}
+	return characters;
+}
+
+static void SCR_MyBindsDrawUTF8(int x, int y, const char *text, int max_chars)
+{
+	wchar wide[256];
+	int input = 0, output = 0, length = text ? (int)strlen(text) : 0;
+
+	while (input < length && output < (int)(sizeof(wide) / sizeof(wide[0])) - 1 && output < max_chars) {
+		int initial = input;
+		wchar decoded = TextEncodingDecodeUTF8((char *)text, &input);
+		if (!decoded && text[initial]) {
+			decoded = (unsigned char)text[initial];
+			input = initial;
+		}
+		wide[output++] = decoded;
+		++input;
+	}
+	wide[output] = 0;
+	Draw_ConsoleString(x, y, wide, NULL, 0, false, 1, false);
+}
+
+static void SCR_MyBindsDrawKey(int x, int y, const char *text)
+{
+	wchar wide[MYBINDS_KEY_SIZE + 3];
+	int input = 0, output = 0, length = (int)strlen(text);
+
+	wide[output++] = 0x10;
+	while (input < length && output < (int)(sizeof(wide) / sizeof(wide[0])) - 2) {
+		int initial = input;
+		wchar decoded = TextEncodingDecodeUTF8((char *)text, &input);
+		if (!decoded && text[initial]) {
+			decoded = (unsigned char)text[initial];
+			input = initial;
+		}
+		if (decoded >= '0' && decoded <= '9')
+			decoded = decoded - '0' + 0x12;
+		wide[output++] = decoded;
+		++input;
+	}
+	wide[output++] = 0x11;
+	wide[output] = 0;
+	Draw_ConsoleString(x, y, wide, NULL, 0, false, 1, false);
+}
+
+static void SCR_ShowMyBindsDown_f(void)
+{
+	if (SCR_MyBindsClassScope())
+		Cvar_SetValue(&showmybinds, 1);
+}
+
+static void SCR_ShowMyBindsUp_f(void)
+{
+	Cvar_SetValue(&showmybinds, 0);
+}
 
 void SCR_CenterPrint_Clear(void)
 {
@@ -52,9 +224,12 @@ void SCR_CenterPrint_Init(void)
 		Cvar_Register(&scr_centertime);
 		Cvar_Register(&scr_centershift);
 		Cvar_Register(&scr_centerspeed);
+		Cvar_Register(&showmybinds);
 		Cvar_ResetCurrentGroup();
 
 		Cmd_AddLegacyCommand("scr_printspeed", "scr_centerspeed");
+		Cmd_AddCommand("+showmybinds", SCR_ShowMyBindsDown_f);
+		Cmd_AddCommand("-showmybinds", SCR_ShowMyBindsUp_f);
 	}
 }
 
@@ -161,6 +336,9 @@ void SCR_CenterString_Draw(void)
 	if (!SCR_CheckDrawCenterString()) {
 		return;
 	}
+	if (showmybinds.integer && SCR_MyBindsClassScope()) {
+		return;
+	}
 
 	if (hud_draw == NULL) {
 		hud_draw = Cvar_Find("hud_centerprint_show");
@@ -178,6 +356,52 @@ void SCR_CenterString_Draw(void)
 	max_width = (sizeof(scr_centerstring_lines[0]) - 1) * 8 * scale;
 
 	SCR_DrawCenterString((vid.width - max_width) / 2, y, scale, proportional, max(scr_centerspeed.value, 1));
+}
+
+void SCR_MyBinds_Draw(void)
+{
+	mybinds_row_t rows[MYBINDS_MAX_ROWS];
+	const char *class_scope;
+	wchar separator[] = { '-', 0 };
+	int count, columns, rows_per_column, available_rows;
+	int max_key_chars = 1, max_label_chars = 1;
+	int column_width, available_column_width, label_chars;
+	int gap = 32, total_width, start_x, start_y;
+	int index;
+
+	if (!showmybinds.integer || !(class_scope = SCR_MyBindsClassScope()) ||
+		!SCR_MyBindsLoadDictionary())
+		return;
+	count = SCR_MyBindsCollect(rows, class_scope);
+	if (!count)
+		return;
+	for (index = 0; index < count; ++index) {
+		max_key_chars = max(max_key_chars, SCR_MyBindsUTF8Length(rows[index].keys));
+		max_label_chars = max(max_label_chars, SCR_MyBindsUTF8Length(rows[index].label));
+	}
+	available_rows = max(1, (vid.height - 64) / MYBINDS_LINE_HEIGHT);
+	columns = count > available_rows ? 2 : 1;
+	rows_per_column = (count + columns - 1) / columns;
+	available_column_width = max(120, (vid.width - 32 - (columns - 1) * gap) / columns);
+	column_width = min((max_key_chars + 5 + max_label_chars) * MYBINDS_CHAR_WIDTH,
+		available_column_width);
+	label_chars = max(1, column_width / MYBINDS_CHAR_WIDTH - max_key_chars - 5);
+	total_width = columns * column_width + (columns - 1) * gap;
+	start_x = max(0, (vid.width - total_width) / 2);
+	start_y = max(16, (vid.height - rows_per_column * MYBINDS_LINE_HEIGHT) / 2);
+
+	for (index = 0; index < count; ++index) {
+		int column = index / rows_per_column;
+		int row = index % rows_per_column;
+		int x = start_x + column * (column_width + gap);
+		int y = start_y + row * MYBINDS_LINE_HEIGHT;
+		int description_x = x + (max_key_chars + 5) * MYBINDS_CHAR_WIDTH;
+
+		SCR_MyBindsDrawKey(x, y, rows[index].keys);
+		Draw_ConsoleString(description_x - 2 * MYBINDS_CHAR_WIDTH, y,
+			separator, NULL, 0, false, 1, false);
+		SCR_MyBindsDrawUTF8(description_x, y, rows[index].label, label_chars);
+	}
 }
 
 void SCR_EraseCenterString(void)
@@ -206,6 +430,9 @@ static void SCR_HUD_DrawCenterPrint(hud_t* hud)
 		*hud_speed;
 
 	if (!SCR_CheckDrawCenterString()) {
+		return;
+	}
+	if (showmybinds.integer && SCR_MyBindsClassScope()) {
 		return;
 	}
 

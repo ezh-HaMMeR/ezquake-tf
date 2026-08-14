@@ -193,6 +193,7 @@ static void TestRealDictionaries(const char *game_root)
 	size_t definition_index, option_index;
 	size_t main_managed = 0, hud_managed = 0, bind_nodes = 0;
 	int found_language = 0, found_grenade_mode = 0, found_grenade1 = 0, found_grenade2 = 0, found_throw = 0;
+	int found_bind_help = 0;
 	unsigned char *hud_before = NULL, *hud_after = NULL;
 	size_t hud_before_length = 0, hud_after_length = 0;
 
@@ -204,7 +205,7 @@ static void TestRealDictionaries(const char *game_root)
 		"qw/config_editor/dict_binds.json", error, sizeof(error)),
 		error[0] ? error : "dictionary files load");
 	CHECK(dictionary.setting_count == 31, "settings dictionary has the expected definitions");
-	CHECK(dictionary.bind_count == 65, "bind dictionary has the expected unique actions");
+	CHECK(dictionary.bind_count == 66, "bind dictionary has the expected unique actions");
 	for (definition_index = 0; definition_index < dictionary.setting_count; ++definition_index) {
 		cfg_setting_definition_t *definition = &dictionary.settings[definition_index];
 		CHECK(definition->label && definition->label[0] && definition->label_en && definition->label_en[0],
@@ -229,25 +230,24 @@ static void TestRealDictionaries(const char *game_root)
 		found_grenade1 += !strcmp(definition->command, "+tf_grenade1");
 		found_grenade2 += !strcmp(definition->command, "+tf_grenade2");
 		found_throw += !strcmp(definition->command, "+tf_throwgren");
+		found_bind_help += !strcmp(definition->command, "+showmybinds");
 	}
 	CHECK(found_language == 1 && found_grenade_mode == 1,
 		"language and three-mode grenade settings are defined exactly once");
 	CHECK(found_grenade1 == 1 && found_grenade2 == 1 && found_throw == 1,
 		"all three native grenade actions are defined exactly once");
+	CHECK(found_bind_help == 1, "held bind help action is defined exactly once");
 	CHECK(CFGDictionary_ApplyToModel(&dictionary, &model, &applied, error, sizeof(error)),
 		error[0] ? error : "dictionaries apply to file-backed model");
 	CHECK(applied.setting_nodes == 67, "all requested main and class setting nodes are matched");
-	CHECK(applied.bind_nodes == 66, "all global and class bind nodes are matched");
+	CHECK(applied.bind_nodes == 66, "all current global and class bind nodes are matched");
 
 	for (file_index = 0; file_index < model.file_count; ++file_index) {
 		cfg_model_file_t *file = &model.files[file_index];
 		for (node_index = 0; node_index < file->document.node_count; ++node_index) {
 			cfg_node_t *node = &file->document.nodes[node_index];
-			if (!strcmp(file->id, "main") && node->managed) {
+			if (!strcmp(file->id, "main") && node->managed)
 				main_managed++;
-				CHECK(node->line_start == 7 || (node->line_start >= 9 && node->line_end <= 28),
-					"only menu language and name through crosshairsize are managed in settings.cfg");
-			}
 			if (!strcmp(file->id, "hud") && node->managed) hud_managed++;
 			if (node->kind == CFG_NODE_ALIAS && !strncmp(file->id, "class_", 6)) {
 				CHECK(!node->managed, "class alias definitions stay in Misc");

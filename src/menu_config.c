@@ -948,6 +948,8 @@ static qbool Config_SaveSession(void)
 {
 	size_t i;
 	qbool english, queued, restart_video;
+	/* Empty dimensions must become real values before change detection and CFG serialization. */
+	Config_DefaultWindowDimensions();
 	if (!Config_ApplyTextDrafts()) goto fail;
 	restart_video = Config_VideoDimensionsChanged();
 	for (i = 0; i < config_menu.setting_count; ++i)
