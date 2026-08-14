@@ -14,6 +14,7 @@ extern qbool m_entersound;
 
 #define CONFIG_PATH_PART "qw/config_editor"
 #define CONFIG_VALUE_SIZE 256
+#define CONFIG_PANEL_MAX_WIDTH 1280
 
 typedef enum config_item_kind_e {
 	CONFIG_ITEM_SECTION,
@@ -101,11 +102,52 @@ static void Config_DrawUTF8(int x, int y, const char *text, qbool active, int ma
 	length = (int)strlen(text);
 	while (input < length && output < (int)(sizeof(wide) / sizeof(wide[0])) - 1 &&
 		(max_chars <= 0 || output < max_chars)) {
-		wide[output++] = TextEncodingDecodeUTF8((char *)text, &input);
+		int initial = input;
+		wchar decoded = TextEncodingDecodeUTF8((char *)text, &input);
+		if (!decoded && text[initial]) {
+			decoded = (unsigned char)text[initial];
+			input = initial;
+		}
+		wide[output++] = decoded;
 		++input;
 	}
 	wide[output] = 0;
 	Draw_ConsoleString(x, y, wide, NULL, 0, active, 1, false);
+}
+
+static void Config_DrawDecoratedValue(int x, int y, const char *text, int max_chars)
+{
+	wchar wide[512];
+	int input = 0, output = 0, length;
+
+	if (!text) text = "";
+	max_chars = bound(3, max_chars, (int)(sizeof(wide) / sizeof(wide[0])) - 1);
+	wide[output++] = 0x10;
+	length = (int)strlen(text);
+	while (input < length && output < max_chars - 1) {
+		int initial = input;
+		wchar decoded = TextEncodingDecodeUTF8((char *)text, &input);
+		if (!decoded && text[initial]) {
+			decoded = (unsigned char)text[initial];
+			input = initial;
+		}
+		if (decoded >= '0' && decoded <= '9') decoded = decoded - '0' + 0x12;
+		wide[output++] = decoded;
+		++input;
+	}
+	wide[output++] = 0x11;
+	wide[output] = 0;
+	Draw_ConsoleString(x, y, wide, NULL, 0, false, 1, false);
+}
+
+static int Config_PanelWidth(void)
+{
+	return min(CONFIG_PANEL_MAX_WIDTH, max(320, vid.width - OPTPADDING * 2 - 12));
+}
+
+static int Config_PanelLeft(void)
+{
+	return (vid.width - Config_PanelWidth()) / 2;
 }
 
 static int Config_UTF8Length(const char *text)
@@ -375,20 +417,24 @@ static void Config_DrawHelpBox(const char *text)
 {
 	int height = 40;
 	int y = vid.height - OPTPADDING - height;
-	UI_DrawBox(OPTPADDING, y, vid.width - OPTPADDING * 2, height);
-	Config_DrawUTF8(OPTPADDING + LETTERWIDTH, y + LETTERHEIGHT, text, false,
-		max(20, vid.width / LETTERWIDTH - 4));
-	UI_Print(OPTPADDING + LETTERWIDTH, y + LETTERHEIGHT * 3,
+	int left = Config_PanelLeft();
+	int width = Config_PanelWidth();
+	UI_DrawBox(left, y, width, height);
+	Config_DrawUTF8(left + LETTERWIDTH, y + LETTERHEIGHT, text, false,
+		max(20, width / LETTERWIDTH - 4));
+	UI_Print(left + LETTERWIDTH, y + LETTERHEIGHT * 3,
 		"Enter: edit/open   Tab: next section   Ctrl+R: reload   Esc: back", false);
 }
 
 static void Config_DrawLoadError(void)
 {
-	UI_Print(OPTPADDING, OPTPADDING, "Config", true);
-	UI_DrawBox(OPTPADDING, 24, vid.width - OPTPADDING * 2, 64);
-	UI_Print(OPTPADDING + 8, 32, "Unable to load config files:", true);
-	UI_Print(OPTPADDING + 8, 48, config_menu.error, false);
-	UI_Print(OPTPADDING + 8, 72, "Enter: retry   Esc: back", false);
+	int left = Config_PanelLeft();
+	int width = Config_PanelWidth();
+	UI_Print(left, OPTPADDING, "Config", true);
+	UI_DrawBox(left, 24, width, 64);
+	UI_Print(left + 8, 32, "Unable to load config files:", true);
+	UI_Print(left + 8, 48, config_menu.error, false);
+	UI_Print(left + 8, 72, "Enter: retry   Esc: back", false);
 }
 
 static void Config_AddLayout(config_item_kind_t kind, const char *file_id,
@@ -464,11 +510,10 @@ static void Config_KeepCursorVisible(void)
 	config_menu.scroll = bound(0, config_menu.scroll, max_scroll);
 }
 
-static void Config_DrawSettingValue(config_setting_draft_t *draft, int x, int y, qbool active)
+static void Config_DrawSettingValue(config_setting_draft_t *draft, int x, int y, qbool active, int max_chars)
 {
 	const cfg_setting_definition_t *definition = draft->definition;
 	const char *value = draft->value;
-	char field[CONFIG_VALUE_SIZE + 8];
 
 	if (active && config_menu.editing) {
 		CEditBox_Draw(&config_menu.editbox, x, y, true);
@@ -481,32 +526,29 @@ static void Config_DrawSettingValue(config_setting_draft_t *draft, int x, int y,
 		size_t i;
 		for (i = 0; i < definition->option_count; ++i)
 			if (!strcmp(value, definition->options[i].value)) value = definition->options[i].label;
-		Config_DrawUTF8(x, y, value, active, 40);
-		return;
 	}
-	snprintf(field, sizeof(field), "[ %s ]", value);
-	Config_DrawUTF8(x, y, field, active, 40);
+	Config_DrawDecoratedValue(x, y, value, max_chars);
 }
 
 static void Config_DrawTextArea(const config_layout_item_t *item, int x, int y, int available_width, qbool active)
 {
 	config_text_draft_t *draft = Config_FindText(item->file_id);
-	int box_width = min(max(400, available_width - 32), 960);
+	int box_width = available_width;
 	int box_height = item->height - 8;
 	if (!draft) return;
-	UI_DrawBox(x + 16, y + 2, box_width, box_height);
+	UI_DrawBox(x, y + 2, box_width, box_height);
 	draft->area.width = max(24, box_width / 8 - 2);
 	draft->area.height = max(3, box_height / 8 - 2);
-	CTextArea_Draw(&draft->area, x + 24, y + 10, active && config_menu.textarea_editing);
+	CTextArea_Draw(&draft->area, x + 8, y + 10, active && config_menu.textarea_editing);
 	if (!draft->area.length)
-		Config_DrawUTF8(x + 24, y + 10, "(нет строк для отображения)", false, 40);
+		Config_DrawUTF8(x + 8, y + 10, "(нет строк для отображения)", false, 40);
 }
 
 static void Config_DrawLayoutItem(const config_layout_item_t *item, int index, int y)
 {
 	qbool active = index == config_menu.cursor;
-	int left = OPTPADDING;
-	int width = vid.width - OPTPADDING * 2 - 12;
+	int left = Config_PanelLeft();
+	int width = Config_PanelWidth();
 	int indent = 0;
 	char label[96];
 
@@ -543,7 +585,8 @@ static void Config_DrawLayoutItem(const config_layout_item_t *item, int index, i
 			int label_length = min(label_chars, Config_UTF8Length(draft->definition->label));
 			Config_DrawUTF8(value_x - label_length * LETTERWIDTH - LETTERWIDTH * 2, y,
 				draft->definition->label, active, label_chars);
-			Config_DrawSettingValue(draft, value_x, y, active);
+			Config_DrawSettingValue(draft, value_x, y, active,
+				max(3, (left + width - value_x) / LETTERWIDTH));
 		}
 		else {
 			config_bind_draft_t *draft = Config_BindAt(item->file_id, item->data_index);
@@ -575,6 +618,8 @@ static const char *Config_SelectedHelp(void)
 void Menu_Config_Draw(void)
 {
 	int i;
+	int left, width, line_chars;
+	char line[256];
 	M_Unscale_Menu();
 	if (!config_menu.loaded) {
 		Config_DrawLoadError();
@@ -584,8 +629,12 @@ void Menu_Config_Draw(void)
 	config_menu.viewport_bottom = vid.height - OPTPADDING - 44;
 	Config_BuildLayout();
 	Config_KeepCursorVisible();
-	UI_Print(OPTPADDING, OPTPADDING, "Config", true);
-	UI_Print(OPTPADDING, OPTPADDING + LETTERHEIGHT, "------------------------------------------------------------", false);
+	left = Config_PanelLeft();
+	width = Config_PanelWidth();
+	line_chars = bound(2, width / LETTERWIDTH, (int)sizeof(line) - 1);
+	UI_MakeLine(line, line_chars);
+	UI_Print(left, OPTPADDING, "Config", true);
+	UI_Print(left, OPTPADDING + LETTERHEIGHT, line, false);
 	for (i = 0; i < config_menu.layout_count; ++i) {
 		config_layout_item_t *item = &config_menu.layout[i];
 		int y = config_menu.viewport_top + item->content_y - config_menu.scroll;

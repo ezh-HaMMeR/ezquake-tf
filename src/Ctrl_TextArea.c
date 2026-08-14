@@ -146,6 +146,7 @@ void CTextArea_Draw(textarea_control_t *control, int x, int y, qbool active)
 		size_t end = CTextArea_LineEnd(control, start);
 		char line[1024];
 		int text_width = bound(1, control->width - gutter_chars, (int)sizeof(line) - 1);
+		if (end > start && control->text[end - 1] == '\r') --end;
 		size_t available = start + control->first_column < end ? end - start - control->first_column : 0;
 		size_t copied = min((size_t)text_width, available);
 		memset(line, ' ', text_width);
