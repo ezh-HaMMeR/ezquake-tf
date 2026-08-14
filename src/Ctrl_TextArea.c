@@ -8,6 +8,7 @@
 static void CTextArea_DrawText(int x, int y, const char *text, qbool console_font)
 {
 	wchar wide[1024];
+	clrinfo_t colors[1024];
 	int input = 0, output = 0, length;
 
 	if (!console_font) {
@@ -17,18 +18,28 @@ static void CTextArea_DrawText(int x, int y, const char *text, qbool console_fon
 	length = (int)strlen(text);
 	while (input < length && output < (int)(sizeof(wide) / sizeof(wide[0])) - 1) {
 		int initial = input;
-		wchar decoded = TextEncodingDecodeUTF8((char *)text, &input);
+		wchar decoded;
+		if ((unsigned char)text[input] < 32 || (unsigned char)text[input] == 127) {
+			// Tabs and other CFG control bytes are whitespace in the editor, never
+			// Quake charset icons. The underlying textarea buffer is not modified.
+			decoded = ' ';
+		}
+		else decoded = TextEncodingDecodeUTF8((char *)text, &input);
 		if (!decoded && text[initial]) {
 			decoded = (unsigned char)text[initial];
 			input = initial;
 		}
-		wide[output++] = decoded;
+		wide[output] = decoded | 128;
+		colors[output].c = COLOR_WHITE;
+		colors[output].i = output;
+		++output;
 		++input;
 	}
 	wide[output] = 0;
-	// Textareas use the alternate brown/gold gradient and the system FreeType
-	// face when it is available. The renderer falls back to the console charset.
-	Draw_ConsoleString(x, y, wide, NULL, 0, true, 1, true);
+	// Supplying an explicit color array prevents CFG text such as &cRGB from
+	// being interpreted as Quake inline formatting. The alternate font glyphs
+	// provide the flat brown color configured in fonts.c.
+	Draw_ConsoleString(x, y, wide, colors, output, false, 1, true);
 }
 
 float CTextArea_CharacterWidth(const textarea_control_t *control)
@@ -72,6 +83,23 @@ static int CTextArea_RowAt(const textarea_control_t *control, size_t position)
 	return row;
 }
 
+static int CTextArea_TotalRows(const textarea_control_t *control)
+{
+	return CTextArea_RowAt(control, control->length) + 1;
+}
+
+static int CTextArea_VisibleColumns(const textarea_control_t *control)
+{
+	int gutter_chars = control->show_source_gutter ? 18 : 0;
+	return max(1, control->width - gutter_chars - 2);
+}
+
+static void CTextArea_ClampScroll(textarea_control_t *control)
+{
+	control->first_row = bound(0, control->first_row,
+		max(0, CTextArea_TotalRows(control) - control->height));
+}
+
 static size_t CTextArea_RowStart(const textarea_control_t *control, int wanted_row)
 {
 	int row = 0;
@@ -87,10 +115,21 @@ static void CTextArea_EnsureVisible(textarea_control_t *control)
 {
 	int row = CTextArea_RowAt(control, control->cursor);
 	int column = (int)(control->cursor - CTextArea_LineStart(control, control->cursor));
+	int visible_columns = CTextArea_VisibleColumns(control);
 	if (row < control->first_row) control->first_row = row;
 	if (row >= control->first_row + control->height) control->first_row = row - control->height + 1;
 	if (column < control->first_column) control->first_column = column;
-	if (column >= control->first_column + control->width) control->first_column = column - control->width + 1;
+	if (column >= control->first_column + visible_columns)
+		control->first_column = column - visible_columns + 1;
+	CTextArea_ClampScroll(control);
+}
+
+void CTextArea_SetScrollFraction(textarea_control_t *control, float fraction)
+{
+	int max_first_row;
+	if (!control) return;
+	max_first_row = max(0, CTextArea_TotalRows(control) - control->height);
+	control->first_row = Q_rint(bound(0.0f, fraction, 1.0f) * max_first_row);
 }
 
 static qbool CTextArea_InsertSourceRows(textarea_control_t *control, const char *bytes, size_t length)
@@ -209,20 +248,23 @@ void CTextArea_Draw(textarea_control_t *control, int x, int y, qbool active)
 {
 	int visible_row;
 	int gutter_chars = control->show_source_gutter ? 18 : 0;
+	int text_width = CTextArea_VisibleColumns(control);
+	int total_rows = CTextArea_TotalRows(control);
+	int max_first_row = max(0, total_rows - control->height);
 	float character_width = CTextArea_CharacterWidth(control);
-	CTextArea_EnsureVisible(control);
+	CTextArea_ClampScroll(control);
 
 	for (visible_row = 0; visible_row < control->height; ++visible_row) {
 		int row = control->first_row + visible_row;
 		size_t start = CTextArea_RowStart(control, row);
 		size_t end = CTextArea_LineEnd(control, start);
 		char line[1024];
-		int text_width = bound(1, control->width - gutter_chars, (int)sizeof(line) - 1);
+		int line_width = bound(1, text_width, (int)sizeof(line) - 1);
 		size_t available = start + control->first_column < end ? end - start - control->first_column : 0;
-		size_t copied = min((size_t)text_width, available);
-		memset(line, ' ', text_width);
+		size_t copied = min((size_t)line_width, available);
+		memset(line, ' ', line_width);
 		if (copied) memcpy(line, control->text + start + control->first_column, copied);
-		line[text_width] = '\0';
+		line[line_width] = '\0';
 
 		if (gutter_chars) {
 			char gutter[32];
@@ -242,10 +284,23 @@ void CTextArea_Draw(textarea_control_t *control, int x, int y, qbool active)
 	if (active) {
 		int row = CTextArea_RowAt(control, control->cursor) - control->first_row;
 		int column = (int)(control->cursor - CTextArea_LineStart(control, control->cursor)) - control->first_column;
-		if (row >= 0 && row < control->height && column >= 0 && column < control->width - gutter_chars) {
+		if (row >= 0 && row < control->height && column >= 0 && column < text_width) {
 			Draw_Character(x + (int)((gutter_chars + column) * character_width), y + row * 8,
 				10 + ((int)(cls.realtime * 4) & 1));
 		}
+	}
+
+	{
+		int track_width = max(3, (int)(character_width * 0.75f));
+		int track_height = control->height * 8;
+		int track_x = x + (int)(control->width * character_width) - track_width;
+		int thumb_height = max(8, total_rows > 0 ? track_height * control->height / total_rows : track_height);
+		int thumb_y;
+		thumb_height = min(track_height, thumb_height);
+		thumb_y = y + (max_first_row ?
+			(track_height - thumb_height) * control->first_row / max_first_row : 0);
+		Draw_AlphaFillRGB(track_x, y, track_width, track_height, RGBA_TO_COLOR(45, 30, 18, 210));
+		Draw_AlphaFillRGB(track_x, thumb_y, track_width, thumb_height, RGBA_TO_COLOR(205, 126, 48, 255));
 	}
 }
 
@@ -275,6 +330,14 @@ qbool CTextArea_Key(textarea_control_t *control, int key, wchar unichar)
 			control->first_row += control->height;
 			control->cursor = CTextArea_RowStart(control, control->first_row);
 			break;
+		case K_MWHEELUP:
+			control->first_row -= 3;
+			CTextArea_ClampScroll(control);
+			return true;
+		case K_MWHEELDOWN:
+			control->first_row += 3;
+			CTextArea_ClampScroll(control);
+			return true;
 		case K_BACKSPACE:
 			if (!control->read_only && control->cursor) {
 				size_t removed = 1;

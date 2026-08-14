@@ -16,6 +16,7 @@ extern cvar_t menu_language;
 #define CONFIG_PATH_PART "qw/config_editor"
 #define CONFIG_VALUE_SIZE 256
 #define CONFIG_PANEL_MAX_WIDTH 1280
+#define CONFIG_TEXTAREA_HEIGHT 144
 
 typedef enum config_item_kind_e {
 	CONFIG_ITEM_SECTION,
@@ -822,7 +823,7 @@ static void Config_AddFileLayout(const char *file_id, qbool include_settings, qb
 	if (include_binds) for (i = 0; i < Config_BindCount(file_id); ++i)
 		Config_AddLayout(CONFIG_ITEM_BIND, file_id, i, 0, 10);
 	Config_AddLayout(CONFIG_ITEM_MISC, file_id, 0, 0, 12);
-	if (text && text->expanded) Config_AddLayout(CONFIG_ITEM_TEXTAREA, file_id, 0, 0, 72);
+	if (text && text->expanded) Config_AddLayout(CONFIG_ITEM_TEXTAREA, file_id, 0, 0, CONFIG_TEXTAREA_HEIGHT);
 }
 
 static void Config_BuildLayout(void)
@@ -843,7 +844,7 @@ static void Config_BuildLayout(void)
 			}
 		}
 		else {
-			Config_AddLayout(CONFIG_ITEM_TEXTAREA, "hud", 0, 0, 72);
+			Config_AddLayout(CONFIG_ITEM_TEXTAREA, "hud", 0, 0, CONFIG_TEXTAREA_HEIGHT);
 		}
 	}
 	if (config_menu.layout_count)
@@ -900,6 +901,9 @@ static void Config_DrawTextArea(const config_layout_item_t *item, int x, int y, 
 	int box_height = item->height - 8;
 	if (!draft) return;
 	UI_DrawBox(x, y + 2, box_width, box_height);
+	if (active)
+		Draw_AlphaRectangleRGB(x, y + 2, box_width, box_height, 1, false,
+			RGBA_TO_COLOR(255, 112, 32, 255));
 	draft->area.width = max(24, (int)(box_width / CTextArea_CharacterWidth(&draft->area)) - 2);
 	draft->area.height = max(3, box_height / 8 - 2);
 	CTextArea_Draw(&draft->area, x + 8, y + 10, active && config_menu.textarea_editing);
@@ -929,26 +933,29 @@ static void Config_DrawLayoutItem(const config_layout_item_t *item, int index, i
 	if (active) UI_DrawGrayBox(item_x, y, left + width - item_x, item->height - 2);
 
 	if (item->kind == CONFIG_ITEM_SECTION) {
+		color_t color = active ? RGBA_TO_COLOR(255, 112, 32, 255) : RGBA_TO_COLOR(145, 92, 42, 255);
 		snprintf(label, sizeof(label), "[%c] ", config_menu.section_open[item->auxiliary] ? '-' : '+');
-		Config_DrawUTF8Color(value_x, y + 3, label, RGBA_TO_COLOR(145, 92, 42, 255), 4);
+		Config_DrawUTF8Color(value_x, y + 3, label, color, 4);
 		Config_DrawUTF8Color(value_x + 4 * LETTERWIDTH, y + 3,
 			(Config_UseEnglish() ? config_sections_en : config_sections_ru)[item->auxiliary],
-			RGBA_TO_COLOR(145, 92, 42, 255), 40);
+			color, 40);
 	}
 	else if (item->kind == CONFIG_ITEM_CLASS) {
+		color_t color = active ? RGBA_TO_COLOR(255, 112, 32, 255) : RGBA_TO_COLOR(205, 150, 82, 255);
 		snprintf(label, sizeof(label), "[%c] ", config_menu.class_open[item->auxiliary] ? '-' : '+');
-		Config_DrawUTF8Color(value_x + indent, y + 2, label, RGBA_TO_COLOR(205, 150, 82, 255), 4);
+		Config_DrawUTF8Color(value_x + indent, y + 2, label, color, 4);
 		Config_DrawUTF8Color(value_x + indent + 4 * LETTERWIDTH, y + 2,
 			(Config_UseEnglish() ? config_classes_en : config_classes_ru)[item->auxiliary],
-			RGBA_TO_COLOR(205, 150, 82, 255), 40);
+			color, 40);
 	}
 	else if (item->kind == CONFIG_ITEM_MISC) {
 		config_text_draft_t *text = Config_FindText(item->file_id);
+		color_t color = active ? RGBA_TO_COLOR(255, 112, 32, 255) : RGBA_TO_COLOR(205, 150, 82, 255);
 		snprintf(label, sizeof(label), "[%c] ", text && text->expanded ? '-' : '+');
-		Config_DrawUTF8Color(value_x + indent, y + 2, label, RGBA_TO_COLOR(205, 150, 82, 255), 4);
+		Config_DrawUTF8Color(value_x + indent, y + 2, label, color, 4);
 		Config_DrawUTF8Color(value_x + indent + 4 * LETTERWIDTH, y + 2,
 			Config_Text("Остальные настройки...", "Other settings..."),
-			RGBA_TO_COLOR(205, 150, 82, 255), 40);
+			color, 40);
 	}
 	else {
 		int label_chars = max(12, (value_x - left - indent) / LETTERWIDTH - 3);
@@ -956,8 +963,11 @@ static void Config_DrawLayoutItem(const config_layout_item_t *item, int index, i
 			config_setting_draft_t *draft = Config_SettingAt(item->file_id, item->data_index);
 			const char *setting_label = Config_SettingLabel(draft->definition);
 			int label_length = min(label_chars, Config_UTF8Length(setting_label));
-			Config_DrawUTF8(value_x - label_length * LETTERWIDTH - LETTERWIDTH * 2, y,
-				setting_label, active, label_chars);
+			if (active)
+				Config_DrawUTF8Color(value_x - label_length * LETTERWIDTH - LETTERWIDTH * 2, y,
+					setting_label, RGBA_TO_COLOR(255, 112, 32, 255), label_chars);
+			else Config_DrawUTF8(value_x - label_length * LETTERWIDTH - LETTERWIDTH * 2, y,
+				setting_label, false, label_chars);
 			Config_DrawSettingValue(draft, value_x, y, active,
 				max(3, (left + width - value_x) / LETTERWIDTH));
 		}
@@ -965,8 +975,11 @@ static void Config_DrawLayoutItem(const config_layout_item_t *item, int index, i
 			config_bind_draft_t *draft = Config_BindAt(item->file_id, item->data_index);
 			const char *bind_label = Config_BindLabel(draft->definition);
 			int label_length = min(label_chars, Config_UTF8Length(bind_label));
-			Config_DrawUTF8(value_x - label_length * LETTERWIDTH - LETTERWIDTH * 2, y,
-				bind_label, active, label_chars);
+			if (active)
+				Config_DrawUTF8Color(value_x - label_length * LETTERWIDTH - LETTERWIDTH * 2, y,
+					bind_label, RGBA_TO_COLOR(255, 112, 32, 255), label_chars);
+			else Config_DrawUTF8(value_x - label_length * LETTERWIDTH - LETTERWIDTH * 2, y,
+				bind_label, false, label_chars);
 			CKeyCapture_Draw(&draft->control, value_x, y, 22, active);
 		}
 	}
@@ -1206,6 +1219,28 @@ qbool Menu_Config_Mouse_Event(const mouse_state_t *ms)
 	if (ms->button_up == 4) { Menu_Config_Key(K_MWHEELUP, 0); return true; }
 	if (ms->button_up == 5) { Menu_Config_Key(K_MWHEELDOWN, 0); return true; }
 	Config_BuildLayout();
+	if (config_menu.textarea_editing) {
+		config_layout_item_t *selected = Config_SelectedItem();
+		if (selected && selected->kind == CONFIG_ITEM_TEXTAREA) {
+			config_text_draft_t *draft = Config_FindText(selected->file_id);
+			int item_y = config_menu.viewport_top + selected->content_y - config_menu.scroll;
+			if (draft) {
+				float character_width = CTextArea_CharacterWidth(&draft->area);
+				int area_x = Config_ValueColumnX() + 8;
+				int area_y = item_y + 10;
+				int track_width = max(3, (int)(character_width * 0.75f));
+				int track_x = area_x + (int)(draft->area.width * character_width) - track_width;
+				int track_height = draft->area.height * 8;
+				if (ms->x >= track_x - 2 && ms->x <= track_x + track_width + 2 &&
+					ms->y >= area_y && ms->y <= area_y + track_height &&
+					(ms->button_down == 1 || ms->button_up == 1 || ms->buttons[1])) {
+					CTextArea_SetScrollFraction(&draft->area,
+						(float)(ms->y - area_y) / max(1, track_height));
+					return true;
+				}
+			}
+		}
+	}
 	for (i = 0; i < config_menu.layout_count; ++i) {
 		config_layout_item_t *item = &config_menu.layout[i];
 		int y = config_menu.viewport_top + item->content_y - config_menu.scroll;
