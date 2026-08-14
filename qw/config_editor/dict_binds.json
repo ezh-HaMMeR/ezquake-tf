@@ -74,6 +74,6 @@
     {"id":"engineer_build_sentry","scope":["class:engineer"],"command":"cmd builtsg","label":"Инженер: построить турель","description":"Отправить серверу команду строительства турели.","group":"Инженер","order":1460,"max_keys":2,"conflict_policy":"ask"},
     {"id":"engineer_build_sentry_password","scope":["class:engineer"],"command":"cmd builtsg_pw","label":"Инженер: построить защищённую турель","description":"Отправить серверу команду строительства турели с вариантом pw.","group":"Инженер","order":1470,"max_keys":2,"conflict_policy":"ask"},
     {"id":"engineer_reload_sentry","scope":["class:engineer"],"command":"cmd sg_reload","label":"Инженер: пополнить боезапас турели","description":"Отправить серверу команду перезарядки турели.","group":"Инженер","order":1480,"max_keys":2,"conflict_policy":"ask"},
-    {"id":"engineer_repair_sentry","scope":["class:engineer"],"command":"cmd sg_repair","label":"Инженер: починить турель","description":"Отправить серверу команду ремонта турели.","group":"Инженер","order":1490,"max_keys":2,"conflict_policy":"ask"}
+    {"id":"engineer_repair_and_upgrade_sentry","scope":["class:engineer"],"command":"repairup","label":"Инженер: починить и улучшить турель","description":"Последовательно отправить команды ремонта sg_repair и улучшения sg_upgrade через alias repairup.","group":"Инженер","order":1490,"max_keys":2,"conflict_policy":"ask"}
   ]
 }
