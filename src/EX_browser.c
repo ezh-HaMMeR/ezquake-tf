@@ -116,12 +116,24 @@ cvar_t  sb_findroutes    = {"sb_findroutes",       "0"};
 cvar_t  sb_ignore_proxy  = {"sb_ignore_proxy",     ""};
 
 // filters
+static void SB_SaveHideEmptyOption(const char *value)
+{
+	FILE *f;
+
+	if (!FS_FCreateFile("sb/options.cfg", &f, "ezquake", "wt"))
+		return;
+	fprintf(f, "sb_hideempty \"%s\"\n", value);
+	fclose(f);
+}
+
 static void sb_trigger_resort(cvar_t* var, char* value, qbool* cancel)
 {
 	resort_servers = 1;
+	if (!strcmp(var->name, "sb_hideempty"))
+		SB_SaveHideEmptyOption(value);
 }
 
-cvar_t  sb_hideempty     = {"sb_hideempty",        "1", 0, sb_trigger_resort };
+cvar_t  sb_hideempty     = {"sb_hideempty",        "0", 0, sb_trigger_resort };
 cvar_t  sb_hidenotempty  = {"sb_hidenotempty",     "0", 0, sb_trigger_resort };
 cvar_t  sb_hidefull      = {"sb_hidefull",         "0", 0, sb_trigger_resort };
 cvar_t  sb_hidedead      = {"sb_hidedead",         "1", 0, sb_trigger_resort };
@@ -129,6 +141,27 @@ cvar_t  sb_hidehighping  = {"sb_hidehighping",     "0", 0, sb_trigger_resort };
 cvar_t  sb_pinglimit     = {"sb_pinglimit",       "80", 0, sb_trigger_resort };
 cvar_t  sb_showproxies   = {"sb_showproxies",      "0", 0, sb_trigger_resort };
 cvar_t  sb_info_filter   = {"sb_info_filter",       "", 0, sb_trigger_resort };
+
+static void SB_LoadPersistentOptions(void)
+{
+	char path[MAX_OSPATH];
+	char line[128];
+	char value[16];
+	FILE *f;
+
+	snprintf(path, sizeof(path), "%s/ezquake/sb/options.cfg", com_basedir);
+	f = fopen(path, "rt");
+	if (!f)
+		return;
+	while (fgets(line, sizeof(line), f)) {
+		if (sscanf(line, "sb_hideempty \"%15[^\"]\"", value) == 1 ||
+			sscanf(line, "sb_hideempty %15s", value) == 1) {
+			Cvar_SetIgnoreCallback(&sb_hideempty, Q_atoi(value) ? "1" : "0");
+			break;
+		}
+	}
+	fclose(f);
+}
 
 cvar_t  sb_sourcevalidity  = {"sb_sourcevalidity", "30"}; // not in menu
 cvar_t  sb_mastercache     = {"sb_mastercache",    "1"};  // not in menu
@@ -3292,6 +3325,7 @@ void Browser_Init (void)
 	Cvar_Register(&sb_findroutes);
 	Cvar_Register(&sb_ignore_proxy);
 	Cvar_Register(&sb_info_filter);
+	SB_LoadPersistentOptions();
 	Cvar_ResetCurrentGroup();
 
 	Cmd_AddCommand("addserver", AddServer_f);
