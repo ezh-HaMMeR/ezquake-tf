@@ -2132,6 +2132,8 @@ qbool Key_IsConsoleToggle (int key)
 	return (key == '`' || key == '~');
 }
 
+static int Key_ModifiedBindingKey(int key);
+
 // Will tell if the key should be currently translated into a command bound to it
 // or send it to some client module.
 static qbool Key_ConsoleKey(int key)
@@ -2143,8 +2145,16 @@ static qbool Key_ConsoleKey(int key)
 	qbool demo_controls_key = (con_tilde_mode.integer && con_toggle) ? true : democontrolskey[key];
 	qbool con_keypad_key = cl_keypad.integer && key >= KP_HOME && key <= KP_ENTER;
 
-	if (key_dest == key_menu && Menu_ExecuteKey(key))
-		return false;
+	if (key_dest == key_menu) {
+		int binding_key = Key_ModifiedBindingKey(key);
+
+		if (binding_key >= 0 && binding_key < KEY_MAX_KEYS &&
+			Menu_Config_AllowsBinding(keybindings[binding_key])) {
+			return false;
+		}
+		if (Menu_ExecuteKey(key))
+			return false;
+	}
 
 	if ((key_dest == key_console || key_dest == key_message) && !con_key && !con_keypad_key)
 		return false;

@@ -779,20 +779,79 @@ static qbool Config_WriteDirtyFiles(void)
 	return true;
 }
 
+static const char *Config_CurrentClassFile(void)
+{
+	static const char *class_files[] = {
+		NULL, "scout.cfg", "sniper.cfg", "soldier.cfg", "demoman.cfg",
+		"medic.cfg", "hwguy.cfg", "pyro.cfg", "spy.cfg", "engineer.cfg"
+	};
+	int playerclass;
+
+	if (!cl.teamfortress || cl.playernum < 0 || cl.playernum >= MAX_CLIENTS)
+		return NULL;
+	playerclass = cl.players[cl.playernum].playerclass;
+	if (playerclass < PC_SCOUT || playerclass > PC_ENGINEER)
+		return NULL;
+	return class_files[playerclass];
+}
+
+static qbool Config_QueueDirtyFiles(void)
+{
+	const char *current_class = Config_CurrentClassFile();
+	qbool main_dirty = false, binds_dirty = false, hud_dirty = false;
+	qbool current_class_dirty = false;
+	size_t i;
+
+	for (i = 0; i < config_menu.model.file_count; ++i) {
+		const cfg_model_file_t *file = &config_menu.model.files[i];
+		if (!file->dirty)
+			continue;
+		if (!strcmp(file->role, "main"))
+			main_dirty = true;
+		else if (!strcmp(file->role, "binds"))
+			binds_dirty = true;
+		else if (!strcmp(file->role, "hud"))
+			hud_dirty = true;
+		else if (current_class && !strcmp(file->role, "class") && !strcmp(file->path, current_class))
+			current_class_dirty = true;
+	}
+
+	/* A class CFG inherits the shared files and then restores its own overrides. */
+	if (current_class && (main_dirty || binds_dirty || hud_dirty || current_class_dirty)) {
+		Cbuf_AddText(va("exec \"%s\"\n", current_class));
+		return true;
+	}
+
+	/* Never activate an edited profile for a class that the player is not using. */
+	if (main_dirty) {
+		Cbuf_AddText("exec \"settings.cfg\"\n");
+		return true;
+	}
+	if (binds_dirty)
+		Cbuf_AddText("exec \"binds.cfg\"\n");
+	if (hud_dirty)
+		Cbuf_AddText("exec \"hud.cfg\"\n");
+	return binds_dirty || hud_dirty;
+}
+
 static qbool Config_SaveSession(void)
 {
 	size_t i;
-	qbool english;
+	qbool english, queued;
 	if (!Config_ApplyTextDrafts()) goto fail;
 	for (i = 0; i < config_menu.setting_count; ++i)
 		if (!Config_ReplaceSettingDraft(&config_menu.settings[i])) goto fail;
 	for (i = 0; i < config_menu.bind_count; ++i)
 		if (!Config_ReplaceBindDraft(&config_menu.binds[i])) goto fail;
 	if (!Config_WriteDirtyFiles()) goto fail;
+	queued = Config_QueueDirtyFiles();
 	english = Config_UseEnglish();
 	Cvar_Set(&menu_language, english ? "English" : "Russian");
 	if (!Config_LoadSession()) return false;
-	strlcpy(config_menu.notice, english ? "Changes saved" : "Изменения сохранены", sizeof(config_menu.notice));
+	strlcpy(config_menu.notice,
+		queued ? (english ? "Changes saved and applied" : "Изменения сохранены и применены") :
+			(english ? "Changes saved" : "Изменения сохранены"),
+		sizeof(config_menu.notice));
 	return true;
 
 fail:
@@ -1237,6 +1296,26 @@ qbool Menu_Config_IsCapturingKey(void)
 		return draft && draft->control.capturing;
 	}
 	return false;
+}
+
+qbool Menu_Config_AllowsBinding(const char *binding)
+{
+	config_layout_item_t *item;
+	const char *command;
+	size_t length = strlen("screenshot");
+
+	if (m_state != m_config || !config_menu.loaded || !binding)
+		return false;
+	item = Config_SelectedItem();
+	if (item && item->kind == CONFIG_ITEM_BIND) {
+		config_bind_draft_t *draft = Config_BindAt(item->file_id, item->data_index);
+		if (draft && draft->control.capturing)
+			return false;
+	}
+	for (command = binding; *command && isspace((unsigned char)*command); ++command) {
+	}
+	return !strncasecmp(command, "screenshot", length) &&
+		(!command[length] || isspace((unsigned char)command[length]) || command[length] == ';');
 }
 
 qbool Menu_Config_Mouse_Event(const mouse_state_t *ms)
