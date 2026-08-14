@@ -198,6 +198,11 @@ static int Config_PanelLeft(void)
 	return (vid.width - Config_PanelWidth()) / 2;
 }
 
+static int Config_ValueColumnX(void)
+{
+	return Config_PanelLeft() + Config_PanelWidth() / 2 + LETTERWIDTH * 2;
+}
+
 static int Config_UTF8Length(const char *text)
 {
 	int input = 0, characters = 0, length;
@@ -882,38 +887,41 @@ static void Config_DrawLayoutItem(const config_layout_item_t *item, int index, i
 	qbool active = index == config_menu.cursor;
 	int left = Config_PanelLeft();
 	int width = Config_PanelWidth();
+	int value_x = Config_ValueColumnX();
 	int indent = 0;
+	int item_x;
 	char label[96];
 
 	if (item->kind == CONFIG_ITEM_TEXTAREA) {
-		Config_DrawTextArea(item, left, y, width, active);
+		Config_DrawTextArea(item, value_x, y, left + width - value_x, active);
 		return;
 	}
 	if (item->kind == CONFIG_ITEM_CLASS) indent = 12;
 	else if (item->kind != CONFIG_ITEM_SECTION) indent = 28;
-	if (active) UI_DrawGrayBox(left + indent, y, width - indent, item->height - 2);
+	item_x = (item->kind == CONFIG_ITEM_SETTING || item->kind == CONFIG_ITEM_BIND) ?
+		left + indent : value_x + indent;
+	if (active) UI_DrawGrayBox(item_x, y, left + width - item_x, item->height - 2);
 
 	if (item->kind == CONFIG_ITEM_SECTION) {
 		snprintf(label, sizeof(label), "[%c] ", config_menu.section_open[item->auxiliary] ? '-' : '+');
-		UI_Print(left + 4, y + 3, label, active);
-		Config_DrawUTF8(left + 4 + 4 * LETTERWIDTH, y + 3,
+		UI_Print(value_x, y + 3, label, active);
+		Config_DrawUTF8(value_x + 4 * LETTERWIDTH, y + 3,
 			(Config_UseEnglish() ? config_sections_en : config_sections_ru)[item->auxiliary], active, 40);
 	}
 	else if (item->kind == CONFIG_ITEM_CLASS) {
-		snprintf(label, sizeof(label), "  [%c] ", config_menu.class_open[item->auxiliary] ? '-' : '+');
-		UI_Print(left + indent, y + 2, label, active);
-		Config_DrawUTF8(left + indent + 6 * LETTERWIDTH, y + 2,
+		snprintf(label, sizeof(label), "[%c] ", config_menu.class_open[item->auxiliary] ? '-' : '+');
+		UI_Print(value_x + indent, y + 2, label, active);
+		Config_DrawUTF8(value_x + indent + 4 * LETTERWIDTH, y + 2,
 			(Config_UseEnglish() ? config_classes_en : config_classes_ru)[item->auxiliary], active, 40);
 	}
 	else if (item->kind == CONFIG_ITEM_MISC) {
 		config_text_draft_t *text = Config_FindText(item->file_id);
-		snprintf(label, sizeof(label), "    [%c] ", text && text->expanded ? '-' : '+');
-		UI_Print(left + indent, y + 2, label, active);
-		Config_DrawUTF8(left + indent + 8 * LETTERWIDTH, y + 2,
+		snprintf(label, sizeof(label), "[%c] ", text && text->expanded ? '-' : '+');
+		UI_Print(value_x + indent, y + 2, label, active);
+		Config_DrawUTF8(value_x + indent + 4 * LETTERWIDTH, y + 2,
 			Config_Text("Остальные настройки...", "Other settings..."), active, 40);
 	}
 	else {
-		int value_x = left + width / 2 + LETTERWIDTH * 2;
 		int label_chars = max(12, (value_x - left - indent) / LETTERWIDTH - 3);
 		if (item->kind == CONFIG_ITEM_SETTING) {
 			config_setting_draft_t *draft = Config_SettingAt(item->file_id, item->data_index);

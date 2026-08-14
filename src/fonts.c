@@ -60,7 +60,13 @@ charset_t proportional_fonts[MAX_CHARSETS];
 int Font_Load(const char* path);
 static void OnChange_font_facepath(cvar_t* cvar, char* newvalue, qbool* cancel);
 
+#ifdef _WIN32
+// Use a readable system monospace font for controls which explicitly request
+// proportional FreeType rendering. Regular menu text keeps using the charset.
+static cvar_t font_facepath                   = { "font_facepath", "consola", 0, OnChange_font_facepath };
+#else
 static cvar_t font_facepath                   = { "font_facepath", "", 0, OnChange_font_facepath };
+#endif
 static cvar_t font_capitalize                 = { "font_capitalize", "0" };
 static cvar_t font_gradient_normal_color1     = { "font_gradient_normal_color1", "255 255 255", CVAR_COLOR };
 static cvar_t font_gradient_normal_color2     = { "font_gradient_normal_color2", "107 98 86", CVAR_COLOR };

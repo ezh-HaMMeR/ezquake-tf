@@ -25,7 +25,9 @@ static void CTextArea_DrawText(int x, int y, const char *text, qbool console_fon
 		++input;
 	}
 	wide[output] = 0;
-	Draw_ConsoleString(x, y, wide, NULL, 0, false, 1, false);
+	// Textareas use the alternate brown/gold gradient and the system FreeType
+	// face when it is available. The renderer falls back to the console charset.
+	Draw_ConsoleString(x, y, wide, NULL, 0, true, 1, true);
 }
 
 static qbool CTextArea_Reserve(textarea_control_t *control, size_t required)
