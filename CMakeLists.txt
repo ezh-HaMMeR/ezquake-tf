@@ -599,6 +599,7 @@ set(client_headers
         ${SOURCE_DIR}/keys.h
         ${SOURCE_DIR}/logging.h
         ${SOURCE_DIR}/menu.h
+		${SOURCE_DIR}/menu_config.h
         ${SOURCE_DIR}/menu_demo.h
         ${SOURCE_DIR}/menu_ingame.h
         ${SOURCE_DIR}/menu_multiplayer.h
@@ -668,6 +669,7 @@ set(client
         ${SOURCE_DIR}/cl_screenshot.c
         ${SOURCE_DIR}/cl_skygroups.c
         ${SOURCE_DIR}/cl_slist.c
+		${SOURCE_DIR}/menu_config.c
         ${SOURCE_DIR}/cl_tent.c
         ${SOURCE_DIR}/cl_view.c
         ${SOURCE_DIR}/collision.c

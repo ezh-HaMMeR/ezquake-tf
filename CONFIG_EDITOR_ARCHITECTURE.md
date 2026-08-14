@@ -92,5 +92,19 @@ blank lines and comments.
   several files without changing their on-disk order.
 
 The controls alter only the file-backed draft. Applying draft changes to live
-cvars or writing dirty files is a separate, explicit operation that will be
-implemented with the menu pages.
+cvars or writing dirty files remains a separate, explicit operation.
+
+## Experimental menu
+
+The main menu contains `Config` instead of the unused `Single Player` and
+`Multiplayer` entries. The legacy `MAIN` heading is not drawn. The editor uses
+the same full-screen layout language as `Options`: top tabs, a separator,
+highlighted rows, standard sliders and a bottom help box.
+
+The four tabs are `Main Settings`, `Binds`, `Class Settings` and `HUD Settings`.
+Class pages combine the settings and binds selected by their `class:*` scope;
+the final `Misc` row opens the unknown statements with original file/line
+references. `HUD Settings` exposes the complete `hud.cfg` byte draft. Draft
+changes survive navigation, remain independent from current cvars and are not
+written to disk in this stage. `Ctrl+R` discards the complete draft and reloads
+all managed files from the installed game root.

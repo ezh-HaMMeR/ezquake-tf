@@ -34,6 +34,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "menu_options.h"
 #include "menu_ingame.h"
 #include "menu_multiplayer.h"
+#include "menu_config.h"
 #include "EX_FileList.h"
 #include "help.h"
 #include "utils.h"
@@ -388,15 +389,14 @@ typedef struct bigmenu_items_s {
 #define BIGMENU_ITEMS_COUNT(x) (sizeof(x) / sizeof(bigmenu_items_t))
 
 bigmenu_items_t mainmenu_items[] = {
-	{"Single Player", M_Menu_SinglePlayer_f},
-	{"Multiplayer", M_Menu_MultiPlayer_f},
+	{"Config", Menu_Config_Enter},
 	{"Options", M_Menu_Options_f},
 	{"Demos", M_Menu_Demos_f},
 	{"Help", M_Menu_Help_f},
 	{"Quit", M_Menu_Quit_f}
 };
 
-#define    MAIN_ITEMS    (newmainmenu ? BIGMENU_ITEMS_COUNT(mainmenu_items) : 5)
+#define    MAIN_ITEMS    BIGMENU_ITEMS_COUNT(mainmenu_items)
 
 // mcharset must be supported in this point
 static void M_BigMenu_DrawItems(bigmenu_items_t *menuitems, const unsigned int items, int left_corner, int top_corner, int *width, int *height)
@@ -422,14 +422,10 @@ static void M_BigMenu_DrawItems(bigmenu_items_t *menuitems, const unsigned int i
 
 void M_Main_Draw (void) {
 	int f = (int) (curtime * 10) % 6;
-	mpic_t *p;
+	int i;
 	int itemheight;
 
 	M_DrawTransPic (16, BIGMENU_TOP, Draw_CachePic (CACHEPIC_QPLAQUE) );
-
-	// the Main Manu heading
-	p = Draw_CachePic (CACHEPIC_TTL_MAIN);
-	M_DrawPic ( (320-p->width)/2, 4, p);
 
 	// Main Menu items
 	if (Draw_BigFontAvailable()) {
@@ -441,18 +437,15 @@ void M_Main_Draw (void) {
 		itemheight = m_main_window.h / BIGMENU_ITEMS_COUNT(mainmenu_items);
 	}
 	else {
-		newmainmenu = false;
-		p = Draw_CachePic (CACHEPIC_MAINMENU);
-		m_main_window.w = p->width;
-		m_main_window.h = p->height;
-		M_DrawTransPic_GetPoint (72, 32, &m_main_window.x, &m_main_window.y, p);
-		
-		// main menu specific correction, mainmenu.lmp|png have some useless extra space at the bottom
-		// that makes the mouse pointer position calculation imperfect
-		m_main_window.h *= 0.9;
-
-		itemheight = 20;
-	}	
+		newmainmenu = true;
+		m_main_window.x = BIGMENU_LEFT + (menuwidth - 320)/2;
+		m_main_window.y = BIGMENU_TOP + m_yofs;
+		m_main_window.w = 160;
+		m_main_window.h = BIGMENU_ITEMS_COUNT(mainmenu_items) * 16;
+		for (i = 0; i < BIGMENU_ITEMS_COUNT(mainmenu_items); ++i)
+			M_Print(BIGMENU_LEFT, BIGMENU_TOP + i * 16, va("  %s", mainmenu_items[i].label));
+		itemheight = 16;
+	}
 
 	M_DrawTransPic (54, BIGMENU_TOP + m_main_cursor * itemheight,
 		Draw_CachePic(CACHEPIC_MENUDOT1 + f)
@@ -461,17 +454,7 @@ void M_Main_Draw (void) {
 
 static void M_Main_Enter(const unsigned int entry)
 {
-	if (newmainmenu) {
-		mainmenu_items[entry].enter_handler();
-	}
-	else {
-		switch (entry) {
-		case 0: M_Menu_SinglePlayer_f (); break;
-		case 1:	M_Menu_MultiPlayer_f (); break;
-		case 2: M_Menu_Options_f (); break;
-		case 4: M_Menu_Quit_f (); break;
-		}
-	}
+	mainmenu_items[entry].enter_handler();
 }
 
 void M_Main_Key (int key) {
@@ -1295,6 +1278,7 @@ void M_Init (void) {
 	Menu_Options_Init(); // menu_options module
 	Menu_Ingame_Init();
 	Menu_MultiPlayer_Init(); // menu_multiplayer.h
+	Menu_Config_Init();
 
 	Cmd_AddCommand ("togglemenu", M_ToggleMenu_f);
 	Cmd_AddCommand ("toggleproxymenu", M_ToggleProxyMenu_f);
@@ -1309,6 +1293,7 @@ void M_Init (void) {
 	Cmd_AddCommand ("menu_slist", M_Menu_Browser_f);
 	Cmd_AddCommand ("menu_demos", M_Menu_Demos_f);
 	Cmd_AddCommand ("menu_options", M_Menu_Options_f);
+	Cmd_AddCommand ("menu_config", Menu_Config_Enter);
 	Cmd_AddCommand ("help", M_Menu_Help_f);
 	Cmd_AddCommand ("menu_help", M_Menu_Help_f);
 	Cmd_AddCommand ("menu_quit", M_Menu_Quit_f);
@@ -1321,6 +1306,7 @@ void M_Shutdown(void)
 	Menu_Options_Shutdown();
 	Menu_Ingame_Shutdown();
 	Menu_MultiPlayer_Shutdown();
+	Menu_Config_Shutdown();
 }
 
 void M_Draw(void)
@@ -1382,6 +1368,7 @@ void M_Draw(void)
 		case m_multiplayer:		Menu_MultiPlayer_Draw(); break;
 		case m_multiplayer_submenu: M_MultiPlayerSub_Draw(); break;
 		case m_options:			M_Options_Draw(); break;
+		case m_config:			Menu_Config_Draw(); break;
 		case m_proxy:			Menu_Proxy_Draw(); break;
 		case m_ingame:			M_Ingame_Draw(); break;
 		case m_help:			M_Help_Draw(); break;
@@ -1408,6 +1395,9 @@ qbool Menu_ExecuteKey (int key) {
 
 	// Capture all keypresses when binding
 	if (Menu_Options_IsBindingKey ()) {
+		return false;
+	}
+	if (m_state == m_config && Menu_Config_IsCapturingKey()) {
 		return false;
 	}
 
@@ -1440,6 +1430,7 @@ void M_Keydown (int key, wchar unichar) {
 		case m_multiplayer:		Menu_MultiPlayer_Key(key, unichar); return;
 		case m_multiplayer_submenu: M_MultiPlayerSub_Key(key); return;
 		case m_options: 		M_Options_Key(key, unichar); return;
+		case m_config:			Menu_Config_Key(key, unichar); return;
 		case m_proxy:			M_Proxy_Key(key); return;
 		case m_ingame:			M_Ingame_Key(key); return;
 		case m_help:			Menu_Help_Key(key, unichar); return;
@@ -1471,6 +1462,7 @@ qbool Menu_Mouse_Event(const mouse_state_t* ms)
 	case m_save:			return M_Save_Mouse_Event(ms);
 #endif
 	case m_options:			return Menu_Options_Mouse_Event(ms);
+	case m_config:			return Menu_Config_Mouse_Event(ms);
 	case m_demos:			return Menu_Demo_Mouse_Event(ms);
 	case m_ingame:			return Menu_Ingame_Mouse_Event(ms);
 	case m_help:			return Menu_Help_Mouse_Event(ms);
