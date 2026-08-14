@@ -99,10 +99,13 @@ static void CFGDictionary_FreeSetting(cfg_setting_definition_t *setting)
 	for (index = 0; index < setting->option_count; ++index) {
 		free(setting->options[index].value);
 		free(setting->options[index].label);
+		free(setting->options[index].label_en);
 	}
 	free(setting->options);
 	free(setting->label);
+	free(setting->label_en);
 	free(setting->description);
+	free(setting->description_en);
 	free(setting->group);
 	free(setting->apply);
 	memset(setting, 0, sizeof(*setting));
@@ -116,7 +119,9 @@ static void CFGDictionary_FreeBind(cfg_bind_definition_t *bind)
 	free(bind->scopes);
 	free(bind->command);
 	free(bind->label);
+	free(bind->label_en);
 	free(bind->description);
+	free(bind->description_en);
 	free(bind->group);
 	free(bind->conflict_policy);
 	memset(bind, 0, sizeof(*bind));
@@ -155,7 +160,8 @@ static int CFGDictionary_ParseOptions(json_t *widget, cfg_setting_definition_t *
 	json_array_foreach(options, index, option) {
 		if (!json_is_object(option)
 			|| !(setting->options[index].value = CFGDictionary_CopyJsonString(option, "value", 1))
-			|| !(setting->options[index].label = CFGDictionary_CopyJsonString(option, "label", 1))) {
+			|| !(setting->options[index].label = CFGDictionary_CopyJsonString(option, "label", 1))
+			|| !(setting->options[index].label_en = CFGDictionary_CopyJsonString(option, "label_en", 1))) {
 			return 0;
 		}
 	}
@@ -172,10 +178,12 @@ static int CFGDictionary_ParseSetting(json_t *entry, cfg_setting_definition_t *s
 	if (!json_is_object(entry) || !json_is_object(storage) || !json_is_object(widget)) return 0;
 	setting->id = CFGDictionary_CopyJsonString(entry, "id", 1);
 	setting->label = CFGDictionary_CopyJsonString(entry, "label", 1);
+	setting->label_en = CFGDictionary_CopyJsonString(entry, "label_en", 1);
 	setting->description = CFGDictionary_CopyJsonString(entry, "description", 0);
+	setting->description_en = CFGDictionary_CopyJsonString(entry, "description_en", 0);
 	setting->group = CFGDictionary_CopyJsonString(entry, "group", 0);
 	setting->apply = CFGDictionary_CopyJsonString(entry, "apply", 0);
-	if (!setting->id || !setting->label || !setting->description || !setting->group || !setting->apply
+	if (!setting->id || !setting->label || !setting->label_en || !setting->description || !setting->description_en || !setting->group || !setting->apply
 		|| !CFGDictionary_CopyScopes(entry, &setting->scopes, &setting->scope_count)) return 0;
 
 	value = json_object_get(storage, "type");
@@ -221,11 +229,13 @@ static int CFGDictionary_ParseBind(json_t *entry, cfg_bind_definition_t *bind)
 	bind->id = CFGDictionary_CopyJsonString(entry, "id", 1);
 	bind->command = CFGDictionary_CopyJsonString(entry, "command", 1);
 	bind->label = CFGDictionary_CopyJsonString(entry, "label", 1);
+	bind->label_en = CFGDictionary_CopyJsonString(entry, "label_en", 1);
 	bind->description = CFGDictionary_CopyJsonString(entry, "description", 0);
+	bind->description_en = CFGDictionary_CopyJsonString(entry, "description_en", 0);
 	bind->group = CFGDictionary_CopyJsonString(entry, "group", 0);
 	bind->conflict_policy = CFGDictionary_CopyJsonString(entry, "conflict_policy", 0);
 	bind->max_keys = 2;
-	if (!bind->id || !bind->command || !bind->label || !bind->description || !bind->group
+	if (!bind->id || !bind->command || !bind->label || !bind->label_en || !bind->description || !bind->description_en || !bind->group
 		|| !bind->conflict_policy || !CFGDictionary_CopyScopes(entry, &bind->scopes, &bind->scope_count)) return 0;
 	value = json_object_get(entry, "order");
 	if (value) { if (!json_is_integer(value)) return 0; bind->order = (int)json_integer_value(value); }

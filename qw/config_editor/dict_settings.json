@@ -3,330 +3,788 @@
   "schema_version": 1,
   "settings": [
     {
+      "id": "menu_language",
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "menu_language"
+      },
+      "widget": {
+        "type": "select",
+        "options": [
+          {
+            "value": "Russian",
+            "label": "Русский",
+            "label_en": "Russian"
+          },
+          {
+            "value": "English",
+            "label": "Английский",
+            "label_en": "English"
+          }
+        ]
+      },
+      "label": "Язык меню",
+      "label_en": "Menu language",
+      "description": "Язык названий и описаний в редакторе конфигурации.",
+      "description_en": "Language used for labels and descriptions in the configuration editor.",
+      "group": "Интерфейс",
+      "order": 0,
+      "apply": "on_save"
+    },
+    {
       "id": "player_name",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "name"},
-      "widget": {"type": "text", "max_length": 31},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "name"
+      },
+      "widget": {
+        "type": "text",
+        "max_length": 31
+      },
       "label": "Имя игрока",
       "description": "Имя, отображаемое другим игрокам.",
       "group": "Игрок",
       "order": 10,
+      "apply": "on_save",
+      "label_en": "Player name",
+      "description_en": "Name shown to other players."
+    },
+    {
+      "id": "grenade_control_mode",
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "tf_grenade_mode"
+      },
+      "widget": {
+        "type": "select",
+        "options": [
+          {
+            "value": "1",
+            "label": "Удержание: бросок при отпускании",
+            "label_en": "Hold: throw on release"
+          },
+          {
+            "value": "2",
+            "label": "Одной кнопкой: нажатие и бросок",
+            "label_en": "One key: prime then throw"
+          },
+          {
+            "value": "3",
+            "label": "Классический: отдельная кнопка броска",
+            "label_en": "Classic: separate throw key"
+          }
+        ]
+      },
+      "label": "Управление гранатами",
+      "label_en": "Grenade controls",
+      "description": "Выбирает один из трёх способов подготовки и броска гранат.",
+      "description_en": "Selects one of the three grenade priming and throwing control schemes.",
+      "group": "Управление",
+      "order": 15,
       "apply": "on_save"
     },
     {
       "id": "mouse_sensitivity",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "sensitivity"},
-      "widget": {"type": "slider", "min": 0.1, "max": 20, "step": 0.1},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "sensitivity"
+      },
+      "widget": {
+        "type": "slider",
+        "min": 0.1,
+        "max": 20,
+        "step": 0.1
+      },
       "label": "Чувствительность мыши",
       "description": "Скорость поворота камеры при движении мыши.",
       "group": "Мышь",
       "order": 20,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Mouse sensitivity",
+      "description_en": "Camera turn speed when moving the mouse."
     },
     {
       "id": "mouse_pitch",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "m_pitch"},
-      "widget": {"type": "number", "min": -1, "max": 1, "step": 0.001},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "m_pitch"
+      },
+      "widget": {
+        "type": "number",
+        "min": -1,
+        "max": 1,
+        "step": 0.001
+      },
       "label": "Вертикальная чувствительность",
       "description": "Отрицательное значение инвертирует вертикальное движение мыши.",
       "group": "Мышь",
       "order": 30,
       "advanced": true,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Vertical sensitivity",
+      "description_en": "A negative value inverts vertical mouse movement."
     },
     {
       "id": "mouse_yaw",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "m_yaw"},
-      "widget": {"type": "number", "min": -1, "max": 1, "step": 0.001},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "m_yaw"
+      },
+      "widget": {
+        "type": "number",
+        "min": -1,
+        "max": 1,
+        "step": 0.001
+      },
       "label": "Горизонтальная чувствительность",
       "description": "Множитель горизонтального движения мыши.",
       "group": "Мышь",
       "order": 40,
       "advanced": true,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Horizontal sensitivity",
+      "description_en": "Horizontal mouse movement multiplier."
     },
     {
       "id": "default_fov",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "default_fov"},
-      "widget": {"type": "slider", "min": 10, "max": 140, "step": 1},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "default_fov"
+      },
+      "widget": {
+        "type": "slider",
+        "min": 10,
+        "max": 140,
+        "step": 1
+      },
       "label": "Поле зрения по умолчанию",
       "description": "Поле зрения, к которому клиент возвращается после временных изменений.",
       "group": "Экран",
       "order": 50,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Default field of view",
+      "description_en": "Field of view restored after temporary changes."
     },
     {
       "id": "field_of_view",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "fov"},
-      "widget": {"type": "slider", "min": 10, "max": 140, "step": 1},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "fov"
+      },
+      "widget": {
+        "type": "slider",
+        "min": 10,
+        "max": 140,
+        "step": 1
+      },
       "label": "Поле зрения",
       "description": "Текущее горизонтальное поле зрения.",
       "group": "Экран",
       "order": 60,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Field of view",
+      "description_en": "Current horizontal field of view."
     },
     {
       "id": "view_size",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "viewsize"},
-      "widget": {"type": "slider", "min": 30, "max": 120, "step": 10},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "viewsize"
+      },
+      "widget": {
+        "type": "slider",
+        "min": 30,
+        "max": 120,
+        "step": 10
+      },
       "label": "Размер игрового окна",
       "description": "Размер области трёхмерного изображения.",
       "group": "Экран",
       "order": 70,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Game view size",
+      "description_en": "Size of the 3D game view."
     },
     {
       "id": "sound_volume",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "volume"},
-      "widget": {"type": "slider", "min": 0, "max": 1, "step": 0.01},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "volume"
+      },
+      "widget": {
+        "type": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01
+      },
       "label": "Громкость звуков",
       "description": "Общая громкость игровых звуков.",
       "group": "Звук",
       "order": 80,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Sound volume",
+      "description_en": "Overall game sound volume."
     },
     {
       "id": "music_volume",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "bgmvolume"},
-      "widget": {"type": "slider", "min": 0, "max": 1, "step": 0.01},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "bgmvolume"
+      },
+      "widget": {
+        "type": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01
+      },
       "label": "Громкость музыки",
       "description": "Громкость фоновой музыки.",
       "group": "Звук",
       "order": 90,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Music volume",
+      "description_en": "Background music volume."
     },
     {
       "id": "display_gamma",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "gl_gamma"},
-      "widget": {"type": "slider", "min": 0.3, "max": 3, "step": 0.05},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "gl_gamma"
+      },
+      "widget": {
+        "type": "slider",
+        "min": 0.3,
+        "max": 3,
+        "step": 0.05
+      },
       "label": "Гамма",
       "description": "Коррекция яркости изображения.",
       "group": "Видео",
       "order": 100,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Gamma",
+      "description_en": "Image brightness correction."
     },
     {
       "id": "viewmodel_alpha",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "r_drawviewmodel"},
-      "widget": {"type": "slider", "min": 0, "max": 1, "step": 0.05},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "r_drawviewmodel"
+      },
+      "widget": {
+        "type": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.05
+      },
       "label": "Видимость оружия",
       "description": "Прозрачность модели оружия от первого лица; 0 полностью скрывает её.",
       "group": "Видео",
       "order": 110,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Weapon visibility",
+      "description_en": "First-person weapon opacity; 0 hides it completely."
     },
     {
       "id": "fullscreen",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "vid_fullscreen"},
-      "widget": {"type": "checkbox", "checked_value": "1", "unchecked_value": "0"},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "vid_fullscreen"
+      },
+      "widget": {
+        "type": "checkbox",
+        "checked_value": "1",
+        "unchecked_value": "0"
+      },
       "label": "Полноэкранный режим",
       "description": "Запуск клиента в полноэкранном режиме.",
       "group": "Видео",
       "order": 120,
-      "apply": "restart_required"
+      "apply": "restart_required",
+      "label_en": "Fullscreen mode",
+      "description_en": "Run the client in fullscreen mode."
     },
     {
       "id": "borderless_window",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "vid_win_borderless"},
-      "widget": {"type": "checkbox", "checked_value": "1", "unchecked_value": "0"},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "vid_win_borderless"
+      },
+      "widget": {
+        "type": "checkbox",
+        "checked_value": "1",
+        "unchecked_value": "0"
+      },
       "label": "Окно без рамки",
       "description": "Убирает системную рамку в оконном режиме.",
       "group": "Видео",
       "order": 130,
-      "apply": "restart_required"
+      "apply": "restart_required",
+      "label_en": "Borderless window",
+      "description_en": "Remove the system border in windowed mode."
     },
     {
       "id": "window_width",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "vid_win_width"},
-      "widget": {"type": "number", "min": 320, "max": 16384, "step": 1},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "vid_win_width"
+      },
+      "widget": {
+        "type": "number",
+        "min": 320,
+        "max": 16384,
+        "step": 1
+      },
       "label": "Ширина окна",
       "description": "Ширина клиентского окна в пикселях.",
       "group": "Видео",
       "order": 140,
-      "apply": "restart_required"
+      "apply": "restart_required",
+      "label_en": "Window width",
+      "description_en": "Client window width in pixels."
     },
     {
       "id": "window_height",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "vid_win_height"},
-      "widget": {"type": "number", "min": 200, "max": 16384, "step": 1},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "vid_win_height"
+      },
+      "widget": {
+        "type": "number",
+        "min": 200,
+        "max": 16384,
+        "step": 1
+      },
       "label": "Высота окна",
       "description": "Высота клиентского окна в пикселях.",
       "group": "Видео",
       "order": 150,
-      "apply": "restart_required"
+      "apply": "restart_required",
+      "label_en": "Window height",
+      "description_en": "Client window height in pixels."
     },
     {
       "id": "crosshair_type",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "crosshair"},
-      "widget": {"type": "number", "min": 0, "max": 10, "step": 1},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "crosshair"
+      },
+      "widget": {
+        "type": "number",
+        "min": 0,
+        "max": 10,
+        "step": 1
+      },
       "label": "Тип прицела",
       "description": "Номер стандартного прицела; 0 отключает стандартный прицел.",
       "group": "Прицел",
       "order": 160,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Crosshair type",
+      "description_en": "Standard crosshair number; 0 disables the standard crosshair."
     },
     {
       "id": "crosshair_color",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "crosshaircolor"},
-      "widget": {"type": "color"},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "crosshaircolor"
+      },
+      "widget": {
+        "type": "color"
+      },
       "label": "Цвет прицела",
       "description": "Цвет прицела в формате RGB.",
       "group": "Прицел",
       "order": 170,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Crosshair color",
+      "description_en": "Crosshair color in RGB format."
     },
     {
       "id": "crosshair_image",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "crosshairimage"},
-      "widget": {"type": "text", "max_length": 255},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "crosshairimage"
+      },
+      "widget": {
+        "type": "text",
+        "max_length": 255
+      },
       "label": "Изображение прицела",
       "description": "Путь к пользовательскому изображению прицела.",
       "group": "Прицел",
       "order": 180,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Crosshair image",
+      "description_en": "Path to a custom crosshair image."
     },
     {
       "id": "crosshair_size",
-      "scope": ["main"],
-      "storage": {"type": "cvar", "name": "crosshairsize"},
-      "widget": {"type": "slider", "min": 0.1, "max": 10, "step": 0.1},
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "crosshairsize"
+      },
+      "widget": {
+        "type": "slider",
+        "min": 0.1,
+        "max": 10,
+        "step": 0.1
+      },
       "label": "Размер прицела",
       "description": "Масштаб стандартного или пользовательского прицела.",
       "group": "Прицел",
       "order": 190,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Crosshair size",
+      "description_en": "Scale of the standard or custom crosshair."
     },
     {
       "id": "class_statusbar_hidden",
-      "scope": ["class:scout", "class:sniper", "class:soldier", "class:demoman", "class:medic", "class:hwguy", "class:pyro", "class:spy", "class:engineer"],
-      "storage": {"type": "command_toggle", "on_command": "sbar_off", "off_command": "sbar_on"},
-      "widget": {"type": "checkbox", "checked_value": "1", "unchecked_value": "0"},
+      "scope": [
+        "class:scout",
+        "class:sniper",
+        "class:soldier",
+        "class:demoman",
+        "class:medic",
+        "class:hwguy",
+        "class:pyro",
+        "class:spy",
+        "class:engineer"
+      ],
+      "storage": {
+        "type": "command_toggle",
+        "on_command": "sbar_off",
+        "off_command": "sbar_on"
+      },
+      "widget": {
+        "type": "checkbox",
+        "checked_value": "1",
+        "unchecked_value": "0"
+      },
       "label": "Скрывать стандартную строку состояния",
       "description": "Отключает стандартный status bar при загрузке классового конфига.",
       "group": "Интерфейс класса",
       "order": 1000,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Hide the standard status bar",
+      "description_en": "Disable the standard status bar when a class config is loaded."
     },
     {
       "id": "scout_scanner_limit",
-      "scope": ["class:scout"],
-      "storage": {"type": "cvar", "name": "new_scanmode"},
-      "widget": {"type": "select", "options": [
-        {"value": "0", "label": "Отключено"},
-        {"value": "1", "label": "По одному игроку каждой команды"},
-        {"value": "2", "label": "По два игрока каждой команды"},
-        {"value": "3", "label": "По три игрока каждой команды"}
-      ]},
+      "scope": [
+        "class:scout"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "new_scanmode"
+      },
+      "widget": {
+        "type": "select",
+        "options": [
+          {
+            "value": "0",
+            "label": "Отключено",
+            "label_en": "Disabled"
+          },
+          {
+            "value": "1",
+            "label": "По одному игроку каждой команды",
+            "label_en": "One player per team"
+          },
+          {
+            "value": "2",
+            "label": "По два игрока каждой команды",
+            "label_en": "Two players per team"
+          },
+          {
+            "value": "3",
+            "label": "По три игрока каждой команды",
+            "label_en": "Three players per team"
+          }
+        ]
+      },
       "label": "Расширенный сканер",
       "description": "Максимальное число ближайших игроков каждой команды, отмечаемых сканером.",
       "group": "Сканер скаута",
       "order": 1010,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Extended scanner",
+      "description_en": "Maximum number of nearest players per team marked by the scanner."
     },
     {
       "id": "scout_autoscan",
-      "scope": ["class:scout"],
-      "storage": {"type": "command_toggle", "on_command": "autoscan_on", "off_command": "autoscan_off"},
-      "widget": {"type": "checkbox", "checked_value": "1", "unchecked_value": "0"},
+      "scope": [
+        "class:scout"
+      ],
+      "storage": {
+        "type": "command_toggle",
+        "on_command": "autoscan_on",
+        "off_command": "autoscan_off"
+      },
+      "widget": {
+        "type": "checkbox",
+        "checked_value": "1",
+        "unchecked_value": "0"
+      },
       "label": "Автоматический сканер",
       "description": "Включает автоматическую работу сканера скаута.",
       "group": "Сканер скаута",
       "order": 1020,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Automatic scanner",
+      "description_en": "Enable automatic Scout scanner operation."
     },
     {
       "id": "scout_scan_friends",
-      "scope": ["class:scout"],
-      "storage": {"type": "command_toggle", "on_command": "scanf_on", "off_command": "scanf_off"},
-      "widget": {"type": "checkbox", "checked_value": "1", "unchecked_value": "0"},
+      "scope": [
+        "class:scout"
+      ],
+      "storage": {
+        "type": "command_toggle",
+        "on_command": "scanf_on",
+        "off_command": "scanf_off"
+      },
+      "widget": {
+        "type": "checkbox",
+        "checked_value": "1",
+        "unchecked_value": "0"
+      },
       "label": "Сканировать союзников",
       "description": "Разрешает сканеру отмечать союзников.",
       "group": "Сканер скаута",
       "order": 1030,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Scan teammates",
+      "description_en": "Allow the scanner to mark teammates."
     },
     {
       "id": "scout_scan_enemies",
-      "scope": ["class:scout"],
-      "storage": {"type": "command_toggle", "on_command": "scane_on", "off_command": "scane_off"},
-      "widget": {"type": "checkbox", "checked_value": "1", "unchecked_value": "0"},
+      "scope": [
+        "class:scout"
+      ],
+      "storage": {
+        "type": "command_toggle",
+        "on_command": "scane_on",
+        "off_command": "scane_off"
+      },
+      "widget": {
+        "type": "checkbox",
+        "checked_value": "1",
+        "unchecked_value": "0"
+      },
       "label": "Сканировать противников",
       "description": "Разрешает сканеру отмечать противников.",
       "group": "Сканер скаута",
       "order": 1040,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Scan enemies",
+      "description_en": "Allow the scanner to mark enemies."
     },
     {
       "id": "class_max_shells",
-      "scope": ["class:scout", "class:soldier", "class:demoman", "class:medic", "class:hwguy", "class:pyro", "class:spy", "class:engineer"],
-      "storage": {"type": "setinfo", "name": "mxs"},
-      "widget": {"type": "number", "min": -1, "max": 999, "step": 1},
+      "scope": [
+        "class:scout",
+        "class:soldier",
+        "class:demoman",
+        "class:medic",
+        "class:hwguy",
+        "class:pyro",
+        "class:spy",
+        "class:engineer"
+      ],
+      "storage": {
+        "type": "setinfo",
+        "name": "mxs"
+      },
+      "widget": {
+        "type": "number",
+        "min": -1,
+        "max": 999,
+        "step": 1
+      },
       "label": "Предел патронов для дробовика",
       "description": "Классовое значение setinfo mxs; -1 означает специальное поведение мода.",
       "group": "Боеприпасы класса",
       "order": 1100,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Shotgun ammo limit",
+      "description_en": "Class setinfo mxs value; -1 enables mod-specific behavior."
     },
     {
       "id": "class_max_nails",
-      "scope": ["class:scout", "class:soldier", "class:demoman", "class:medic", "class:hwguy", "class:pyro", "class:spy", "class:engineer"],
-      "storage": {"type": "setinfo", "name": "mxn"},
-      "widget": {"type": "number", "min": -1, "max": 999, "step": 1},
+      "scope": [
+        "class:scout",
+        "class:soldier",
+        "class:demoman",
+        "class:medic",
+        "class:hwguy",
+        "class:pyro",
+        "class:spy",
+        "class:engineer"
+      ],
+      "storage": {
+        "type": "setinfo",
+        "name": "mxn"
+      },
+      "widget": {
+        "type": "number",
+        "min": -1,
+        "max": 999,
+        "step": 1
+      },
       "label": "Предел гвоздей",
       "description": "Классовое значение setinfo mxn; -1 означает специальное поведение мода.",
       "group": "Боеприпасы класса",
       "order": 1110,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Nail ammo limit",
+      "description_en": "Class setinfo mxn value; -1 enables mod-specific behavior."
     },
     {
       "id": "class_max_rockets",
-      "scope": ["class:scout", "class:soldier", "class:demoman", "class:medic", "class:hwguy", "class:pyro", "class:spy", "class:engineer"],
-      "storage": {"type": "setinfo", "name": "mxr"},
-      "widget": {"type": "number", "min": -1, "max": 999, "step": 1},
+      "scope": [
+        "class:scout",
+        "class:soldier",
+        "class:demoman",
+        "class:medic",
+        "class:hwguy",
+        "class:pyro",
+        "class:spy",
+        "class:engineer"
+      ],
+      "storage": {
+        "type": "setinfo",
+        "name": "mxr"
+      },
+      "widget": {
+        "type": "number",
+        "min": -1,
+        "max": 999,
+        "step": 1
+      },
       "label": "Предел ракет",
       "description": "Классовое значение setinfo mxr; -1 означает специальное поведение мода.",
       "group": "Боеприпасы класса",
       "order": 1120,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Rocket ammo limit",
+      "description_en": "Class setinfo mxr value; -1 enables mod-specific behavior."
     },
     {
       "id": "class_max_cells",
-      "scope": ["class:scout", "class:soldier", "class:demoman", "class:medic", "class:hwguy", "class:pyro", "class:spy", "class:engineer"],
-      "storage": {"type": "setinfo", "name": "mxc"},
-      "widget": {"type": "number", "min": -1, "max": 999, "step": 1},
+      "scope": [
+        "class:scout",
+        "class:soldier",
+        "class:demoman",
+        "class:medic",
+        "class:hwguy",
+        "class:pyro",
+        "class:spy",
+        "class:engineer"
+      ],
+      "storage": {
+        "type": "setinfo",
+        "name": "mxc"
+      },
+      "widget": {
+        "type": "number",
+        "min": -1,
+        "max": 999,
+        "step": 1
+      },
       "label": "Предел ячеек",
       "description": "Классовое значение setinfo mxc; -1 означает специальное поведение мода.",
       "group": "Боеприпасы класса",
       "order": 1130,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Cell ammo limit",
+      "description_en": "Class setinfo mxc value; -1 enables mod-specific behavior."
     },
     {
       "id": "engineer_min_shells",
-      "scope": ["class:engineer"],
-      "storage": {"type": "setinfo", "name": "mns"},
-      "widget": {"type": "number", "min": 0, "max": 999, "step": 1},
+      "scope": [
+        "class:engineer"
+      ],
+      "storage": {
+        "type": "setinfo",
+        "name": "mns"
+      },
+      "widget": {
+        "type": "number",
+        "min": 0,
+        "max": 999,
+        "step": 1
+      },
       "label": "Минимальный запас патронов инженера",
       "description": "Классовое значение setinfo mns.",
       "group": "Боеприпасы класса",
       "order": 1140,
-      "apply": "on_save"
+      "apply": "on_save",
+      "label_en": "Engineer minimum shell reserve",
+      "description_en": "Class setinfo mns value."
     }
   ]
 }

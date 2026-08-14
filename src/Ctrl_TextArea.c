@@ -51,6 +51,7 @@ static size_t CTextArea_LineStart(const textarea_control_t *control, size_t posi
 static size_t CTextArea_LineEnd(const textarea_control_t *control, size_t position)
 {
 	while (position < control->length && control->text[position] != '\n') ++position;
+	if (position && control->text[position - 1] == '\r') --position;
 	return position;
 }
 
@@ -83,9 +84,70 @@ static void CTextArea_EnsureVisible(textarea_control_t *control)
 	if (column >= control->first_column + control->width) control->first_column = column - control->width + 1;
 }
 
+static qbool CTextArea_InsertSourceRows(textarea_control_t *control, const char *bytes, size_t length)
+{
+	textarea_source_line_t current = { 0 }, upper = { 0 }, *resized;
+	size_t newline_count = 0, row, insert_at, index;
+	qbool at_line_start;
+
+	if (!control->show_source_gutter || !control->source_count) return true;
+	row = (size_t)CTextArea_RowAt(control, control->cursor);
+	if (row >= control->source_count) {
+		textarea_source_line_t appended = control->sources[control->source_count - 1];
+		resized = Q_realloc(control->sources, (row + 1) * sizeof(*control->sources));
+		if (!resized) return false;
+		control->sources = resized;
+		appended.source_line = 0;
+		appended.inserted = true;
+		while (control->source_count <= row)
+			control->sources[control->source_count++] = appended;
+	}
+	for (index = 0; index < length; ++index) newline_count += bytes[index] == '\n';
+	if (!newline_count) return true;
+
+	at_line_start = control->cursor == CTextArea_LineStart(control, control->cursor);
+	current = control->sources[min(row, control->source_count - 1)];
+	upper = row ? control->sources[min(row - 1, control->source_count - 1)] : current;
+	insert_at = min(row + 1, control->source_count);
+	resized = Q_realloc(control->sources,
+		(control->source_count + newline_count) * sizeof(*control->sources));
+	if (!resized) return false;
+	control->sources = resized;
+	memmove(control->sources + insert_at + newline_count, control->sources + insert_at,
+		(control->source_count - insert_at) * sizeof(*control->sources));
+
+	if (at_line_start && row < control->source_count) {
+		textarea_source_line_t inserted = row ? upper : current;
+		inserted.source_line = 0;
+		inserted.inserted = true;
+		control->sources[row] = inserted;
+		for (index = 0; index < newline_count; ++index) {
+			if (index + 1 == newline_count) control->sources[insert_at + index] = current;
+			else control->sources[insert_at + index] = inserted;
+		}
+	}
+	else {
+		current.source_line = 0;
+		current.inserted = true;
+		for (index = 0; index < newline_count; ++index)
+			control->sources[insert_at + index] = current;
+	}
+	control->source_count += newline_count;
+	return true;
+}
+
+static void CTextArea_RemoveSourceRow(textarea_control_t *control, size_t row)
+{
+	if (!control->show_source_gutter || row >= control->source_count) return;
+	memmove(control->sources + row, control->sources + row + 1,
+		(control->source_count - row - 1) * sizeof(*control->sources));
+	--control->source_count;
+}
+
 static qbool CTextArea_Insert(textarea_control_t *control, const char *bytes, size_t length)
 {
 	if (control->read_only || !length || !CTextArea_Reserve(control, control->length + length + 1)) return false;
+	if (!CTextArea_InsertSourceRows(control, bytes, length)) return false;
 	memmove(control->text + control->cursor + length, control->text + control->cursor,
 		control->length - control->cursor + 1);
 	memcpy(control->text + control->cursor, bytes, length);
@@ -146,7 +208,6 @@ void CTextArea_Draw(textarea_control_t *control, int x, int y, qbool active)
 		size_t end = CTextArea_LineEnd(control, start);
 		char line[1024];
 		int text_width = bound(1, control->width - gutter_chars, (int)sizeof(line) - 1);
-		if (end > start && control->text[end - 1] == '\r') --end;
 		size_t available = start + control->first_column < end ? end - start - control->first_column : 0;
 		size_t copied = min((size_t)text_width, available);
 		memset(line, ' ', text_width);
@@ -156,7 +217,9 @@ void CTextArea_Draw(textarea_control_t *control, int x, int y, qbool active)
 		if (gutter_chars) {
 			char gutter[32];
 			if ((size_t)row < control->source_count) {
-				snprintf(gutter, sizeof(gutter), "%-11.11s %5d ", control->sources[row].file,
+				if (control->sources[row].inserted)
+					snprintf(gutter, sizeof(gutter), "%-11.11s %5s ", control->sources[row].file, "+");
+				else snprintf(gutter, sizeof(gutter), "%-11.11s %5d ", control->sources[row].file,
 					control->sources[row].source_line);
 			}
 			else snprintf(gutter, sizeof(gutter), "%17s ", "");
@@ -204,21 +267,31 @@ qbool CTextArea_Key(textarea_control_t *control, int key, wchar unichar)
 			break;
 		case K_BACKSPACE:
 			if (!control->read_only && control->cursor) {
-				memmove(control->text + control->cursor - 1, control->text + control->cursor,
+				size_t removed = 1;
+				if (control->text[control->cursor - 1] == '\n') {
+					CTextArea_RemoveSourceRow(control, CTextArea_RowAt(control, control->cursor));
+					if (control->cursor >= 2 && control->text[control->cursor - 2] == '\r') removed = 2;
+				}
+				memmove(control->text + control->cursor - removed, control->text + control->cursor,
 					control->length - control->cursor + 1);
-				--control->cursor; --control->length;
+				control->cursor -= removed; control->length -= removed;
 			}
 			break;
 		case K_DEL:
 			if (!control->read_only && control->cursor < control->length) {
-				memmove(control->text + control->cursor, control->text + control->cursor + 1,
-					control->length - control->cursor);
-				--control->length;
+				size_t removed = 1;
+				if (control->text[control->cursor] == '\r' && control->cursor + 1 < control->length &&
+					control->text[control->cursor + 1] == '\n') removed = 2;
+				if (control->text[control->cursor + removed - 1] == '\n')
+					CTextArea_RemoveSourceRow(control, CTextArea_RowAt(control, control->cursor) + 1);
+				memmove(control->text + control->cursor, control->text + control->cursor + removed,
+					control->length - control->cursor - removed + 1);
+				control->length -= removed;
 			}
 			break;
 		case K_ENTER:
-			character = '\n';
-			CTextArea_Insert(control, &character, 1);
+			if (strstr(control->text, "\r\n")) CTextArea_Insert(control, "\r\n", 2);
+			else { character = '\n'; CTextArea_Insert(control, &character, 1); }
 			break;
 		case 'v': case 'V':
 			if (keydown[K_CTRL] && !control->read_only) {

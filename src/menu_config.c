@@ -11,6 +11,7 @@
 
 extern int menuwidth, menuheight;
 extern qbool m_entersound;
+extern cvar_t menu_language;
 
 #define CONFIG_PATH_PART "qw/config_editor"
 #define CONFIG_VALUE_SIZE 256
@@ -75,23 +76,70 @@ typedef struct config_menu_s {
 	int content_height;
 	int viewport_top;
 	int viewport_bottom;
+	char notice[256];
 } config_menu_t;
 
 static config_menu_t config_menu;
 
-static const char *config_sections[] = {
+static const char *config_sections_ru[] = {
+	"Основные настройки", "Бинды", "Настройки классов", "Настройки HUD"
+};
+
+static const char *config_sections_en[] = {
 	"Main Settings", "Binds", "Class Settings", "HUD Settings"
 };
 
-static const char *config_classes[] = {
+static const char *config_classes_en[] = {
 	"Scout", "Sniper", "Soldier", "Demoman", "Medic",
 	"HWGuy", "Pyro", "Spy", "Engineer"
+};
+
+static const char *config_classes_ru[] = {
+	"Скаут", "Снайпер", "Солдат", "Подрывник", "Медик",
+	"Пулемётчик", "Пиротехник", "Шпион", "Инженер"
 };
 
 static const char *config_class_ids[] = {
 	"class_scout", "class_sniper", "class_soldier", "class_demoman", "class_medic",
 	"class_hwguy", "class_pyro", "class_spy", "class_engineer"
 };
+
+static qbool Config_UseEnglish(void)
+{
+	size_t i;
+	for (i = 0; i < config_menu.setting_count; ++i) {
+		const config_setting_draft_t *draft = &config_menu.settings[i];
+		if (draft->definition && draft->definition->name &&
+			!strcmp(draft->definition->name, "menu_language"))
+			return !strcasecmp(draft->value, "English");
+	}
+	return !strcasecmp(menu_language.string, "English");
+}
+
+static const char *Config_Text(const char *russian, const char *english)
+{
+	return Config_UseEnglish() ? english : russian;
+}
+
+static const char *Config_SettingLabel(const cfg_setting_definition_t *definition)
+{
+	return Config_UseEnglish() ? definition->label_en : definition->label;
+}
+
+static const char *Config_SettingDescription(const cfg_setting_definition_t *definition)
+{
+	return Config_UseEnglish() ? definition->description_en : definition->description;
+}
+
+static const char *Config_BindLabel(const cfg_bind_definition_t *definition)
+{
+	return Config_UseEnglish() ? definition->label_en : definition->label;
+}
+
+static const char *Config_BindDescription(const cfg_bind_definition_t *definition)
+{
+	return Config_UseEnglish() ? definition->description_en : definition->description;
+}
 
 static void Config_DrawUTF8(int x, int y, const char *text, qbool active, int max_chars)
 {
@@ -413,6 +461,278 @@ static config_bind_draft_t *Config_BindAt(const char *file_id, int wanted)
 	return NULL;
 }
 
+static const char *Config_NodeLineEnding(const cfg_node_t *node)
+{
+	if (node && node->raw_length >= 2 &&
+		node->raw[node->raw_length - 2] == '\r' && node->raw[node->raw_length - 1] == '\n') return "\r\n";
+	if (node && node->raw_length && node->raw[node->raw_length - 1] == '\r') return "\r";
+	if (node && node->raw_length && node->raw[node->raw_length - 1] == '\n') return "\n";
+	return "";
+}
+
+static qbool Config_AppendEscaped(char *output, size_t output_size, size_t *length, const char *value)
+{
+	const unsigned char *cursor = (const unsigned char *)(value ? value : "");
+	while (*cursor) {
+		if ((*cursor == '"' || *cursor == '\\') && *length + 1 < output_size)
+			output[(*length)++] = '\\';
+		if (*length + 1 >= output_size) return false;
+		output[(*length)++] = (char)*cursor++;
+	}
+	output[*length] = '\0';
+	return true;
+}
+
+static qbool Config_ReplaceSettingDraft(config_setting_draft_t *draft)
+{
+	cfg_setting_result_t resolved;
+	char raw[1024];
+	size_t length = 0;
+	const char *prefix = "";
+	const char *line_ending;
+	const cfg_setting_definition_t *definition = draft->definition;
+
+	if (!CFGModel_ResolveSetting(&config_menu.model, draft->file_id,
+		definition->storage_kind, definition->name, definition->on_command,
+		definition->off_command, &resolved) || !resolved.node || resolved.inherited) return true;
+	if (resolved.value && !strcmp(resolved.value, draft->value)) return true;
+	line_ending = Config_NodeLineEnding(resolved.node);
+	if (definition->storage_kind == CFG_STORAGE_SET) prefix = "set ";
+	else if (definition->storage_kind == CFG_STORAGE_SETINFO) prefix = "setinfo ";
+	if (definition->storage_kind == CFG_STORAGE_COMMAND_TOGGLE) {
+		const char *command = !strcmp(draft->value, "0") ? definition->off_command : definition->on_command;
+		int written = snprintf(raw, sizeof(raw), "%s%s", command, line_ending);
+		if (written < 0 || (size_t)written >= sizeof(raw)) return false;
+		length = (size_t)written;
+	}
+	else {
+		int written = snprintf(raw, sizeof(raw), "%s%s \"", prefix, definition->name);
+		if (written < 0 || (size_t)written >= sizeof(raw)) return false;
+		length = (size_t)written;
+		if (!Config_AppendEscaped(raw, sizeof(raw), &length, draft->value) ||
+			length + strlen(line_ending) + 2 > sizeof(raw)) return false;
+		raw[length++] = '"';
+		memcpy(raw + length, line_ending, strlen(line_ending));
+		length += strlen(line_ending);
+		raw[length] = '\0';
+	}
+	return CFGDoc_ReplaceNode(&resolved.file->document, resolved.node->id,
+		(const unsigned char *)raw, length) ? (resolved.file->dirty = 1, true) : false;
+}
+
+static qbool Config_BufferAppend(char **buffer, size_t *length, size_t *capacity,
+	const char *data, size_t data_length)
+{
+	char *resized;
+	if (*length + data_length + 1 > *capacity) {
+		size_t next = *capacity ? *capacity : 64;
+		while (*length + data_length + 1 > next) next *= 2;
+		resized = Q_realloc(*buffer, next);
+		if (!resized) return false;
+		*buffer = resized;
+		*capacity = next;
+	}
+	if (data_length) memcpy(*buffer + *length, data, data_length);
+	*length += data_length;
+	(*buffer)[*length] = '\0';
+	return true;
+}
+
+static qbool Config_ApplyMiscDraft(config_text_draft_t *draft)
+{
+	cfg_source_ref_t *references = NULL;
+	size_t reference_count, reference_index, row = 0, position = 0;
+	const char *text;
+	size_t text_length;
+
+	reference_count = CFGModel_CollectMisc(&config_menu.model, draft->file_id, 1, &references);
+	text = CTextArea_Text(&draft->area, &text_length);
+	if (!reference_count) {
+		free(references);
+		return text_length == 0;
+	}
+	for (reference_index = 0; reference_index < reference_count; ++reference_index) {
+		char *replacement = NULL;
+		size_t replacement_length = 0, replacement_capacity = 0;
+		position = 0;
+		row = 0;
+		while (position < text_length || (position == 0 && !text_length)) {
+			size_t end = position;
+			while (end < text_length && text[end] != '\r' && text[end] != '\n') ++end;
+			if (end < text_length && text[end] == '\r' && end + 1 < text_length && text[end + 1] == '\n') end += 2;
+			else if (end < text_length) ++end;
+			if (row < draft->area.source_count &&
+				draft->area.sources[row].node_id == references[reference_index].node_id &&
+				!Config_BufferAppend(&replacement, &replacement_length, &replacement_capacity,
+					text + position, end - position)) {
+				Q_free(replacement); free(references); return false;
+			}
+			if (end <= position) break;
+			position = end;
+			++row;
+		}
+		if (replacement_length == references[reference_index].raw_length &&
+			(!replacement_length || !memcmp(replacement, references[reference_index].raw, replacement_length))) {
+			Q_free(replacement);
+			continue;
+		}
+		if (!CFGModel_ReplaceSource(&config_menu.model, &references[reference_index],
+			(const unsigned char *)replacement, replacement_length)) {
+			Q_free(replacement); free(references); return false;
+		}
+		Q_free(replacement);
+	}
+	free(references);
+	return true;
+}
+
+static qbool Config_ApplyTextDrafts(void)
+{
+	size_t i;
+	for (i = 0; i < config_menu.text_count; ++i) {
+		config_text_draft_t *draft = &config_menu.texts[i];
+		size_t length;
+		const char *text = CTextArea_Text(&draft->area, &length);
+		if (!strcmp(draft->file_id, "hud")) {
+			unsigned char *current = NULL;
+			size_t current_length = 0;
+			if (!CFGModel_SerializeFile(&config_menu.model, draft->file_id, &current, &current_length)) return false;
+			if (current_length != length || (length && memcmp(current, text, length))) {
+				free(current);
+				if (!CFGModel_ReplaceFileContents(&config_menu.model, draft->file_id,
+					(const unsigned char *)text, length)) return false;
+			}
+			else free(current);
+		}
+		else if (!Config_ApplyMiscDraft(draft)) return false;
+	}
+	return true;
+}
+
+static qbool Config_ReplaceBindDraft(config_bind_draft_t *draft)
+{
+	cfg_model_file_t *file = CFGModel_FindFile(&config_menu.model, draft->file_id);
+	unsigned int first_id = 0;
+	size_t i, built_length = 0, built_capacity = 0;
+	char *built = NULL, *combined = NULL;
+	size_t combined_length = 0, combined_capacity = 0;
+	int existing_keys[KEY_CAPTURE_MAX_KEYS + 1];
+	size_t existing_count = 0;
+	const char *ending = "\r\n";
+
+	if (!file) return false;
+	for (i = 0; i < file->document.node_count; ++i) {
+		cfg_node_t *node = &file->document.nodes[i];
+		if (node->kind == CFG_NODE_BIND &&
+			Config_StringEqual(node->value, draft->definition->command, draft->definition->case_sensitive)) {
+			int key = Key_StringToKeynum(node->name);
+			if (existing_count < sizeof(existing_keys) / sizeof(existing_keys[0])) existing_keys[existing_count] = key;
+			++existing_count;
+			if (!first_id) {
+				first_id = node->id;
+				if (*Config_NodeLineEnding(node)) ending = Config_NodeLineEnding(node);
+			}
+		}
+	}
+	if (existing_count == (size_t)draft->control.key_count &&
+		existing_count <= sizeof(existing_keys) / sizeof(existing_keys[0])) {
+		qbool same = true;
+		for (i = 0; i < existing_count; ++i) same &= existing_keys[i] == draft->control.keys[i];
+		if (same) return true;
+	}
+	for (i = 0; i < (size_t)draft->control.key_count; ++i) {
+		char line[1024];
+		size_t length = 0;
+		int written = snprintf(line, sizeof(line), "bind %s \"",
+			Key_KeynumToString(draft->control.keys[i]));
+		if (written < 0 || (size_t)written >= sizeof(line)) goto fail;
+		length = (size_t)written;
+		if (!Config_AppendEscaped(line, sizeof(line), &length, draft->definition->command) ||
+			length + strlen(ending) + 2 > sizeof(line)) goto fail;
+		line[length++] = '"';
+		memcpy(line + length, ending, strlen(ending)); length += strlen(ending);
+		if (!Config_BufferAppend(&built, &built_length, &built_capacity, line, length)) goto fail;
+	}
+	if (first_id) {
+		qbool first = true;
+		for (i = 0; i < file->document.node_count; ++i) {
+			cfg_node_t *node = &file->document.nodes[i];
+			if (node->kind == CFG_NODE_BIND &&
+				Config_StringEqual(node->value, draft->definition->command, draft->definition->case_sensitive)) {
+				if (!CFGDoc_ReplaceNode(&file->document, node->id,
+					(const unsigned char *)(first ? built : NULL), first ? built_length : 0)) goto fail;
+				first = false;
+			}
+		}
+	}
+	else if (built_length) {
+		cfg_node_t *last = file->document.node_count ? &file->document.nodes[file->document.node_count - 1] : NULL;
+		if (!last) goto fail;
+		if (!Config_BufferAppend(&combined, &combined_length, &combined_capacity,
+			(const char *)last->raw, last->raw_length)) goto fail_combined;
+		if (combined_length && combined[combined_length - 1] != '\n' && combined[combined_length - 1] != '\r' &&
+			!Config_BufferAppend(&combined, &combined_length, &combined_capacity, ending, strlen(ending))) goto fail_combined;
+		if (!Config_BufferAppend(&combined, &combined_length, &combined_capacity, built, built_length) ||
+			!CFGDoc_ReplaceNode(&file->document, last->id, (const unsigned char *)combined, combined_length)) goto fail_combined;
+		Q_free(combined);
+		combined = NULL;
+	}
+	file->dirty = 1;
+	Q_free(built);
+	return true;
+
+fail_combined:
+	Q_free(combined);
+fail:
+	Q_free(built);
+	return false;
+}
+
+static qbool Config_WriteDirtyFiles(void)
+{
+	size_t i;
+	for (i = 0; i < config_menu.model.file_count; ++i) {
+		cfg_model_file_t *file = &config_menu.model.files[i];
+		unsigned char *data = NULL;
+		size_t length = 0;
+		char path[MAX_OSPATH];
+		if (!file->dirty) continue;
+		if (!CFGModel_SerializeFile(&config_menu.model, file->id, &data, &length)) return false;
+		if (snprintf(path, sizeof(path), "%s/fortress/%s", com_basedir, file->path) < 0 ||
+			strlen(path) >= sizeof(path) - 1) {
+			free(data);
+			return false;
+		}
+		if (length > INT_MAX || !FS_WriteFile_2(path, data, (int)length)) {
+			free(data);
+			return false;
+		}
+		free(data);
+	}
+	return true;
+}
+
+static qbool Config_SaveSession(void)
+{
+	size_t i;
+	qbool english;
+	if (!Config_ApplyTextDrafts()) goto fail;
+	for (i = 0; i < config_menu.setting_count; ++i)
+		if (!Config_ReplaceSettingDraft(&config_menu.settings[i])) goto fail;
+	for (i = 0; i < config_menu.bind_count; ++i)
+		if (!Config_ReplaceBindDraft(&config_menu.binds[i])) goto fail;
+	if (!Config_WriteDirtyFiles()) goto fail;
+	english = Config_UseEnglish();
+	Cvar_Set(&menu_language, english ? "English" : "Russian");
+	if (!Config_LoadSession()) return false;
+	strlcpy(config_menu.notice, english ? "Changes saved" : "Изменения сохранены", sizeof(config_menu.notice));
+	return true;
+
+fail:
+	strlcpy(config_menu.notice, Config_Text("Ошибка сохранения конфигурации", "Unable to save configuration"), sizeof(config_menu.notice));
+	return false;
+}
+
 static void Config_DrawHelpBox(const char *text)
 {
 	int height = 40;
@@ -422,19 +742,26 @@ static void Config_DrawHelpBox(const char *text)
 	UI_DrawBox(left, y, width, height);
 	Config_DrawUTF8(left + LETTERWIDTH, y + LETTERHEIGHT, text, false,
 		max(20, width / LETTERWIDTH - 4));
-	UI_Print(left + LETTERWIDTH, y + LETTERHEIGHT * 3,
-		"Enter: edit/open   Tab: next section   Ctrl+R: reload   Esc: back", false);
+	Config_DrawUTF8(left + LETTERWIDTH, y + LETTERHEIGHT * 3,
+		Config_Text("Enter: изменить/открыть   Ctrl+S: сохранить   Ctrl+R: перечитать   Esc: назад",
+			"Enter: edit/open   Ctrl+S: save   Ctrl+R: reload   Esc: back"), false,
+		max(20, width / LETTERWIDTH - 4));
+	if (config_menu.notice[0])
+		Config_DrawUTF8(left + width - min(width / 2, Config_UTF8Length(config_menu.notice) * LETTERWIDTH),
+			y + LETTERHEIGHT, config_menu.notice, true, max(20, width / LETTERWIDTH / 2));
 }
 
 static void Config_DrawLoadError(void)
 {
 	int left = Config_PanelLeft();
 	int width = Config_PanelWidth();
-	UI_Print(left, OPTPADDING, "Config", true);
+	Config_DrawUTF8(left, OPTPADDING, Config_Text("Конфигурация", "Config"), true, 40);
 	UI_DrawBox(left, 24, width, 64);
-	UI_Print(left + 8, 32, "Unable to load config files:", true);
+	Config_DrawUTF8(left + 8, 32,
+		Config_Text("Не удалось загрузить файлы конфигурации:", "Unable to load config files:"), true, 80);
 	UI_Print(left + 8, 48, config_menu.error, false);
-	UI_Print(left + 8, 72, "Enter: retry   Esc: back", false);
+	Config_DrawUTF8(left + 8, 72,
+		Config_Text("Enter: повторить   Esc: назад", "Enter: retry   Esc: back"), false, 60);
 }
 
 static void Config_AddLayout(config_item_kind_t kind, const char *file_id,
@@ -456,8 +783,11 @@ static void Config_AddFileLayout(const char *file_id, qbool include_settings, qb
 {
 	config_text_draft_t *text = Config_FindText(file_id);
 	int i;
-	if (include_settings) for (i = 0; i < Config_SettingCount(file_id); ++i)
-		Config_AddLayout(CONFIG_ITEM_SETTING, file_id, i, 0, 10);
+	if (include_settings) for (i = 0; i < Config_SettingCount(file_id); ++i) {
+		config_setting_draft_t *draft = Config_SettingAt(file_id, i);
+		Config_AddLayout(CONFIG_ITEM_SETTING, file_id, i, 0,
+			draft && !strcmp(draft->definition->id, "menu_language") ? 20 : 10);
+	}
 	if (include_binds) for (i = 0; i < Config_BindCount(file_id); ++i)
 		Config_AddLayout(CONFIG_ITEM_BIND, file_id, i, 0, 10);
 	Config_AddLayout(CONFIG_ITEM_MISC, file_id, 0, 0, 12);
@@ -520,12 +850,14 @@ static void Config_DrawSettingValue(config_setting_draft_t *draft, int x, int y,
 		return;
 	}
 	if (definition->widget_type == CFG_WIDGET_CHECKBOX) {
-		value = !strcmp(draft->value, definition->checked_value) ? "Да" : "Нет";
+		value = !strcmp(draft->value, definition->checked_value) ?
+			Config_Text("Да", "Yes") : Config_Text("Нет", "No");
 	}
 	else if (definition->widget_type == CFG_WIDGET_SELECT) {
 		size_t i;
 		for (i = 0; i < definition->option_count; ++i)
-			if (!strcmp(value, definition->options[i].value)) value = definition->options[i].label;
+			if (!strcmp(value, definition->options[i].value)) value = Config_UseEnglish() ?
+				definition->options[i].label_en : definition->options[i].label;
 	}
 	Config_DrawDecoratedValue(x, y, value, max_chars);
 }
@@ -541,7 +873,8 @@ static void Config_DrawTextArea(const config_layout_item_t *item, int x, int y, 
 	draft->area.height = max(3, box_height / 8 - 2);
 	CTextArea_Draw(&draft->area, x + 8, y + 10, active && config_menu.textarea_editing);
 	if (!draft->area.length)
-		Config_DrawUTF8(x + 8, y + 10, "(нет строк для отображения)", false, 40);
+		Config_DrawUTF8(x + 8, y + 10,
+			Config_Text("(нет строк для отображения)", "(no lines to display)"), false, 40);
 }
 
 static void Config_DrawLayoutItem(const config_layout_item_t *item, int index, int y)
@@ -561,38 +894,42 @@ static void Config_DrawLayoutItem(const config_layout_item_t *item, int index, i
 	if (active) UI_DrawGrayBox(left + indent, y, width - indent, item->height - 2);
 
 	if (item->kind == CONFIG_ITEM_SECTION) {
-		snprintf(label, sizeof(label), "[%c] %s", config_menu.section_open[item->auxiliary] ? '-' : '+',
-			config_sections[item->auxiliary]);
+		snprintf(label, sizeof(label), "[%c] ", config_menu.section_open[item->auxiliary] ? '-' : '+');
 		UI_Print(left + 4, y + 3, label, active);
+		Config_DrawUTF8(left + 4 + 4 * LETTERWIDTH, y + 3,
+			(Config_UseEnglish() ? config_sections_en : config_sections_ru)[item->auxiliary], active, 40);
 	}
 	else if (item->kind == CONFIG_ITEM_CLASS) {
-		snprintf(label, sizeof(label), "  [%c] %s", config_menu.class_open[item->auxiliary] ? '-' : '+',
-			config_classes[item->auxiliary]);
+		snprintf(label, sizeof(label), "  [%c] ", config_menu.class_open[item->auxiliary] ? '-' : '+');
 		UI_Print(left + indent, y + 2, label, active);
+		Config_DrawUTF8(left + indent + 6 * LETTERWIDTH, y + 2,
+			(Config_UseEnglish() ? config_classes_en : config_classes_ru)[item->auxiliary], active, 40);
 	}
 	else if (item->kind == CONFIG_ITEM_MISC) {
 		config_text_draft_t *text = Config_FindText(item->file_id);
 		snprintf(label, sizeof(label), "    [%c] ", text && text->expanded ? '-' : '+');
 		UI_Print(left + indent, y + 2, label, active);
 		Config_DrawUTF8(left + indent + 8 * LETTERWIDTH, y + 2,
-			"Остальные настройки...", active, 40);
+			Config_Text("Остальные настройки...", "Other settings..."), active, 40);
 	}
 	else {
 		int value_x = left + width / 2 + LETTERWIDTH * 2;
 		int label_chars = max(12, (value_x - left - indent) / LETTERWIDTH - 3);
 		if (item->kind == CONFIG_ITEM_SETTING) {
 			config_setting_draft_t *draft = Config_SettingAt(item->file_id, item->data_index);
-			int label_length = min(label_chars, Config_UTF8Length(draft->definition->label));
+			const char *setting_label = Config_SettingLabel(draft->definition);
+			int label_length = min(label_chars, Config_UTF8Length(setting_label));
 			Config_DrawUTF8(value_x - label_length * LETTERWIDTH - LETTERWIDTH * 2, y,
-				draft->definition->label, active, label_chars);
+				setting_label, active, label_chars);
 			Config_DrawSettingValue(draft, value_x, y, active,
 				max(3, (left + width - value_x) / LETTERWIDTH));
 		}
 		else {
 			config_bind_draft_t *draft = Config_BindAt(item->file_id, item->data_index);
-			int label_length = min(label_chars, Config_UTF8Length(draft->definition->label));
+			const char *bind_label = Config_BindLabel(draft->definition);
+			int label_length = min(label_chars, Config_UTF8Length(bind_label));
 			Config_DrawUTF8(value_x - label_length * LETTERWIDTH - LETTERWIDTH * 2, y,
-				draft->definition->label, active, label_chars);
+				bind_label, active, label_chars);
 			CKeyCapture_Draw(&draft->control, value_x, y, 22, active);
 		}
 	}
@@ -603,16 +940,20 @@ static const char *Config_SelectedHelp(void)
 	config_layout_item_t *item = config_menu.layout_count ? &config_menu.layout[config_menu.cursor] : NULL;
 	if (!item) return "";
 	if (item->kind == CONFIG_ITEM_SETTING)
-		return Config_SettingAt(item->file_id, item->data_index)->definition->description;
+		return Config_SettingDescription(Config_SettingAt(item->file_id, item->data_index)->definition);
 	if (item->kind == CONFIG_ITEM_BIND)
-		return Config_BindAt(item->file_id, item->data_index)->definition->description;
+		return Config_BindDescription(Config_BindAt(item->file_id, item->data_index)->definition);
 	if (item->kind == CONFIG_ITEM_MISC || (item->kind == CONFIG_ITEM_TEXTAREA && strcmp(item->file_id, "hud")))
-		return "Неизвестные строки сохраняют исходный файл, положение и порядок.";
+		return Config_Text("Неизвестные строки сохраняют исходный файл, положение и порядок.",
+			"Unknown lines preserve their original file, position, and order.");
 	if (item->kind == CONFIG_ITEM_TEXTAREA)
-		return "Полный hud.cfg. Enter включает редактирование текста, Esc возвращает управление странице.";
+		return Config_Text("Полный hud.cfg. Enter включает редактирование текста, Esc возвращает управление странице.",
+			"Complete hud.cfg. Enter enables text editing; Esc returns control to the page.");
 	if (item->kind == CONFIG_ITEM_CLASS)
-		return "Настройки, бинды и остальные строки выбранного классового CFG.";
-	return "Раздел можно свернуть или развернуть клавишей Enter.";
+		return Config_Text("Настройки, бинды и остальные строки выбранного классового CFG.",
+			"Settings, binds, and other lines from the selected class CFG.");
+	return Config_Text("Раздел можно свернуть или развернуть клавишей Enter.",
+		"Press Enter to collapse or expand the section.");
 }
 
 void Menu_Config_Draw(void)
@@ -633,7 +974,7 @@ void Menu_Config_Draw(void)
 	width = Config_PanelWidth();
 	line_chars = bound(2, width / LETTERWIDTH, (int)sizeof(line) - 1);
 	UI_MakeLine(line, line_chars);
-	UI_Print(left, OPTPADDING, "Config", true);
+	Config_DrawUTF8(left, OPTPADDING, Config_Text("Конфигурация", "Config"), true, 40);
 	UI_Print(left, OPTPADDING + LETTERHEIGHT, line, false);
 	for (i = 0; i < config_menu.layout_count; ++i) {
 		config_layout_item_t *item = &config_menu.layout[i];
@@ -740,7 +1081,9 @@ void Menu_Config_Key(int key, wchar unichar)
 	}
 	if (config_menu.textarea_editing && item->kind == CONFIG_ITEM_TEXTAREA) {
 		config_text_draft_t *text = Config_FindText(item->file_id);
-		if (key == K_ESCAPE || key == K_MOUSE2) config_menu.textarea_editing = false;
+		if ((key == 's' || key == 'S') &&
+			(keydown[K_CTRL] || keydown[K_LCTRL] || keydown[K_RCTRL])) Config_SaveSession();
+		else if (key == K_ESCAPE || key == K_MOUSE2) config_menu.textarea_editing = false;
 		else if (text) CTextArea_Key(&text->area, key, unichar);
 		return;
 	}
@@ -754,6 +1097,9 @@ void Menu_Config_Key(int key, wchar unichar)
 
 	switch (key) {
 		case K_ESCAPE: case K_MOUSE2: M_LeaveMenu(m_main); return;
+		case 's': case 'S':
+			if (keydown[K_CTRL] || keydown[K_LCTRL] || keydown[K_RCTRL]) Config_SaveSession();
+			return;
 		case 'r': case 'R':
 			if (keydown[K_CTRL] || keydown[K_LCTRL] || keydown[K_RCTRL]) Config_LoadSession();
 			return;

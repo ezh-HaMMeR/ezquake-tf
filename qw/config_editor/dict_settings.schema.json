@@ -20,10 +20,11 @@
     "option": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["value", "label"],
+      "required": ["value", "label", "label_en"],
       "properties": {
         "value": {"type": "string"},
-        "label": {"type": "string"}
+        "label": {"type": "string"},
+        "label_en": {"type": "string"}
       }
     },
     "storage": {
@@ -85,14 +86,16 @@
     "setting": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "scope", "storage", "widget", "label"],
+      "required": ["id", "scope", "storage", "widget", "label", "label_en", "description", "description_en"],
       "properties": {
         "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
         "scope": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/scope"}},
         "storage": {"$ref": "#/$defs/storage"},
         "widget": {"$ref": "#/$defs/widget"},
         "label": {"type": "string", "minLength": 1},
+        "label_en": {"type": "string", "minLength": 1},
         "description": {"type": "string"},
+        "description_en": {"type": "string"},
         "group": {"type": "string"},
         "order": {"type": "integer"},
         "advanced": {"type": "boolean"},

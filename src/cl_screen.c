@@ -1041,13 +1041,13 @@ mpic_t *SCR_LoadCursorImage(char *cursorimage)
 {
 	mpic_t *image = NULL;
 
-	image = Draw_CachePicSafe(va("%s.lmp", cursorimage), false, false);
+	// Prefer user-supplied high-color cursors over the legacy cursor.lmp.
+	image = Draw_CachePicSafe(cursorimage, false, true);
 
-	// Failed to load anything, maybe missing .lmp-file, so just try
-	// loading any 24-bit version that's available instead.
+	// Keep the original LMP as a compatibility fallback.
 	if(!image)
 	{
-		image = Draw_CachePicSafe(cursorimage, false, true);
+		image = Draw_CachePicSafe(va("%s.lmp", cursorimage), false, false);
 	}
 
 	return image;

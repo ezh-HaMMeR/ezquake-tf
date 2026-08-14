@@ -190,7 +190,9 @@ static void TestRealDictionaries(const char *game_root)
 	cfg_dictionary_apply_result_t applied;
 	char error[512];
 	size_t file_index, node_index;
+	size_t definition_index, option_index;
 	size_t main_managed = 0, hud_managed = 0, bind_nodes = 0;
+	int found_language = 0, found_grenade_mode = 0, found_grenade1 = 0, found_grenade2 = 0, found_throw = 0;
 	unsigned char *hud_before = NULL, *hud_after = NULL;
 	size_t hud_before_length = 0, hud_after_length = 0;
 
@@ -201,11 +203,40 @@ static void TestRealDictionaries(const char *game_root)
 	CHECK(CFGDictionary_Load(&dictionary, "qw/config_editor/dict_settings.json",
 		"qw/config_editor/dict_binds.json", error, sizeof(error)),
 		error[0] ? error : "dictionary files load");
-	CHECK(dictionary.setting_count == 29, "settings dictionary has the expected definitions");
-	CHECK(dictionary.bind_count == 64, "bind dictionary has the expected unique actions");
+	CHECK(dictionary.setting_count == 31, "settings dictionary has the expected definitions");
+	CHECK(dictionary.bind_count == 65, "bind dictionary has the expected unique actions");
+	for (definition_index = 0; definition_index < dictionary.setting_count; ++definition_index) {
+		cfg_setting_definition_t *definition = &dictionary.settings[definition_index];
+		CHECK(definition->label && definition->label[0] && definition->label_en && definition->label_en[0],
+			"every setting has Russian and English labels");
+		CHECK(definition->description && definition->description[0] &&
+			definition->description_en && definition->description_en[0],
+			"every setting has Russian and English descriptions");
+		for (option_index = 0; option_index < definition->option_count; ++option_index)
+			CHECK(definition->options[option_index].label && definition->options[option_index].label[0] &&
+				definition->options[option_index].label_en && definition->options[option_index].label_en[0],
+				"every select option has Russian and English labels");
+		found_language += !strcmp(definition->id, "menu_language");
+		found_grenade_mode += !strcmp(definition->id, "grenade_control_mode") && definition->option_count == 3;
+	}
+	for (definition_index = 0; definition_index < dictionary.bind_count; ++definition_index) {
+		cfg_bind_definition_t *definition = &dictionary.binds[definition_index];
+		CHECK(definition->label && definition->label[0] && definition->label_en && definition->label_en[0],
+			"every bind has Russian and English labels");
+		CHECK(definition->description && definition->description[0] &&
+			definition->description_en && definition->description_en[0],
+			"every bind has Russian and English descriptions");
+		found_grenade1 += !strcmp(definition->command, "+tf_grenade1");
+		found_grenade2 += !strcmp(definition->command, "+tf_grenade2");
+		found_throw += !strcmp(definition->command, "+tf_throwgren");
+	}
+	CHECK(found_language == 1 && found_grenade_mode == 1,
+		"language and three-mode grenade settings are defined exactly once");
+	CHECK(found_grenade1 == 1 && found_grenade2 == 1 && found_throw == 1,
+		"all three native grenade actions are defined exactly once");
 	CHECK(CFGDictionary_ApplyToModel(&dictionary, &model, &applied, error, sizeof(error)),
 		error[0] ? error : "dictionaries apply to file-backed model");
-	CHECK(applied.setting_nodes == 65, "all requested main and class setting nodes are matched");
+	CHECK(applied.setting_nodes == 67, "all requested main and class setting nodes are matched");
 	CHECK(applied.bind_nodes == 66, "all global and class bind nodes are matched");
 
 	for (file_index = 0; file_index < model.file_count; ++file_index) {
@@ -214,8 +245,8 @@ static void TestRealDictionaries(const char *game_root)
 			cfg_node_t *node = &file->document.nodes[node_index];
 			if (!strcmp(file->id, "main") && node->managed) {
 				main_managed++;
-				CHECK(node->line_start >= 7 && node->line_end <= 25,
-					"only name through crosshairsize is managed in settings.cfg");
+				CHECK(node->line_start == 7 || (node->line_start >= 9 && node->line_end <= 28),
+					"only menu language and name through crosshairsize are managed in settings.cfg");
 			}
 			if (!strcmp(file->id, "hud") && node->managed) hud_managed++;
 			if (node->kind == CFG_NODE_ALIAS && !strncmp(file->id, "class_", 6)) {
@@ -231,7 +262,7 @@ static void TestRealDictionaries(const char *game_root)
 			}
 		}
 	}
-	CHECK(main_managed == 19, "settings.cfg exposes exactly the requested 19-line setting block");
+	CHECK(main_managed == 21, "settings.cfg exposes language, grenade mode, and the requested setting block");
 	CHECK(hud_managed == 0, "hud.cfg remains entirely outside the settings dictionary");
 	CHECK(bind_nodes == 66, "test corpus contains the expected number of bind nodes");
 	CHECK(CFGModel_SerializeFile(&model, "hud", &hud_before, &hud_before_length),

@@ -5,6 +5,7 @@ typedef struct textarea_source_line_s {
 	char file[64];
 	size_t node_id;
 	int source_line;
+	qbool inserted;
 } textarea_source_line_t;
 
 typedef struct textarea_control_s {

@@ -45,6 +45,7 @@ cvar_t cl_weaponhide_axe = { "cl_weaponhide_axe", "0" };
 cvar_t freelook = { "freelook","1" };
 cvar_t lookspring = { "lookspring","0" };
 cvar_t lookstrafe = { "lookstrafe","0" };
+cvar_t tf_grenade_mode = { "tf_grenade_mode", "2" };
 
 cvar_t sensitivity = { "sensitivity","12" };
 cvar_t cursor_sensitivity = { "scr_cursor_sensitivity", "1" };
@@ -409,6 +410,45 @@ void IN_AttackUp(void)
 
 void IN_UseDown(void) { KeyDown(&in_use); }
 void IN_UseUp(void) { KeyUp(&in_use); }
+
+static int IN_TFGrenadeMode(void)
+{
+	return bound(1, tf_grenade_mode.integer, 3);
+}
+
+static int tf_grenade_down_mode[2];
+
+static void IN_TFGrenadeDown(int type)
+{
+	int mode = IN_TFGrenadeMode();
+	tf_grenade_down_mode[type - 1] = mode;
+	if (mode != 3) IN_UseDown();
+	Cbuf_AddText(va("cmd tf_primegren%d%s\n", type, mode == 2 ? "_pth" : ""));
+}
+
+static void IN_TFGrenadeUp(int type)
+{
+	int mode = tf_grenade_down_mode[type - 1] ? tf_grenade_down_mode[type - 1] : IN_TFGrenadeMode();
+	tf_grenade_down_mode[type - 1] = 0;
+	if (mode != 3) IN_UseUp();
+	if (mode == 1) Cbuf_AddText("cmd tf_throwgren\n");
+}
+
+static void IN_TFGrenade1Down(void) { IN_TFGrenadeDown(1); }
+static void IN_TFGrenade1Up(void) { IN_TFGrenadeUp(1); }
+static void IN_TFGrenade2Down(void) { IN_TFGrenadeDown(2); }
+static void IN_TFGrenade2Up(void) { IN_TFGrenadeUp(2); }
+
+static void IN_TFThrowGrenadeDown(void)
+{
+	IN_UseDown();
+	Cbuf_AddText("cmd tf_throwgren\n");
+}
+
+static void IN_TFThrowGrenadeUp(void)
+{
+	IN_UseUp();
+}
 void IN_Attack2Down(void) { KeyDown(&in_attack2); }
 void IN_Attack2Up(void) { KeyUp(&in_attack2); }
 
@@ -1201,6 +1241,12 @@ void CL_InitInput(void)
 	Cmd_AddCommand("-attack2", IN_Attack2Up);
 	Cmd_AddCommand("+use", IN_UseDown);
 	Cmd_AddCommand("-use", IN_UseUp);
+	Cmd_AddCommand("+tf_grenade1", IN_TFGrenade1Down);
+	Cmd_AddCommand("-tf_grenade1", IN_TFGrenade1Up);
+	Cmd_AddCommand("+tf_grenade2", IN_TFGrenade2Down);
+	Cmd_AddCommand("-tf_grenade2", IN_TFGrenade2Up);
+	Cmd_AddCommand("+tf_throwgren", IN_TFThrowGrenadeDown);
+	Cmd_AddCommand("-tf_throwgren", IN_TFThrowGrenadeUp);
 	Cmd_AddCommand("+jump", IN_JumpDown);
 	Cmd_AddCommand("-jump", IN_JumpUp);
 	Cmd_AddCommand("impulse", IN_Impulse);
@@ -1227,6 +1273,7 @@ void CL_InitInput(void)
 	Cvar_Register(&cl_pitchspeed);
 	Cvar_Register(&cl_anglespeedkey);
 	Cvar_Register(&cl_iDrive);
+	Cvar_Register(&tf_grenade_mode);
 
 	Cvar_SetCurrentGroup(CVAR_GROUP_INPUT_MISC);
 	Cvar_Register(&lookspring);

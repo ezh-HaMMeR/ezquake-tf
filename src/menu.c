@@ -42,6 +42,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "keys.h"
 #include "common_draw.h"
 #include "r_matrix.h"
+#include <SDL.h>
 
 qbool vid_windowedmouse = true;
 void (*vid_menudrawfn)(void);
@@ -118,6 +119,7 @@ cvar_t     scr_centerMenu = {"scr_centerMenu","1"};
 cvar_t     menu_ingame = {"menu_ingame", "1"};
 cvar_t     menu_botmatch_gamedir = { "menu_botmatch_gamedir", "fbca" };
 cvar_t     menu_botmatch_mod_old = { "menu_botmatch_mod_old", "1" };
+cvar_t     menu_language = { "menu_language", "Russian" };
 int        m_yofs = 0;
 
 void M_DrawCharacter (int cx, int line, int num) {
@@ -368,6 +370,7 @@ void M_ToggleProxyMenu_f (void) {
 int    m_main_cursor;
 static qbool	newmainmenu = false;
 menu_window_t m_main_window;
+static menu_window_t m_discord_window;
 
 void M_Menu_Main_f (void) {
 	M_EnterMenu (m_main);
@@ -424,6 +427,7 @@ void M_Main_Draw (void) {
 	int f = (int) (curtime * 10) % 6;
 	int i;
 	int itemheight;
+	mpic_t *discord_banner;
 
 	M_DrawTransPic (16, BIGMENU_TOP, Draw_CachePic (CACHEPIC_QPLAQUE) );
 
@@ -450,6 +454,16 @@ void M_Main_Draw (void) {
 	M_DrawTransPic (54, BIGMENU_TOP + m_main_cursor * itemheight,
 		Draw_CachePic(CACHEPIC_MENUDOT1 + f)
 	);
+
+	discord_banner = Draw_CachePicSafe("gfx/joinusondiscord", false, true);
+	if (discord_banner) {
+		int banner_y = BIGMENU_TOP + m_main_window.h + 10;
+		M_DrawTransPic_GetPoint(BIGMENU_LEFT, banner_y,
+			&m_discord_window.x, &m_discord_window.y, discord_banner);
+		m_discord_window.w = discord_banner->width;
+		m_discord_window.h = discord_banner->height;
+	}
+	else memset(&m_discord_window, 0, sizeof(m_discord_window));
 }
 
 static void M_Main_Enter(const unsigned int entry)
@@ -509,6 +523,17 @@ void M_Main_Key (int key) {
 
 static qbool M_Main_Mouse_Event(const mouse_state_t* ms)
 {
+	menu_window_t banner;
+	M_Window_Adjust(&m_discord_window, &banner);
+	if (banner.w > 0 && banner.h > 0 && ms->x >= banner.x && ms->y >= banner.y &&
+		ms->x <= banner.x + banner.w && ms->y <= banner.y + banner.h) {
+		if (ms->button_up == 1) {
+			S_LocalSound("misc/menu2.wav");
+			if (SDL_OpenURL("https://discord.com/invite/p6ZV5nN") < 0)
+				Com_Printf("Unable to open Discord invite: %s\n", SDL_GetError());
+		}
+		return true;
+	}
 	M_Mouse_Select(&m_main_window, ms, MAIN_ITEMS, &m_main_cursor);
     
     if (ms->button_up == 1) M_Main_Key(K_MOUSE1);
@@ -1269,6 +1294,7 @@ void M_Init (void) {
 	Cvar_Register(&menu_marked_fade);
 	Cvar_Register(&menu_botmatch_gamedir);
 	Cvar_Register(&menu_botmatch_mod_old);
+	Cvar_Register(&menu_language);
 
 	Cvar_Register(&menu_marked_bgcolor);
 	Browser_Init();

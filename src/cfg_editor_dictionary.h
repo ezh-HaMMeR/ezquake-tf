@@ -18,6 +18,7 @@ typedef enum cfg_widget_type_e {
 typedef struct cfg_dictionary_option_s {
 	char *value;
 	char *label;
+	char *label_en;
 } cfg_dictionary_option_t;
 
 typedef struct cfg_setting_definition_s {
@@ -42,7 +43,9 @@ typedef struct cfg_setting_definition_s {
 	cfg_dictionary_option_t *options;
 	size_t option_count;
 	char *label;
+	char *label_en;
 	char *description;
+	char *description_en;
 	char *group;
 	char *apply;
 	int order;
@@ -55,7 +58,9 @@ typedef struct cfg_bind_definition_s {
 	size_t scope_count;
 	char *command;
 	char *label;
+	char *label_en;
 	char *description;
+	char *description_en;
 	char *group;
 	char *conflict_policy;
 	int order;
