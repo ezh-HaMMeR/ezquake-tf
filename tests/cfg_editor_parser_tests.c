@@ -1,5 +1,6 @@
 #include "cfg_editor_parser.h"
 #include "cfg_editor_model.h"
+#include "cfg_editor_dictionary.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -197,13 +198,98 @@ static void TestManagedFilesManifest(const char *first_config_path)
 	CFGModel_Free(&model);
 }
 
+static void TestRealDictionaries(const char *first_config_path)
+{
+	cfg_editor_model_t model;
+	cfg_editor_dictionary_t dictionary;
+	cfg_dictionary_apply_result_t applied;
+	char config_root[1024];
+	char error[512];
+	char *separator;
+	size_t file_index, node_index;
+	size_t main_managed = 0, hud_managed = 0, bind_nodes = 0;
+	unsigned char *hud_before = NULL, *hud_after = NULL;
+	size_t hud_before_length = 0, hud_after_length = 0;
+
+	if (strlen(first_config_path) >= sizeof(config_root)) {
+		CHECK(0, "config corpus path fits dictionary test buffer");
+		return;
+	}
+	strcpy(config_root, first_config_path);
+	separator = strrchr(config_root, '\\');
+	if (!separator) separator = strrchr(config_root, '/');
+	if (!separator) {
+		CHECK(0, "config corpus has a parent directory for dictionary test");
+		return;
+	}
+	*separator = '\0';
+
+	CFGModel_Init(&model);
+	CFGDictionary_Init(&dictionary);
+	CHECK(CFGModel_LoadManifest(&model, "qw/config_editor/managed_files.json",
+		config_root, error, sizeof(error)), error[0] ? error : "manifest loads for dictionary test");
+	CHECK(CFGDictionary_Load(&dictionary, "qw/config_editor/dict_settings.json",
+		"qw/config_editor/dict_binds.json", error, sizeof(error)),
+		error[0] ? error : "dictionary files load");
+	CHECK(dictionary.setting_count == 29, "settings dictionary has the expected definitions");
+	CHECK(dictionary.bind_count == 64, "bind dictionary has the expected unique actions");
+	CHECK(CFGDictionary_ApplyToModel(&dictionary, &model, &applied, error, sizeof(error)),
+		error[0] ? error : "dictionaries apply to file-backed model");
+	CHECK(applied.setting_nodes == 65, "all requested main and class setting nodes are matched");
+	CHECK(applied.bind_nodes == 66, "all global and class bind nodes are matched");
+
+	for (file_index = 0; file_index < model.file_count; ++file_index) {
+		cfg_model_file_t *file = &model.files[file_index];
+		for (node_index = 0; node_index < file->document.node_count; ++node_index) {
+			cfg_node_t *node = &file->document.nodes[node_index];
+			if (!strcmp(file->id, "main") && node->managed) {
+				main_managed++;
+				CHECK(node->line_start >= 7 && node->line_end <= 25,
+					"only name through crosshairsize is managed in settings.cfg");
+			}
+			if (!strcmp(file->id, "hud") && node->managed) hud_managed++;
+			if (node->kind == CFG_NODE_ALIAS && !strncmp(file->id, "class_", 6)) {
+				CHECK(!node->managed, "class alias definitions stay in Misc");
+			}
+			if (node->kind == CFG_NODE_BIND && (!strcmp(file->id, "binds")
+				|| !strncmp(file->id, "class_", 6))) {
+				bind_nodes++;
+				CHECK(node->managed, "every current global and class bind is dictionary-managed");
+			}
+			if (node->kind == CFG_NODE_SETINFO && !strncmp(file->id, "class_", 6)) {
+				CHECK(node->managed, "every current class setinfo is dictionary-managed");
+			}
+		}
+	}
+	CHECK(main_managed == 19, "settings.cfg exposes exactly the requested 19-line setting block");
+	CHECK(hud_managed == 0, "hud.cfg remains entirely outside the settings dictionary");
+	CHECK(bind_nodes == 66, "test corpus contains the expected number of bind nodes");
+	CHECK(CFGModel_SerializeFile(&model, "hud", &hud_before, &hud_before_length),
+		"complete raw HUD document can be loaded into textarea");
+	CHECK(CFGModel_ReplaceFileContents(&model, "hud", hud_before, hud_before_length),
+		"complete raw HUD textarea can replace its backing document");
+	CHECK(CFGModel_SerializeFile(&model, "hud", &hud_after, &hud_after_length),
+		"replaced HUD document serializes");
+	CHECK(hud_after_length == hud_before_length
+		&& !memcmp(hud_after, hud_before, hud_before_length),
+		"unchanged full-file HUD textarea preserves every byte");
+	free(hud_before);
+	free(hud_after);
+
+	CFGDictionary_Free(&dictionary);
+	CFGModel_Free(&model);
+}
+
 int main(int argc, char **argv)
 {
 	int i;
 
 	TestSyntheticDocument();
 	TestFileBackedModel();
-	if (argc > 1) TestManagedFilesManifest(argv[1]);
+	if (argc > 1) {
+		TestManagedFilesManifest(argv[1]);
+		TestRealDictionaries(argv[1]);
+	}
 	for (i = 1; i < argc; ++i) {
 		size_t length;
 		unsigned char *data = ReadFile(argv[i], &length);

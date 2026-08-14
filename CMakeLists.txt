@@ -561,6 +561,7 @@ add_resources(documentation
 set(client_headers
         ${SOURCE_DIR}/Ctrl.h
         ${SOURCE_DIR}/cfg_editor_model.h
+        ${SOURCE_DIR}/cfg_editor_dictionary.h
         ${SOURCE_DIR}/cfg_editor_parser.h
         ${SOURCE_DIR}/Ctrl_Checkbox.h
         ${SOURCE_DIR}/Ctrl_EditBox.h
@@ -633,6 +634,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 endif()
 set(client
         ${SOURCE_DIR}/cfg_editor_model.c
+        ${SOURCE_DIR}/cfg_editor_dictionary.c
         ${SOURCE_DIR}/cfg_editor_manifest.c
         ${SOURCE_DIR}/cfg_editor_parser.c
         ${SOURCE_DIR}/Ctrl.c
@@ -742,10 +744,12 @@ if(BUILD_CFG_EDITOR_TESTS)
     enable_testing()
     add_executable(cfg_editor_tests EXCLUDE_FROM_ALL
             ${PROJECT_SOURCE_DIR}/tests/cfg_editor_parser_tests.c
+            ${SOURCE_DIR}/cfg_editor_dictionary.c
             ${SOURCE_DIR}/cfg_editor_manifest.c
             ${SOURCE_DIR}/cfg_editor_model.c
             ${SOURCE_DIR}/cfg_editor_parser.c
             ${SOURCE_DIR}/cfg_editor_model.h
+            ${SOURCE_DIR}/cfg_editor_dictionary.h
             ${SOURCE_DIR}/cfg_editor_parser.h
     )
     target_include_directories(cfg_editor_tests PRIVATE ${SOURCE_DIR})

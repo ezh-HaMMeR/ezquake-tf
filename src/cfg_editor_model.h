@@ -49,6 +49,7 @@ typedef struct cfg_source_ref_s {
 
 void CFGModel_Init(cfg_editor_model_t *model);
 void CFGModel_Free(cfg_editor_model_t *model);
+void CFGModel_ClearManaged(cfg_editor_model_t *model);
 
 int CFGModel_LoadManifest(cfg_editor_model_t *model, const char *manifest_path,
 	const char *config_root, char *error, size_t error_size);
@@ -73,7 +74,12 @@ int CFGModel_ResolveSetting(cfg_editor_model_t *model, const char *context_file_
 size_t CFGModel_MarkSettingManaged(cfg_editor_model_t *model,
 	cfg_storage_kind_t storage_kind, const char *name,
 	const char *on_command, const char *off_command);
+size_t CFGModel_MarkSettingManagedInFile(cfg_editor_model_t *model, const char *file_id,
+	cfg_storage_kind_t storage_kind, const char *name,
+	const char *on_command, const char *off_command);
 size_t CFGModel_MarkBindManaged(cfg_editor_model_t *model, const char *command, int case_sensitive);
+size_t CFGModel_MarkBindManagedInFile(cfg_editor_model_t *model, const char *file_id,
+	const char *command, int case_sensitive);
 
 size_t CFGModel_CollectMisc(const cfg_editor_model_t *model, const char *file_id,
 	int include_comments, cfg_source_ref_t **references);
@@ -81,6 +87,8 @@ int CFGModel_ReplaceSource(cfg_editor_model_t *model, const cfg_source_ref_t *re
 	const unsigned char *raw, size_t raw_length);
 int CFGModel_SerializeFile(const cfg_editor_model_t *model, const char *file_id,
 	unsigned char **data, size_t *length);
+int CFGModel_ReplaceFileContents(cfg_editor_model_t *model, const char *file_id,
+	const unsigned char *data, size_t length);
 void CFGModel_FormatSourceLabel(const cfg_source_ref_t *reference, char *buffer, size_t buffer_size);
 
 #endif /* EZQUAKE_CFG_EDITOR_MODEL_H */

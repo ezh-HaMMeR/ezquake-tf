@@ -74,6 +74,17 @@ void CFGModel_Free(cfg_editor_model_t *model)
 	memset(model, 0, sizeof(*model));
 }
 
+void CFGModel_ClearManaged(cfg_editor_model_t *model)
+{
+	size_t file_index, node_index;
+	if (!model) return;
+	for (file_index = 0; file_index < model->file_count; ++file_index) {
+		for (node_index = 0; node_index < model->files[file_index].document.node_count; ++node_index) {
+			model->files[file_index].document.nodes[node_index].managed = 0;
+		}
+	}
+}
+
 cfg_model_file_t *CFGModel_FindFile(cfg_editor_model_t *model, const char *id)
 {
 	size_t i;
@@ -328,6 +339,24 @@ size_t CFGModel_MarkSettingManaged(cfg_editor_model_t *model,
 	return count;
 }
 
+size_t CFGModel_MarkSettingManagedInFile(cfg_editor_model_t *model, const char *file_id,
+	cfg_storage_kind_t storage_kind, const char *name,
+	const char *on_command, const char *off_command)
+{
+	cfg_model_file_t *file = CFGModel_FindFile(model, file_id);
+	size_t node_index, count = 0;
+	if (!file) return 0;
+	for (node_index = 0; node_index < file->document.node_count; ++node_index) {
+		const char *value = NULL;
+		cfg_node_t *node = &file->document.nodes[node_index];
+		if (CFGModel_NodeMatches(node, storage_kind, name, on_command, off_command, &value)) {
+			node->managed = 1;
+			count++;
+		}
+	}
+	return count;
+}
+
 size_t CFGModel_MarkBindManaged(cfg_editor_model_t *model, const char *command, int case_sensitive)
 {
 	size_t file_index;
@@ -344,6 +373,22 @@ size_t CFGModel_MarkBindManaged(cfg_editor_model_t *model, const char *command, 
 				node->managed = 1;
 				count++;
 			}
+		}
+	}
+	return count;
+}
+
+size_t CFGModel_MarkBindManagedInFile(cfg_editor_model_t *model, const char *file_id,
+	const char *command, int case_sensitive)
+{
+	cfg_model_file_t *file = CFGModel_FindFile(model, file_id);
+	size_t node_index, count = 0;
+	if (!file || !command) return 0;
+	for (node_index = 0; node_index < file->document.node_count; ++node_index) {
+		cfg_node_t *node = &file->document.nodes[node_index];
+		if (node->kind == CFG_NODE_BIND && CFGModel_StringEqual(node->value, command, case_sensitive)) {
+			node->managed = 1;
+			count++;
 		}
 	}
 	return count;
@@ -417,6 +462,19 @@ int CFGModel_SerializeFile(const cfg_editor_model_t *model, const char *file_id,
 {
 	const cfg_model_file_t *file = CFGModel_FindFileConst(model, file_id);
 	return file && CFGDoc_Serialize(&file->document, data, length);
+}
+
+int CFGModel_ReplaceFileContents(cfg_editor_model_t *model, const char *file_id,
+	const unsigned char *data, size_t length)
+{
+	cfg_model_file_t *file = CFGModel_FindFile(model, file_id);
+	cfg_document_t replacement;
+	if (!file || (!data && length)
+		|| !CFGDoc_Parse(&replacement, file->path, data, length)) return 0;
+	CFGDoc_Free(&file->document);
+	file->document = replacement;
+	file->dirty = 1;
+	return 1;
 }
 
 void CFGModel_FormatSourceLabel(const cfg_source_ref_t *reference, char *buffer, size_t buffer_size)

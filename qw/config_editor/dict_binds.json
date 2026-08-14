@@ -2,45 +2,78 @@
   "$schema": "dict_binds.schema.json",
   "schema_version": 1,
   "binds": [
-    {
-      "id": "move_forward",
-      "scope": ["global"],
-      "command": "+forward",
-      "label": "Move forward",
-      "group": "Movement",
-      "order": 10,
-      "max_keys": 2,
-      "conflict_policy": "ask"
-    },
-    {
-      "id": "jump",
-      "scope": ["global"],
-      "command": "+jump",
-      "label": "Jump",
-      "group": "Movement",
-      "order": 20,
-      "max_keys": 2,
-      "conflict_policy": "ask"
-    },
-    {
-      "id": "primary_attack",
-      "scope": ["global"],
-      "command": "+attack0 0",
-      "label": "Primary attack",
-      "group": "Combat",
-      "order": 30,
-      "max_keys": 2,
-      "conflict_policy": "ask"
-    },
-    {
-      "id": "engineer_reload_sentry",
-      "scope": ["class:engineer"],
-      "command": "cmd sg_reload",
-      "label": "Reload sentry",
-      "group": "Engineer",
-      "order": 10,
-      "max_keys": 2,
-      "conflict_policy": "ask"
-    }
+    {"id":"next_class_scout","scope":["global"],"command":"say_team Next life scout;scout","label":"Следующая жизнь: скаут","description":"Сообщить команде и выбрать скаута на следующую жизнь.","group":"Выбор класса","order":10,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"next_class_sniper","scope":["global"],"command":"say_team Next life sniper;sniper","label":"Следующая жизнь: снайпер","description":"Сообщить команде и выбрать снайпера на следующую жизнь.","group":"Выбор класса","order":20,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"next_class_soldier","scope":["global"],"command":"say_team Next life soldier;soldier","label":"Следующая жизнь: солдат","description":"Сообщить команде и выбрать солдата на следующую жизнь.","group":"Выбор класса","order":30,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"next_class_demoman","scope":["global"],"command":"say_team Next life demoman;demoman","label":"Следующая жизнь: подрывник","description":"Сообщить команде и выбрать подрывника на следующую жизнь.","group":"Выбор класса","order":40,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"next_class_medic","scope":["global"],"command":"say_team Next life medic;medic","label":"Следующая жизнь: медик","description":"Сообщить команде и выбрать медика на следующую жизнь.","group":"Выбор класса","order":50,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"next_class_hwguy","scope":["global"],"command":"say_team Next life hwguy;hwguy;","label":"Следующая жизнь: пулемётчик","description":"Сообщить команде и выбрать пулемётчика на следующую жизнь.","group":"Выбор класса","order":60,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"next_class_pyro","scope":["global"],"command":"say_team Next life pyro;pyro","label":"Следующая жизнь: пиротехник","description":"Сообщить команде и выбрать пиротехника на следующую жизнь.","group":"Выбор класса","order":70,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"next_class_spy","scope":["global"],"command":"say_team Next life spy;spy","label":"Следующая жизнь: шпион","description":"Сообщить команде и выбрать шпиона на следующую жизнь.","group":"Выбор класса","order":80,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"next_class_engineer","scope":["global"],"command":"say_team Next life eng;engineer","label":"Следующая жизнь: инженер","description":"Сообщить команде и выбрать инженера на следующую жизнь.","group":"Выбор класса","order":90,"max_keys":2,"conflict_policy":"ask"},
+
+    {"id":"weapon_impulse_1","scope":["global"],"command":"impulse 1","label":"Оружие 1","description":"Выбрать оружие через impulse 1.","group":"Оружие","order":110,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"weapon_impulse_2","scope":["global"],"command":"impulse 2","label":"Оружие 2","description":"Выбрать оружие через impulse 2.","group":"Оружие","order":120,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"weapon_impulse_3","scope":["global"],"command":"impulse 3","label":"Оружие 3","description":"Выбрать оружие через impulse 3.","group":"Оружие","order":130,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"weapon_impulse_4","scope":["global"],"command":"impulse 4","label":"Оружие 4","description":"Выбрать оружие через impulse 4.","group":"Оружие","order":140,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"weapon_impulse_5","scope":["global"],"command":"impulse 5","label":"Оружие 5","description":"Выбрать оружие через impulse 5.","group":"Оружие","order":150,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"weapon_impulse_6","scope":["global"],"command":"impulse 6","label":"Оружие 6","description":"Выбрать оружие через impulse 6.","group":"Оружие","order":160,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"weapon_impulse_7","scope":["global"],"command":"impulse 7","label":"Оружие 7","description":"Выбрать оружие через impulse 7.","group":"Оружие","order":170,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"weapon_impulse_8","scope":["global"],"command":"impulse 8","label":"Оружие 8","description":"Выбрать оружие через impulse 8.","group":"Оружие","order":180,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"weapon_impulse_9","scope":["global"],"command":"impulse 9","label":"Оружие 9","description":"Выбрать оружие через impulse 9.","group":"Оружие","order":190,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"weapon_impulse_10","scope":["global"],"command":"impulse 10","label":"Оружие 10","description":"Выбрать оружие через impulse 10.","group":"Оружие","order":200,"max_keys":2,"conflict_policy":"ask"},
+
+    {"id":"open_menu","scope":["global"],"command":"togglemenu","label":"Открыть меню","description":"Открыть или закрыть главное меню клиента.","group":"Интерфейс","order":210,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"take_screenshot","scope":["global"],"command":"screenshot","label":"Сделать скриншот","description":"Сохранить снимок текущего экрана.","group":"Интерфейс","order":220,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"kill_player","scope":["global"],"command":"kill","label":"Самоубийство","description":"Убить собственного персонажа.","group":"Игра","order":230,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"show_team_scores","scope":["global"],"command":"+showteamscores","label":"Показать командный счёт","description":"Показывать таблицу командного счёта, пока удерживается клавиша.","group":"Интерфейс","order":240,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"pause_alias","scope":["global"],"command":"pp","label":"Пауза","description":"Вызвать настроенную команду паузы pp.","group":"Игра","order":250,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"change_team_alias","scope":["global"],"command":"changeteam","label":"Сменить команду","description":"Вызвать настроенную команду смены команды changeteam.","group":"Игра","order":260,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"discard_items","scope":["global"],"command":"discard","label":"Выбросить лишние боеприпасы","description":"Выполнить команду Team Fortress discard.","group":"Team Fortress","order":270,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"show_flag_info","scope":["global"],"command":"flaginfo","label":"Информация о флагах","description":"Показать информацию о флагах карты.","group":"Team Fortress","order":280,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"toggle_console","scope":["global"],"command":"toggleconsole","label":"Открыть консоль","description":"Открыть или закрыть консоль клиента.","group":"Интерфейс","order":290,"max_keys":2,"conflict_policy":"ask"},
+
+    {"id":"vote_changemap","scope":["global"],"command":"cmd vote changemap","label":"Голосование за смену карты","description":"Начать голосование за смену карты.","group":"Голосование","order":310,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"vote_yes","scope":["global"],"command":"cmd vote yes","label":"Проголосовать за","description":"Отдать положительный голос в текущем голосовании.","group":"Голосование","order":320,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"vote_no","scope":["global"],"command":"cmd vote no","label":"Проголосовать против","description":"Отдать отрицательный голос в текущем голосовании.","group":"Голосование","order":330,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"prime_grenade_1","scope":["global"],"command":"cmd tf_primegren1_pth","label":"Подготовить гранату первого типа","description":"Начать подготовку первой классовой гранаты.","group":"Гранаты","order":340,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"prime_grenade_2","scope":["global"],"command":"cmd tf_primegren2_pth","label":"Подготовить гранату второго типа","description":"Начать подготовку второй классовой гранаты.","group":"Гранаты","order":350,"max_keys":2,"conflict_policy":"ask"},
+
+    {"id":"primary_attack","scope":["global"],"command":"+attack0 0","label":"Основная атака","description":"Атаковать текущим оружием.","group":"Управление","order":410,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"move_forward","scope":["global"],"command":"+forward","label":"Двигаться вперёд","description":"Двигаться вперёд, пока удерживается клавиша.","group":"Управление","order":420,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"move_left","scope":["global"],"command":"+moveleft","label":"Двигаться влево","description":"Двигаться влево, пока удерживается клавиша.","group":"Управление","order":430,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"move_back","scope":["global"],"command":"+back","label":"Двигаться назад","description":"Двигаться назад, пока удерживается клавиша.","group":"Управление","order":440,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"move_right","scope":["global"],"command":"+moveright","label":"Двигаться вправо","description":"Двигаться вправо, пока удерживается клавиша.","group":"Управление","order":450,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"jump","scope":["global"],"command":"+jump","label":"Прыжок","description":"Прыгать, пока удерживается клавиша.","group":"Управление","order":460,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"reload_weapon","scope":["global"],"command":"reload","label":"Перезарядить оружие","description":"Перезарядить текущее оружие.","group":"Управление","order":470,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"quick_weapon_alias","scope":["global"],"command":"quick1","label":"Быстрое переключение оружия","description":"Вызвать настроенную команду быстрого переключения quick1.","group":"Оружие","order":480,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"drop_items","scope":["global"],"command":"dropitems","label":"Выбросить предметы","description":"Выбросить переносимые предметы Team Fortress.","group":"Team Fortress","order":490,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"swap_team_colors","scope":["global"],"command":"swap_colors","label":"Поменять цвета команд","description":"Вызвать настроенную команду перестановки цветов команд.","group":"Интерфейс","order":500,"max_keys":2,"conflict_policy":"ask"},
+
+    {"id":"demoman_attack_pipe_launcher","scope":["class:demoman"],"command":"+attack0 6","label":"Подрывник: пайп-лаунчер","description":"Атаковать оружием с impulse 6.","group":"Подрывник","order":1010,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"demoman_attack_grenade_launcher","scope":["class:demoman"],"command":"+attack0 7","label":"Подрывник: гранатомёт","description":"Атаковать оружием с impulse 7.","group":"Подрывник","order":1020,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"demoman_detonate_pipes","scope":["class:demoman"],"command":"detp_demon","label":"Подрывник: взорвать пайпы","description":"Вызвать настроенную команду детонации detp_demon.","group":"Подрывник","order":1030,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"demoman_attack_weapon_2","scope":["class:demoman"],"command":"+attack0 2","label":"Подрывник: атака оружием 2","description":"Атаковать оружием с impulse 2.","group":"Подрывник","order":1040,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"demoman_detpack_5","scope":["class:demoman"],"command":"$qt+det 5$qt","label":"Подрывник: детпак на 5 секунд","description":"Запустить классовую команду +det с параметром 5.","group":"Подрывник","order":1050,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"demoman_detpack_255","scope":["class:demoman"],"command":"$qt+det 255$qt","label":"Подрывник: детпак на 255 секунд","description":"Запустить классовую команду +det с параметром 255.","group":"Подрывник","order":1060,"max_keys":2,"conflict_policy":"ask"},
+
+    {"id":"sniper_toggle_weapon","scope":["class:sniper"],"command":"toggle_weapon 4 2","label":"Снайпер: сменить режим оружия","description":"Переключить снайперский и автоматический режимы огня.","group":"Снайпер","order":1110,"max_keys":2,"conflict_policy":"ask"},
+
+    {"id":"soldier_speedjump","scope":["class:soldier"],"command":"speedjump","label":"Солдат: быстрый рокет-джамп","description":"Вызвать настроенную команду speedjump.","group":"Солдат","order":1210,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"soldier_rocketjump","scope":["class:soldier"],"command":"+rocketjump","label":"Солдат: рокет-джамп","description":"Выполнять настроенную команду +rocketjump, пока удерживается клавиша.","group":"Солдат","order":1220,"max_keys":2,"conflict_policy":"ask"},
+
+    {"id":"spy_toggle_color","scope":["class:spy"],"command":"togglecolor","label":"Шпион: сменить цвет маскировки","description":"Вызвать настроенную команду смены цвета маскировки.","group":"Шпион","order":1310,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"spy_change_skin","scope":["class:spy"],"command":"changeskin","label":"Шпион: сменить класс маскировки","description":"Вызвать настроенную команду смены внешнего вида.","group":"Шпион","order":1320,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"spy_fake_death","scope":["class:spy"],"command":"fakedeath","label":"Шпион: притвориться мёртвым","description":"Вызвать настроенную команду ложной смерти.","group":"Шпион","order":1330,"max_keys":2,"conflict_policy":"ask"},
+
+    {"id":"engineer_build_dispenser","scope":["class:engineer"],"command":"cmd builddisp","label":"Инженер: построить раздатчик","description":"Отправить серверу команду строительства раздатчика.","group":"Инженер","order":1410,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"engineer_detonate_dispenser","scope":["class:engineer"],"command":"detdispenser","label":"Инженер: взорвать раздатчик","description":"Вызвать команду детонации раздатчика.","group":"Инженер","order":1420,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"engineer_point_sentry","scope":["class:engineer"],"command":"cmd sg_rotate point","label":"Инженер: направить турель","description":"Повернуть турель в направлении взгляда.","group":"Инженер","order":1430,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"engineer_rotate_sentry_left","scope":["class:engineer"],"command":"+rotate_sentry 15","label":"Инженер: поворачивать турель влево","description":"Поворачивать турель на положительный шаг; команда назначена на две клавиши в текущем конфиге.","group":"Инженер","order":1440,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"engineer_rotate_sentry_right","scope":["class:engineer"],"command":"+rotate_sentry -15","label":"Инженер: поворачивать турель вправо","description":"Поворачивать турель на отрицательный шаг.","group":"Инженер","order":1450,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"engineer_build_sentry","scope":["class:engineer"],"command":"cmd builtsg","label":"Инженер: построить турель","description":"Отправить серверу команду строительства турели.","group":"Инженер","order":1460,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"engineer_build_sentry_password","scope":["class:engineer"],"command":"cmd builtsg_pw","label":"Инженер: построить защищённую турель","description":"Отправить серверу команду строительства турели с вариантом pw.","group":"Инженер","order":1470,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"engineer_reload_sentry","scope":["class:engineer"],"command":"cmd sg_reload","label":"Инженер: пополнить боезапас турели","description":"Отправить серверу команду перезарядки турели.","group":"Инженер","order":1480,"max_keys":2,"conflict_policy":"ask"},
+    {"id":"engineer_repair_sentry","scope":["class:engineer"],"command":"cmd sg_repair","label":"Инженер: починить турель","description":"Отправить серверу команду ремонта турели.","group":"Инженер","order":1490,"max_keys":2,"conflict_policy":"ask"}
   ]
 }

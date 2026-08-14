@@ -66,6 +66,13 @@ The schema describes semantics independently from storage.  The current
 backend is Quake CFG; a future JSON backend can use the same widgets by adding
 a new `storage.type` adapter.
 
+The first populated dictionary intentionally exposes only the contiguous
+`name` through `crosshairsize` block from `settings.cfg`. Later statements in
+that file stay in `Misc`. Class CFG files expose every current setting and bind,
+but their `alias` definitions stay in `Misc`. `hud.cfg` has no dictionary
+entries: it is loaded and saved as one complete raw textarea document, including
+blank lines and comments.
+
 ## Foundation controls
 
 - `checkbox` stores the dictionary's exact `checked_value` or
