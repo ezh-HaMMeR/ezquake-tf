@@ -2,6 +2,31 @@
 #include "utils.h"
 #include "Ctrl_TextArea.h"
 #include "keys.h"
+#include "textencoding.h"
+
+static void CTextArea_DrawText(int x, int y, const char *text, qbool console_font)
+{
+	wchar wide[1024];
+	int input = 0, output = 0, length;
+
+	if (!console_font) {
+		Draw_String(x, y, text);
+		return;
+	}
+	length = (int)strlen(text);
+	while (input < length && output < (int)(sizeof(wide) / sizeof(wide[0])) - 1) {
+		int initial = input;
+		wchar decoded = TextEncodingDecodeUTF8((char *)text, &input);
+		if (!decoded && text[initial]) {
+			decoded = (unsigned char)text[initial];
+			input = initial;
+		}
+		wide[output++] = decoded;
+		++input;
+	}
+	wide[output] = 0;
+	Draw_ConsoleString(x, y, wide, NULL, 0, false, 1, false);
+}
 
 static qbool CTextArea_Reserve(textarea_control_t *control, size_t required)
 {
@@ -134,9 +159,10 @@ void CTextArea_Draw(textarea_control_t *control, int x, int y, qbool active)
 					control->sources[row].source_line);
 			}
 			else snprintf(gutter, sizeof(gutter), "%17s ", "");
-			Draw_String(x, y + visible_row * 8, gutter);
+			CTextArea_DrawText(x, y + visible_row * 8, gutter, control->use_console_font);
 		}
-		Draw_String(x + gutter_chars * 8, y + visible_row * 8, line);
+		CTextArea_DrawText(x + gutter_chars * 8, y + visible_row * 8, line,
+			control->use_console_font);
 	}
 
 	if (active) {

@@ -18,6 +18,7 @@ typedef struct textarea_control_s {
 	int first_column;
 	qbool read_only;
 	qbool show_source_gutter;
+	qbool use_console_font;
 	textarea_source_line_t *sources;
 	size_t source_count;
 } textarea_control_t;
