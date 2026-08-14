@@ -701,8 +701,6 @@ void Host_Init (int argc, char **argv, int default_memsize)
 	Sys_CvarInit();
 	CM_Init ();
 	Mod_Init ();
-	VersionCheck_Init();
-
 #ifndef CLIENTONLY
 	SV_Init ();
 #endif
@@ -812,8 +810,6 @@ void Host_Shutdown (void)
 	FS_Shutdown();
 	SYSINFO_Shutdown();
 	Q_free(com_args_original);
-
-	VersionCheck_Shutdown();
 
 	curl_global_cleanup();
 }

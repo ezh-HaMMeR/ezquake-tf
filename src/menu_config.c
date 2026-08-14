@@ -9,6 +9,8 @@
 #include "textencoding.h"
 #include "qsound.h"
 
+#include <SDL.h>
+
 extern int menuwidth, menuheight;
 extern qbool m_entersound;
 extern cvar_t menu_language;
@@ -249,6 +251,36 @@ static qbool Config_StringEqual(const char *left, const char *right, qbool case_
 	return case_sensitive ? !strcmp(left, right) : !strcasecmp(left, right);
 }
 
+static qbool Config_IsWindowDimension(const cfg_setting_definition_t *definition)
+{
+	return definition && definition->name &&
+		(!strcmp(definition->name, "vid_win_width") || !strcmp(definition->name, "vid_win_height"));
+}
+
+static void Config_DefaultWindowDimensions(void)
+{
+	SDL_DisplayMode mode;
+	cvar_t *display_cvar = Cvar_Find("vid_win_displaynumber");
+	int displays = SDL_GetNumVideoDisplays();
+	int display = display_cvar ? display_cvar->integer : 0;
+	int width = vid.width;
+	int height = vid.height;
+	size_t i;
+
+	display = displays > 0 ? bound(0, display, displays - 1) : 0;
+	if (SDL_GetCurrentDisplayMode(display, &mode) == 0 && mode.w > 0 && mode.h > 0) {
+		width = mode.w;
+		height = mode.h;
+	}
+	for (i = 0; i < config_menu.setting_count; ++i) {
+		config_setting_draft_t *draft = &config_menu.settings[i];
+		if (!Config_IsWindowDimension(draft->definition) || atoi(draft->value) > 0)
+			continue;
+		snprintf(draft->value, sizeof(draft->value), "%d",
+			!strcmp(draft->definition->name, "vid_win_width") ? width : height);
+	}
+}
+
 static qbool Config_ScopeToFile(const char *scope, qbool bind_scope, char *file_id, size_t size)
 {
 	int result;
@@ -388,6 +420,7 @@ static qbool Config_BuildDrafts(void)
 			}
 		}
 	}
+	Config_DefaultWindowDimensions();
 
 	for (i = 0; i < config_menu.dictionary.bind_count; ++i) {
 		const cfg_bind_definition_t *definition = &config_menu.dictionary.binds[i];
@@ -515,39 +548,94 @@ static qbool Config_AppendEscaped(char *output, size_t output_size, size_t *leng
 	return true;
 }
 
-static qbool Config_ReplaceSettingDraft(config_setting_draft_t *draft)
-{
-	cfg_setting_result_t resolved;
-	char raw[1024];
-	size_t length = 0;
-	const char *prefix = "";
-	const char *line_ending;
-	const cfg_setting_definition_t *definition = draft->definition;
+static qbool Config_BufferAppend(char **buffer, size_t *length, size_t *capacity,
+	const char *data, size_t data_length);
 
-	if (!CFGModel_ResolveSetting(&config_menu.model, draft->file_id,
-		definition->storage_kind, definition->name, definition->on_command,
-		definition->off_command, &resolved) || !resolved.node || resolved.inherited) return true;
-	if (resolved.value && !strcmp(resolved.value, draft->value)) return true;
-	line_ending = Config_NodeLineEnding(resolved.node);
+static qbool Config_FormatSettingLine(const cfg_setting_definition_t *definition,
+	const char *value, const char *line_ending, char *raw, size_t raw_size, size_t *length)
+{
+	const char *prefix = "";
+	int written;
+
+	*length = 0;
 	if (definition->storage_kind == CFG_STORAGE_SET) prefix = "set ";
 	else if (definition->storage_kind == CFG_STORAGE_SETINFO) prefix = "setinfo ";
 	if (definition->storage_kind == CFG_STORAGE_COMMAND_TOGGLE) {
-		const char *command = !strcmp(draft->value, "0") ? definition->off_command : definition->on_command;
-		int written = snprintf(raw, sizeof(raw), "%s%s", command, line_ending);
-		if (written < 0 || (size_t)written >= sizeof(raw)) return false;
-		length = (size_t)written;
+		const char *command = !strcmp(value, "0") ? definition->off_command : definition->on_command;
+		written = snprintf(raw, raw_size, "%s%s", command, line_ending);
+		if (written < 0 || (size_t)written >= raw_size) return false;
+		*length = (size_t)written;
+		return true;
 	}
-	else {
-		int written = snprintf(raw, sizeof(raw), "%s%s \"", prefix, definition->name);
-		if (written < 0 || (size_t)written >= sizeof(raw)) return false;
-		length = (size_t)written;
-		if (!Config_AppendEscaped(raw, sizeof(raw), &length, draft->value) ||
-			length + strlen(line_ending) + 2 > sizeof(raw)) return false;
-		raw[length++] = '"';
-		memcpy(raw + length, line_ending, strlen(line_ending));
-		length += strlen(line_ending);
-		raw[length] = '\0';
+	written = snprintf(raw, raw_size, "%s%s \"", prefix, definition->name);
+	if (written < 0 || (size_t)written >= raw_size) return false;
+	*length = (size_t)written;
+	if (!Config_AppendEscaped(raw, raw_size, length, value) ||
+		*length + strlen(line_ending) + 2 > raw_size) return false;
+	raw[(*length)++] = '"';
+	memcpy(raw + *length, line_ending, strlen(line_ending));
+	*length += strlen(line_ending);
+	raw[*length] = '\0';
+	return true;
+}
+
+static qbool Config_ReplaceSettingDraft(config_setting_draft_t *draft)
+{
+	cfg_setting_result_t resolved;
+	cfg_model_file_t *file;
+	char raw[1024];
+	size_t length = 0;
+	const char *line_ending;
+	const cfg_setting_definition_t *definition = draft->definition;
+	qbool found;
+
+	found = CFGModel_ResolveSetting(&config_menu.model, draft->file_id,
+		definition->storage_kind, definition->name, definition->on_command,
+		definition->off_command, &resolved);
+	if (!found || !resolved.node) {
+		unsigned char *current = NULL;
+		char *combined = NULL;
+		size_t current_length = 0, combined_length = 0, combined_capacity = 0;
+		size_t node_index;
+
+		if (!draft->value[0]) return true;
+		file = CFGModel_FindFile(&config_menu.model, draft->file_id);
+		if (!file) return false;
+		line_ending = "\r\n";
+		for (node_index = file->document.node_count; node_index > 0; --node_index) {
+			const char *candidate = Config_NodeLineEnding(&file->document.nodes[node_index - 1]);
+			if (*candidate) {
+				line_ending = candidate;
+				break;
+			}
+		}
+		if (!Config_FormatSettingLine(definition, draft->value, line_ending,
+			raw, sizeof(raw), &length) ||
+			!CFGModel_SerializeFile(&config_menu.model, draft->file_id, &current, &current_length) ||
+			!Config_BufferAppend(&combined, &combined_length, &combined_capacity,
+				(const char *)current, current_length) ||
+			(current_length && current[current_length - 1] != '\r' && current[current_length - 1] != '\n' &&
+				!Config_BufferAppend(&combined, &combined_length, &combined_capacity,
+					line_ending, strlen(line_ending))) ||
+			!Config_BufferAppend(&combined, &combined_length, &combined_capacity, raw, length)) {
+			free(current);
+			Q_free(combined);
+			return false;
+		}
+		free(current);
+		if (!CFGModel_ReplaceFileContents(&config_menu.model, draft->file_id,
+			(const unsigned char *)combined, combined_length)) {
+			Q_free(combined);
+			return false;
+		}
+		Q_free(combined);
+		return true;
 	}
+	if (resolved.inherited) return true;
+	if (resolved.value && !strcmp(resolved.value, draft->value)) return true;
+	line_ending = Config_NodeLineEnding(resolved.node);
+	if (!Config_FormatSettingLine(definition, draft->value, line_ending,
+		raw, sizeof(raw), &length)) return false;
 	return CFGDoc_ReplaceNode(&resolved.file->document, resolved.node->id,
 		(const unsigned char *)raw, length) ? (resolved.file->dirty = 1, true) : false;
 }
@@ -795,11 +883,29 @@ static const char *Config_CurrentClassFile(void)
 	return class_files[playerclass];
 }
 
-static qbool Config_QueueDirtyFiles(void)
+static qbool Config_VideoDimensionsChanged(void)
+{
+	size_t i;
+	for (i = 0; i < config_menu.setting_count; ++i) {
+		const config_setting_draft_t *draft = &config_menu.settings[i];
+		cfg_setting_result_t resolved;
+		if (!Config_IsWindowDimension(draft->definition))
+			continue;
+		if (!CFGModel_ResolveSetting(&config_menu.model, draft->file_id,
+			draft->definition->storage_kind, draft->definition->name,
+			draft->definition->on_command, draft->definition->off_command, &resolved) ||
+			!resolved.value || strcmp(resolved.value, draft->value))
+			return true;
+	}
+	return false;
+}
+
+static qbool Config_QueueDirtyFiles(qbool restart_video)
 {
 	const char *current_class = Config_CurrentClassFile();
 	qbool main_dirty = false, binds_dirty = false, hud_dirty = false;
 	qbool current_class_dirty = false;
+	qbool queued = false;
 	size_t i;
 
 	for (i = 0; i < config_menu.model.file_count; ++i) {
@@ -819,32 +925,37 @@ static qbool Config_QueueDirtyFiles(void)
 	/* A class CFG inherits the shared files and then restores its own overrides. */
 	if (current_class && (main_dirty || binds_dirty || hud_dirty || current_class_dirty)) {
 		Cbuf_AddText(va("exec \"%s\"\n", current_class));
-		return true;
+		queued = true;
 	}
-
 	/* Never activate an edited profile for a class that the player is not using. */
-	if (main_dirty) {
+	else if (main_dirty) {
 		Cbuf_AddText("exec \"settings.cfg\"\n");
-		return true;
+		queued = true;
 	}
-	if (binds_dirty)
-		Cbuf_AddText("exec \"binds.cfg\"\n");
-	if (hud_dirty)
-		Cbuf_AddText("exec \"hud.cfg\"\n");
-	return binds_dirty || hud_dirty;
+	else {
+		if (binds_dirty)
+			Cbuf_AddText("exec \"binds.cfg\"\n");
+		if (hud_dirty)
+			Cbuf_AddText("exec \"hud.cfg\"\n");
+		queued = binds_dirty || hud_dirty;
+	}
+	if (restart_video)
+		Cbuf_AddText("vid_restart\n");
+	return queued || restart_video;
 }
 
 static qbool Config_SaveSession(void)
 {
 	size_t i;
-	qbool english, queued;
+	qbool english, queued, restart_video;
 	if (!Config_ApplyTextDrafts()) goto fail;
+	restart_video = Config_VideoDimensionsChanged();
 	for (i = 0; i < config_menu.setting_count; ++i)
 		if (!Config_ReplaceSettingDraft(&config_menu.settings[i])) goto fail;
 	for (i = 0; i < config_menu.bind_count; ++i)
 		if (!Config_ReplaceBindDraft(&config_menu.binds[i])) goto fail;
 	if (!Config_WriteDirtyFiles()) goto fail;
-	queued = Config_QueueDirtyFiles();
+	queued = Config_QueueDirtyFiles(restart_video);
 	english = Config_UseEnglish();
 	Cvar_Set(&menu_language, english ? "English" : "Russian");
 	if (!Config_LoadSession()) return false;
@@ -866,7 +977,8 @@ static void Config_DrawHelpBox(const char *text)
 	int left = Config_PanelLeft();
 	int width = Config_PanelWidth();
 	UI_DrawBox(left, y, width, height);
-	Config_DrawUTF8(left + LETTERWIDTH, y + LETTERHEIGHT, text, false,
+	Config_DrawUTF8Color(left + LETTERWIDTH, y + LETTERHEIGHT, text,
+		RGBA_TO_COLOR(255, 112, 32, 255),
 		max(20, width / LETTERWIDTH - 4));
 	Config_DrawUTF8(left + LETTERWIDTH, y + LETTERHEIGHT * 3,
 		Config_Text("Enter: изменить/открыть   Ctrl+S: сохранить   Ctrl+R: перечитать   Esc: назад",

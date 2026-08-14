@@ -25,11 +25,10 @@ Only the following files are managed in the first implementation:
 `qw/config.cfg`, `qw/autoexec.cfg` and the stock files below
 `ezquake/ezquake/cfg` are deliberately outside the editable set.
 
-The loader receives the installed game root, not a source checkout and not an
-arbitrary CFG directory. It appends the manifest's `config_root` (`fortress`)
-itself. For the current development installation the only CFG source is
-`C:\Games\ezquake-tf\fortress`; `C:\PythonProjects\ezquake-tf` contains client
-source code and versioned dictionary definitions, never the user's CFG input.
+The loader receives the installed game root determined at runtime, not a
+hard-coded installation path and not an arbitrary CFG directory. It appends
+the manifest's `config_root` (`fortress`) itself. Client source code and
+versioned dictionary definitions are never used as the user's CFG input.
 
 ## Inheritance
 

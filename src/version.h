@@ -94,10 +94,6 @@ char *VersionString(void);
 char *VersionStringColour(void);
 char *VersionStringFull(void);
 
-void VersionCheck_Init(void);
-void VersionCheck_Shutdown(void);
-qbool VersionCheck_GetLatest(char dest[VERSION_MAX_LEN]);
-
 #ifndef SERVERONLY
 #define SERVER_NAME         "EZQUAKE"
 #else

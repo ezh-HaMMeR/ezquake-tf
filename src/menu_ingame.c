@@ -48,7 +48,6 @@ void MIng_MainMenu(void)		{ M_Menu_Main_f(); }
 void MIng_Back(void)			{ M_LeaveMenus(); }
 
 MENU_ALIAS(MIng_ServerBrowser,"menu_slist",false);
-MENU_ALIAS(MIng_Options,"menu_options",false);
 MENU_ALIAS(MIng_Join,"join",true);
 MENU_ALIAS(MIng_Observe,"observe",true);
 MENU_ALIAS(MIng_Disconnect,"disconnect",true);
@@ -74,7 +73,6 @@ setting single_menu_entries[] = {
 	ADDSET_ACTION("Load Game", MSP_Load, ""),
 	ADDSET_ACTION("Save Game", MSP_Save, ""),
 	ADDSET_BLANK(),
-	ADDSET_ACTION("Options", MIng_Options, ""),
 	ADDSET_ACTION("Main Menu", MIng_MainMenu, ""),
 	ADDSET_BLANK(),
 	ADDSET_ACTION("Return To Game", MIng_Back, ""),
@@ -89,7 +87,6 @@ setting ingame_menu_entries[] = {
 	ADDSET_ACTION("Disconnect", MIng_Disconnect, ""),
 	ADDSET_BLANK(),
 	ADDSET_ACTION("Server Browser", MIng_ServerBrowser, ""),
-	ADDSET_ACTION("Options", MIng_Options, ""),
 	ADDSET_ACTION("Main Menu", MIng_MainMenu, ""),
 	ADDSET_BLANK(),
 	ADDSET_ACTION("Return To Game", MIng_Back, ""),
@@ -103,7 +100,6 @@ setting democtrl_menu_entries[] = {
 	ADDSET_ACTION("Disconnect", MIng_Disconnect, ""),
 	ADDSET_BLANK(),
 	ADDSET_ACTION("Demo Browser", MDemoCtrl_DemoBrowser, ""),
-	ADDSET_ACTION("Options", MIng_Options, ""),
 	ADDSET_ACTION("Main Menu", MIng_MainMenu, ""),
 	ADDSET_BLANK(),
 	ADDSET_ACTION("Return To Demo", MIng_Back, ""),
@@ -118,7 +114,6 @@ setting qtv_menu_entries[] = {
 	ADDSET_ACTION("Reconnect", MQTV_Reconnect, ""),
 	ADDSET_ACTION("Disconnect", MIng_Disconnect, ""),
 	ADDSET_BLANK(),
-	ADDSET_ACTION("Options", MIng_Options, ""),
 	ADDSET_ACTION("Main Menu", MIng_MainMenu, ""),
 	ADDSET_BLANK(),
 	ADDSET_ACTION("Return To Game", MIng_Back, ""),
@@ -136,7 +131,6 @@ setting botmatch_menu_entries[] = {
 	ADDSET_ACTION("Decrease Bot Skill", MIng_SkillDown, ""),
 	ADDSET_ACTION("Disconnect", MIng_Disconnect, ""),
 	ADDSET_BLANK(),
-	ADDSET_ACTION("Options", MIng_Options, ""),
 	ADDSET_ACTION("Main Menu", MIng_MainMenu, ""),
 	ADDSET_BLANK(),
 	ADDSET_ACTION("Return To Game", MIng_Back, ""),
@@ -170,19 +164,9 @@ static settings_page *M_Ingame_Current(void) {
 }
 
 void M_Ingame_Draw(void) {
-	char version[VERSION_MAX_LEN] = { 0 };
-	qbool outdated;
-
 	M_Unscale_Menu();
 	Settings_Draw(0, TOPMARGIN, vid.width, vid.height - TOPMARGIN, M_Ingame_Current());
-
-	outdated = VersionCheck_GetLatest(version);
-	if (outdated)
-	{
-		char message[4096] = { 0 };
-		snprintf(message, sizeof(message), "Outdated client %s, latest version is %s", VERSION_NUMBER, version);
-		UI_Print_Center(0, 32, vid.width, message, 0);
-	}
+	UI_Print_Center(0, 32, vid.width, va("ezquake-tf %s", EZQUAKE_TF_RELEASE_VERSION), 0);
 }
 
 void M_Ingame_Key(int key) {
