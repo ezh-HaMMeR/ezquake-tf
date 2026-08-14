@@ -394,8 +394,16 @@ static void GLM_QueueAliasModelDrawImpl(
 		int bc = 16 * (bound(0, ent->scoreboard->bottomcolor, 13)) + 8;
 		byte top[] = { host_basepal[tc * 3], host_basepal[tc * 3 + 1], host_basepal[tc * 3 + 2] };
 		byte bot[] = { host_basepal[bc * 3], host_basepal[bc * 3 + 1], host_basepal[bc * 3 + 2] };
-		for(i = 0; i < 3; i++) uniform->plrtopcolor[i] = (float)top[i] / 256.0f;
-		for(i = 0; i < 3; i++) uniform->plrbotcolor[i] = (float)bot[i] / 256.0f;
+		if (ent->scoreboard->topcolor_rgb) {
+			memcpy(top, ent->scoreboard->forced_topcolor_rgb, sizeof(top));
+		}
+		if (ent->scoreboard->bottomcolor_rgb) {
+			memcpy(bot, ent->scoreboard->forced_bottomcolor_rgb, sizeof(bot));
+		}
+		for(i = 0; i < 3; i++) uniform->plrtopcolor[i] = (float)top[i] / 255.0f;
+		for(i = 0; i < 3; i++) uniform->plrbotcolor[i] = (float)bot[i] / 255.0f;
+		uniform->plrtopcolor[3] = ent->scoreboard->topcolor_rgb ||
+			(cl.teamfortress && (ent->scoreboard->teammate ? cl_teamtopcolor.value >= 0 : cl_enemytopcolor.value >= 0));
 	}
 
 	// Add to queues

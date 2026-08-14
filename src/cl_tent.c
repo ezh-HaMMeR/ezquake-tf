@@ -895,47 +895,7 @@ static qbool CL_ScannerBeamWithinLimit(int beam_index, int limit)
 
 static int CL_ScannerTargetTeam(int target)
 {
-	player_info_t *player = &cl.players[target];
-	int team = player->team_no;
-	int own_team;
-
-	if (team <= 0) {
-		switch (player->known_team_color) {
-			case 13: team = 1; break; // blue
-			case 4:  team = 2; break; // red
-			case 12: team = 3; break; // yellow
-			case 11: team = 4; break; // green
-			default: break;
-		}
-	}
-	if (team <= 0 && player->team[0]) {
-		if (!strcasecmp(player->team, "blue")) {
-			team = 1;
-		}
-		else if (!strcasecmp(player->team, "red")) {
-			team = 2;
-		}
-		else if (!strcasecmp(player->team, "yellow")) {
-			team = 3;
-		}
-		else if (!strcasecmp(player->team, "green")) {
-			team = 4;
-		}
-	}
-	if (team <= 0 && cl.viewplayernum >= 0 && cl.viewplayernum < MAX_CLIENTS && target != cl.viewplayernum) {
-		own_team = CL_ScannerTargetTeam(cl.viewplayernum);
-		if (player->teammate) {
-			team = own_team;
-		}
-		else if (own_team == 1) {
-			team = 2;
-		}
-		else if (own_team == 2) {
-			team = 1;
-		}
-	}
-
-	return team;
+	return TP_TFVisualTeam(target);
 }
 
 static void CL_ScannerBeamColor(int target, byte color[4])
@@ -947,6 +907,13 @@ static void CL_ScannerBeamColor(int target, byte color[4])
 	int palette_color;
 
 	if (color_mode == 1) {
+		if (TP_TFVisualTeamColor(target, rgb)) {
+			color[0] = rgb[0];
+			color[1] = rgb[1];
+			color[2] = rgb[2];
+			color[3] = 179;
+			return;
+		}
 		force_color = TP_TFVisualTeammate(target) ? &cl_teamtopcolor : &cl_enemytopcolor;
 		if (TP_ParseRGBColor(force_color->string, rgb)) {
 			color[0] = rgb[0];

@@ -590,6 +590,13 @@
         }
       ]
     },
+    "blue_team_color": {
+      "default": "off",
+      "desc": "Sets the local RGB translation color for players who visually belong to the blue Team Fortress team.",
+      "group-id": "44",
+      "remarks": "Accepts RRGGBB or #RRGGBB. In free spectator view the actual team is used; from a player or tracked POV an enemy Spy keeps the color of the team he appears to represent. Use off to fall back to teamcolor and enemycolor.",
+      "type": "string"
+    },
     "bottomcolor": {
       "default": "",
       "desc": "Sets the pants color.",
@@ -5167,7 +5174,7 @@
           "name": "2"
         },
         {
-          "description": "In Team Fortress, use teamcolor and enemycolor; otherwise use the standard team/enemy outline colors.",
+          "description": "In Team Fortress, use the active per-team RGB color or teamcolor/enemycolor fallback; otherwise use the standard team/enemy outline colors.",
           "name": "3"
         }
       ]
@@ -6052,6 +6059,13 @@
           "name": "2"
         }
       ]
+    },
+    "green_team_color": {
+      "default": "off",
+      "desc": "Sets the local RGB translation color for players who visually belong to the green Team Fortress team.",
+      "group-id": "44",
+      "remarks": "Accepts RRGGBB or #RRGGBB. In free spectator view the actual team is used; from a player or tracked POV an enemy Spy keeps the color of the team he appears to represent. Use off to fall back to teamcolor and enemycolor.",
+      "type": "string"
     },
     "halflifebsp": {
       "default": "0",
@@ -14869,7 +14883,7 @@
       "default": "0",
       "desc": "Selects how enhanced TF Scout scanner beams are colored.",
       "group-id": "35",
-      "remarks": "Only affects beams drawn by new_scanmode 1-3. Custom colors use the first value from teamcolor or enemycolor and support both Quake palette indices and RGB RRGGBB values. If the selected force color is off, the current team color is used.",
+      "remarks": "Only affects beams drawn by new_scanmode 1-3. Custom colors first use red_team_color, blue_team_color, green_team_color or yellow_team_color for the target's visual team. If that value is off, the first value from teamcolor or enemycolor is used and supports both Quake palette indices and RGB RRGGBB values. If both are off, the current team color is used.",
       "type": "enum",
       "values": [
         {
@@ -14877,7 +14891,7 @@
           "name": "0"
         },
         {
-          "description": "Use teamtopcolor for teammates and enemytopcolor for enemies.",
+          "description": "Use the target team's RGB color, with teamtopcolor/enemytopcolor as fallback.",
           "name": "1"
         }
       ]
@@ -17269,6 +17283,13 @@
       "default": "",
       "group-id": "0",
       "system-generated": true
+    },
+    "red_team_color": {
+      "default": "off",
+      "desc": "Sets the local RGB translation color for players who visually belong to the red Team Fortress team.",
+      "group-id": "44",
+      "remarks": "Accepts RRGGBB or #RRGGBB. In free spectator view the actual team is used; from a player or tracked POV an enemy Spy keeps the color of the team he appears to represent. Use off to fall back to teamcolor and enemycolor.",
+      "type": "string"
     },
     "registered": {
       "default": "1",
@@ -22281,6 +22302,13 @@
           "name": "true"
         }
       ]
+    },
+    "yellow_team_color": {
+      "default": "off",
+      "desc": "Sets the local RGB translation color for players who visually belong to the yellow Team Fortress team.",
+      "group-id": "44",
+      "remarks": "Accepts RRGGBB or #RRGGBB. In free spectator view the actual team is used; from a player or tracked POV an enemy Spy keeps the color of the team he appears to represent. Use off to fall back to teamcolor and enemycolor.",
+      "type": "string"
     },
     "zombietime": {
       "default": "2",

@@ -2037,6 +2037,7 @@ void CL_NewTranslation (int slot)
 	if (cl.teamfortress || !(cl.fpd & FPD_NO_FORCE_COLOR)) {
 		qbool lockedTeams = TP_TeamLockSpecified();
 		qbool teammate = false;
+		qbool tf_team_color = false;
 		byte rgb[3];
 
 		// it's me or it's teamplay and he's my teammate
@@ -2054,8 +2055,15 @@ void CL_NewTranslation (int slot)
 		}
 
 		player->teammate = teammate;
+		tf_team_color = cl.teamfortress && TP_TFVisualTeamColor(slot, rgb);
 
-		if (teammate) {
+		if (tf_team_color) {
+			player->topcolor_rgb = true;
+			player->bottomcolor_rgb = true;
+			memcpy(player->forced_topcolor_rgb, rgb, 3);
+			memcpy(player->forced_bottomcolor_rgb, rgb, 3);
+		}
+		else if (teammate) {
 			if (cl_teamtopcolor.integer != -1) {
 				if ((player->topcolor_rgb = TP_ParseRGBColor(cl_teamtopcolor.string, rgb))) {
 					memcpy(player->forced_topcolor_rgb, rgb, 3);

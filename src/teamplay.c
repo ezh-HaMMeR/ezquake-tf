@@ -51,6 +51,10 @@ cvar_t  cl_teamtopcolor = {"teamtopcolor", "-1", 0, OnChangeColorForcing};
 cvar_t  cl_teambottomcolor = {"teambottomcolor", "-1", 0, OnChangeColorForcing};
 cvar_t  cl_enemytopcolor = {"enemytopcolor", "-1", 0, OnChangeColorForcing};
 cvar_t  cl_enemybottomcolor = {"enemybottomcolor", "-1", 0, OnChangeColorForcing};
+cvar_t  cl_red_team_color = {"red_team_color", "off", 0, OnChangeColorForcing};
+cvar_t  cl_blue_team_color = {"blue_team_color", "off", 0, OnChangeColorForcing};
+cvar_t  cl_green_team_color = {"green_team_color", "off", 0, OnChangeColorForcing};
+cvar_t  cl_yellow_team_color = {"yellow_team_color", "off", 0, OnChangeColorForcing};
 cvar_t  cl_teamskin = {"teamskin", "", 0, OnChangeSkinForcing};
 cvar_t  cl_enemyskin = {"enemyskin", "", 0, OnChangeSkinForcing};
 cvar_t  cl_teamquadskin = {"teamquadskin", "", 0, OnChangeSkinForcing};
@@ -1851,7 +1855,9 @@ qbool TP_NeedRefreshSkins(void)
 		return cl_teamtopcolor.value >= 0 || cl_teambottomcolor.value >= 0 ||
 			 cl_enemytopcolor.value >= 0 || cl_enemybottomcolor.value >= 0 ||
 			 TP_ParseRGBColor(cl_teamtopcolor.string, rgb) || TP_ParseRGBColor(cl_teambottomcolor.string, rgb) ||
-			 TP_ParseRGBColor(cl_enemytopcolor.string, rgb) || TP_ParseRGBColor(cl_enemybottomcolor.string, rgb);
+			 TP_ParseRGBColor(cl_enemytopcolor.string, rgb) || TP_ParseRGBColor(cl_enemybottomcolor.string, rgb) ||
+			 TP_ParseRGBColor(cl_red_team_color.string, rgb) || TP_ParseRGBColor(cl_blue_team_color.string, rgb) ||
+			 TP_ParseRGBColor(cl_green_team_color.string, rgb) || TP_ParseRGBColor(cl_yellow_team_color.string, rgb);
 	}
 
 	if ((cl_enemyskin.string[0] || cl_teamskin.string[0] || cl_enemypentskin.string[0] || cl_teampentskin.string[0] ||
@@ -1931,12 +1937,94 @@ qbool TP_ParseRGBColor(const char *string, byte rgb[3])
 	return true;
 }
 
+static int TP_TFTeamFromPaletteColor(int color)
+{
+	switch (color) {
+		case 13: return 1; // blue
+		case 4:  return 2; // red
+		case 12: return 3; // yellow
+		case 11: return 4; // green
+		default: return 0;
+	}
+}
+
+static int TP_TFActualTeam(int slot)
+{
+	player_info_t *player;
+	int team;
+
+	if (slot < 0 || slot >= MAX_CLIENTS) {
+		return 0;
+	}
+
+	player = &cl.players[slot];
+	team = player->team_no;
+	if (team >= 1 && team <= 4) {
+		return team;
+	}
+
+	team = TP_TFTeamFromPaletteColor(player->known_team_color);
+	if (!team && player->team[0]) {
+		team = TP_TFTeamFromPaletteColor(Utils_TF_TeamToColor(player->team));
+	}
+	return team;
+}
+
+int TP_TFVisualTeam(int slot)
+{
+	int pov = TP_CurrentTrackNum();
+	int actual_team = TP_TFActualTeam(slot);
+	int viewer_team;
+	int disguise_team;
+	player_info_t *player;
+
+	if (!cl.teamfortress || !actual_team) {
+		return 0;
+	}
+
+	// A free-flying spectator or a player who has not joined a team has no
+	// gameplay POV.  In that case show every player's actual TF team.
+	if (pov < 0 || pov >= MAX_CLIENTS || slot == pov) {
+		return actual_team;
+	}
+
+	viewer_team = TP_TFActualTeam(pov);
+	if (!viewer_team || actual_team == viewer_team) {
+		return actual_team;
+	}
+
+	// Preserve an enemy Spy's visible disguise from the active/tracked POV.
+	// real_bottomcolor contains the palette translation presented by TF2003.
+	player = &cl.players[slot];
+	if (player->playerclass == PC_SPY) {
+		disguise_team = TP_TFTeamFromPaletteColor(player->real_bottomcolor);
+		if (disguise_team) {
+			return disguise_team;
+		}
+	}
+
+	return actual_team;
+}
+
+qbool TP_TFVisualTeamColor(int slot, byte rgb[3])
+{
+	cvar_t *team_color;
+
+	switch (TP_TFVisualTeam(slot)) {
+		case 1: team_color = &cl_blue_team_color; break;
+		case 2: team_color = &cl_red_team_color; break;
+		case 3: team_color = &cl_yellow_team_color; break;
+		case 4: team_color = &cl_green_team_color; break;
+		default: return false;
+	}
+
+	return TP_ParseRGBColor(team_color->string, rgb);
+}
+
 qbool TP_TFVisualTeammate(int slot)
 {
 	int pov = TP_CurrentTrackNum();
-	player_info_t *viewer;
-	player_info_t *player;
-	int viewer_team_color;
+	int viewer_team;
 
 	if (!cl.teamfortress || slot < 0 || slot >= MAX_CLIENTS) {
 		return false;
@@ -1944,33 +2032,13 @@ qbool TP_TFVisualTeammate(int slot)
 	if (pov < 0 || pov >= MAX_CLIENTS) {
 		return cl.teamplay && !strcmp(cl.players[slot].team, TP_SkinForcingTeam());
 	}
-	if (slot == pov) {
-		return true;
+
+	viewer_team = TP_TFActualTeam(pov);
+	if (viewer_team) {
+		return TP_TFVisualTeam(slot) == viewer_team;
 	}
 
-	viewer = &cl.players[pov];
-	player = &cl.players[slot];
-
-	// TF2003 supplies the real team separately from the visible disguise colors.
-	if (viewer->team_no > 0 && player->team_no > 0) {
-		if (viewer->team_no == player->team_no) {
-			return true;
-		}
-	}
-	else if (viewer->team[0] && !strcmp(viewer->team, player->team)) {
-		return true;
-	}
-
-	// Only an enemy Spy may borrow the viewer's visible team color.  This keeps
-	// the disguise intact without allowing arbitrary enemy colors to look friendly.
-	if (player->playerclass != PC_SPY) {
-		return false;
-	}
-	viewer_team_color = viewer->known_team_color;
-	if (!viewer_team_color) {
-		viewer_team_color = Utils_TF_TeamToColor(viewer->team);
-	}
-	return viewer_team_color > 0 && player->real_bottomcolor == viewer_team_color;
+	return slot == pov || (cl.players[pov].team[0] && !strcmp(cl.players[pov].team, cl.players[slot].team));
 }
 
 void TP_ColorForcing (cvar_t *topcolor, cvar_t *bottomcolor)
@@ -3358,6 +3426,10 @@ void TP_Init (void)
 	Cvar_Register (&cl_teambottomcolor);
 	Cvar_Register (&cl_enemytopcolor);
 	Cvar_Register (&cl_enemybottomcolor);
+	Cvar_Register (&cl_red_team_color);
+	Cvar_Register (&cl_blue_team_color);
+	Cvar_Register (&cl_green_team_color);
+	Cvar_Register (&cl_yellow_team_color);
 	Cvar_Register (&cl_enemybothskin);
 	Cvar_Register (&cl_teambothskin);
 	Cvar_Register (&cl_enemypentskin);

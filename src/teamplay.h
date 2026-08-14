@@ -64,6 +64,9 @@ int TP_PlayersNumber(int userid, const char* team);
 
 // teamcolor & enemycolor
 extern cvar_t cl_teamtopcolor, cl_teambottomcolor, cl_enemytopcolor, cl_enemybottomcolor;
+extern cvar_t cl_red_team_color, cl_blue_team_color, cl_green_team_color, cl_yellow_team_color;
+int TP_TFVisualTeam(int slot);
+qbool TP_TFVisualTeamColor(int slot, byte rgb[3]);
 qbool TP_TFVisualTeammate(int slot);
 qbool TP_ParseRGBColor(const char *string, byte rgb[3]);
 

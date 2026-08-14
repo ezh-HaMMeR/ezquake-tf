@@ -42,7 +42,9 @@ void main()
 {
 	if((fsFlags & AMF_PLAYERMODEL) != 0) {
 		if(outline_use_player_color == 3) {
-			if((fsFlags & AMF_TEAMMATE) != 0)
+			if(plrtopcolor.a > 0.5f)
+				frag_colour = vec4(plrtopcolor.rgb, 1.0f);
+			else if((fsFlags & AMF_TEAMMATE) != 0)
 				frag_colour = vec4(outline_color_team, 1.0f);
 			else
 				frag_colour = vec4(outline_color_enemy, 1.0f);
