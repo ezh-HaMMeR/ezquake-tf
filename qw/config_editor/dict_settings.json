@@ -45,15 +45,15 @@
       },
       "widget": {
         "type": "text",
-        "max_length": 31
+        "max_length": 15
       },
       "label": "Имя игрока",
-      "description": "Имя, отображаемое другим игрокам.",
+      "description": "Имя, отображаемое другим игрокам. Треугольник справа открывает таблицу символов Quake.",
       "group": "Игрок",
       "order": 10,
       "apply": "on_save",
       "label_en": "Player name",
-      "description_en": "Name shown to other players."
+      "description_en": "Name shown to other players. The triangle on the right opens the Quake character table."
     },
     {
       "id": "grenade_control_mode",

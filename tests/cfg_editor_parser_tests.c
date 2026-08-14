@@ -77,7 +77,10 @@ static void TestSyntheticDocument(void)
 		"m_pitch \"-0.022\"; bind mouse1 \"+attack0 0;wait\" // inline\r\n"
 		"// comment with ; separator\n"
 		"alias test \"echo \\\"quoted\\\";wait\"\n"
-		"name \"player\x86\"";
+		"name \"ezh\x9c\xc8" "a\xcd\xcd" "e\xd2\"";
+	static const unsigned char expected_name[] = {
+		'e', 'z', 'h', 0x9c, 0xc8, 'a', 0xcd, 0xcd, 'e', 0xd2
+	};
 	cfg_document_t document;
 	cfg_node_t *node;
 	unsigned char *output = NULL;
@@ -96,6 +99,10 @@ static void TestSyntheticDocument(void)
 	CHECK(document.nodes[4].kind == CFG_NODE_COMMENT, "comment line is classified");
 	CHECK(document.nodes[5].kind == CFG_NODE_ALIAS, "alias is classified");
 	CHECK(document.nodes[6].line_start == 6, "line source coordinate is recorded");
+	CHECK(document.nodes[6].kind == CFG_NODE_COMMAND, "raw Quake name is classified as a command");
+	CHECK(document.nodes[6].value && strlen(document.nodes[6].value) == sizeof(expected_name) &&
+		!memcmp(document.nodes[6].value, expected_name, sizeof(expected_name)),
+		"raw Quake name bytes are preserved as the resolved value");
 
 	node = &document.nodes[2];
 	CHECK(CFGDoc_ReplaceNode(&document, node->id,
@@ -192,7 +199,8 @@ static void TestRealDictionaries(const char *game_root)
 	size_t file_index, node_index;
 	size_t definition_index, option_index;
 	size_t main_managed = 0, hud_managed = 0, bind_nodes = 0;
-	int found_language = 0, found_grenade_mode = 0, found_grenade1 = 0, found_grenade2 = 0, found_throw = 0;
+	int found_language = 0, found_player_name = 0, found_grenade_mode = 0;
+	int found_grenade1 = 0, found_grenade2 = 0, found_throw = 0;
 	int found_bind_help = 0;
 	unsigned char *hud_before = NULL, *hud_after = NULL;
 	size_t hud_before_length = 0, hud_after_length = 0;
@@ -218,6 +226,7 @@ static void TestRealDictionaries(const char *game_root)
 				definition->options[option_index].label_en && definition->options[option_index].label_en[0],
 				"every select option has Russian and English labels");
 		found_language += !strcmp(definition->id, "menu_language");
+		found_player_name += !strcmp(definition->id, "player_name") && definition->max_length == 15;
 		found_grenade_mode += !strcmp(definition->id, "grenade_control_mode") && definition->option_count == 3;
 	}
 	for (definition_index = 0; definition_index < dictionary.bind_count; ++definition_index) {
@@ -234,6 +243,7 @@ static void TestRealDictionaries(const char *game_root)
 	}
 	CHECK(found_language == 1 && found_grenade_mode == 1,
 		"language and three-mode grenade settings are defined exactly once");
+	CHECK(found_player_name == 1, "player name uses the QuakeWorld 15-byte limit");
 	CHECK(found_grenade1 == 1 && found_grenade2 == 1 && found_throw == 1,
 		"all three native grenade actions are defined exactly once");
 	CHECK(found_bind_help == 1, "held bind help action is defined exactly once");

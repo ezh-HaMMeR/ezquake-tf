@@ -19,6 +19,14 @@ extern cvar_t menu_language;
 #define CONFIG_VALUE_SIZE 256
 #define CONFIG_PANEL_MAX_WIDTH 1280
 #define CONFIG_TEXTAREA_HEIGHT 144
+#define CONFIG_NAME_MAX_LENGTH (MAX_SCOREBOARDNAME - 1)
+#define CONFIG_NAME_ROW_HEIGHT 12
+#define CONFIG_CHARSET_COLUMNS 16
+#define CONFIG_CHARSET_ROWS 16
+#define CONFIG_CHARSET_CELL_SIZE 14
+#define CONFIG_CHARSET_PADDING 6
+#define CONFIG_CHARSET_PANEL_HEIGHT \
+	(CONFIG_CHARSET_ROWS * CONFIG_CHARSET_CELL_SIZE + CONFIG_CHARSET_PADDING * 2)
 
 typedef enum config_item_kind_e {
 	CONFIG_ITEM_SECTION,
@@ -79,6 +87,7 @@ typedef struct config_menu_s {
 	int content_height;
 	int viewport_top;
 	int viewport_bottom;
+	qbool name_palette_open;
 	char notice[256];
 } config_menu_t;
 
@@ -215,6 +224,82 @@ static void Config_DrawDecoratedValue(int x, int y, const char *text, int max_ch
 	wide[output++] = 0x11;
 	wide[output] = 0;
 	Draw_ConsoleString(x, y, wide, NULL, 0, false, 1, false);
+}
+
+static qbool Config_IsPlayerName(const cfg_setting_definition_t *definition)
+{
+	return definition && definition->id && !strcmp(definition->id, "player_name");
+}
+
+/* Player names are Quake charset bytes, not UTF-8 text. */
+static void Config_DrawQuakeNameValue(int x, int y, const char *text)
+{
+	wchar wide[CONFIG_NAME_MAX_LENGTH + 3];
+	int output = 0;
+	const unsigned char *input = (const unsigned char *)(text ? text : "");
+
+	wide[output++] = 0x10;
+	while (*input && output <= CONFIG_NAME_MAX_LENGTH)
+		wide[output++] = *input++;
+	wide[output++] = 0x11;
+	wide[output] = 0;
+	Draw_ConsoleString(x, y, wide, NULL, 0, false, 1, false);
+}
+
+static void Config_DrawQuakeNameEditBox(CEditBox *editbox, int x, int y)
+{
+	int index;
+	int length = (int)strlen(editbox->text);
+	int visible = min(length, CONFIG_NAME_MAX_LENGTH);
+
+	Draw_Character(x, y, 0x10);
+	for (index = 0; index < visible; ++index)
+		Draw_Character(x + (index + 1) * LETTERWIDTH, y,
+			(unsigned char)editbox->text[index]);
+	/* Keep the closing bracket fixed while editing so the caret never hides it. */
+	Draw_Character(x + (CONFIG_NAME_MAX_LENGTH + 1) * LETTERWIDTH, y, 0x11);
+	if ((int)(cls.realtime * 4) & 1)
+		Draw_Character(x + (min((int)editbox->pos, CONFIG_NAME_MAX_LENGTH) + 1) * LETTERWIDTH,
+			y, 10);
+}
+
+static int Config_NameArrowX(int value_x)
+{
+	return value_x + (CONFIG_NAME_MAX_LENGTH + 2) * LETTERWIDTH + 4;
+}
+
+static void Config_DrawNamePalette(int x, int y)
+{
+	int row, column;
+	int hover_column = -1;
+	int hover_row = -1;
+	int width = CONFIG_CHARSET_COLUMNS * CONFIG_CHARSET_CELL_SIZE + CONFIG_CHARSET_PADDING * 2;
+	int grid_x = x + CONFIG_CHARSET_PADDING;
+	int grid_y = y + CONFIG_CHARSET_PADDING;
+
+	if (scr_pointer_state.x >= grid_x &&
+		scr_pointer_state.x < grid_x + CONFIG_CHARSET_COLUMNS * CONFIG_CHARSET_CELL_SIZE &&
+		scr_pointer_state.y >= grid_y &&
+		scr_pointer_state.y < grid_y + CONFIG_CHARSET_ROWS * CONFIG_CHARSET_CELL_SIZE) {
+		hover_column = (scr_pointer_state.x - grid_x) / CONFIG_CHARSET_CELL_SIZE;
+		hover_row = (scr_pointer_state.y - grid_y) / CONFIG_CHARSET_CELL_SIZE;
+	}
+
+	UI_DrawBox(x, y, width, CONFIG_CHARSET_PANEL_HEIGHT);
+	for (row = 0; row < CONFIG_CHARSET_ROWS; ++row) {
+		for (column = 0; column < CONFIG_CHARSET_COLUMNS; ++column) {
+			int character = row * CONFIG_CHARSET_COLUMNS + column;
+			int cell_x = x + CONFIG_CHARSET_PADDING + column * CONFIG_CHARSET_CELL_SIZE;
+			int cell_y = y + CONFIG_CHARSET_PADDING + row * CONFIG_CHARSET_CELL_SIZE;
+			qbool selectable = character != 0 && character != '\n' && character != '\r';
+
+			if (selectable && column == hover_column && row == hover_row)
+				Draw_AlphaRectangleRGB(cell_x, cell_y, CONFIG_CHARSET_CELL_SIZE,
+					CONFIG_CHARSET_CELL_SIZE, 1, false, RGBA_TO_COLOR(255, 112, 32, 255));
+			if (character)
+				Draw_SCharacter(cell_x + 1, cell_y + 1, character, 1.5f);
+		}
+	}
 }
 
 static int Config_PanelWidth(void)
@@ -1025,8 +1110,13 @@ static void Config_AddFileLayout(const char *file_id, qbool include_settings, qb
 	int i;
 	if (include_settings) for (i = 0; i < Config_SettingCount(file_id); ++i) {
 		config_setting_draft_t *draft = Config_SettingAt(file_id, i);
-		Config_AddLayout(CONFIG_ITEM_SETTING, file_id, i, 0,
-			draft && !strcmp(draft->definition->id, "menu_language") ? 20 : 10);
+		int height = draft && !strcmp(draft->definition->id, "menu_language") ? 20 : 10;
+		if (draft && Config_IsPlayerName(draft->definition)) {
+			height = CONFIG_NAME_ROW_HEIGHT;
+			if (config_menu.name_palette_open)
+				height += CONFIG_CHARSET_PANEL_HEIGHT + 4;
+		}
+		Config_AddLayout(CONFIG_ITEM_SETTING, file_id, i, 0, height);
 	}
 	if (include_binds) for (i = 0; i < Config_BindCount(file_id); ++i)
 		Config_AddLayout(CONFIG_ITEM_BIND, file_id, i, 0, 10);
@@ -1086,7 +1176,14 @@ static void Config_DrawSettingValue(config_setting_draft_t *draft, int x, int y,
 	const char *value = draft->value;
 
 	if (active && config_menu.editing) {
-		CEditBox_Draw(&config_menu.editbox, x, y, true);
+		if (Config_IsPlayerName(definition))
+			Config_DrawQuakeNameEditBox(&config_menu.editbox, x, y);
+		else
+			CEditBox_Draw(&config_menu.editbox, x, y, true);
+		return;
+	}
+	if (Config_IsPlayerName(definition)) {
+		Config_DrawQuakeNameValue(x, y, value);
 		return;
 	}
 	if (definition->widget_type == CFG_WIDGET_CHECKBOX) {
@@ -1138,7 +1235,8 @@ static void Config_DrawLayoutItem(const config_layout_item_t *item, int index, i
 	else if (item->kind != CONFIG_ITEM_SECTION) indent = 28;
 	item_x = (item->kind == CONFIG_ITEM_SETTING || item->kind == CONFIG_ITEM_BIND) ?
 		left + indent : value_x + indent;
-	if (active) UI_DrawGrayBox(item_x, y, left + width - item_x, item->height - 2);
+	if (active) UI_DrawGrayBox(item_x, y, left + width - item_x,
+		item->kind == CONFIG_ITEM_SETTING ? min(10, item->height - 2) : item->height - 2);
 
 	if (item->kind == CONFIG_ITEM_SECTION) {
 		color_t color = active ? RGBA_TO_COLOR(255, 112, 32, 255) : RGBA_TO_COLOR(145, 92, 42, 255);
@@ -1177,7 +1275,13 @@ static void Config_DrawLayoutItem(const config_layout_item_t *item, int index, i
 			else Config_DrawUTF8(value_x - label_length * LETTERWIDTH - LETTERWIDTH * 2, y,
 				setting_label, false, label_chars);
 			Config_DrawSettingValue(draft, value_x, y, active,
+				Config_IsPlayerName(draft->definition) ? CONFIG_NAME_MAX_LENGTH + 2 :
 				max(3, (left + width - value_x) / LETTERWIDTH));
+			if (Config_IsPlayerName(draft->definition)) {
+				Draw_SCharacter(Config_NameArrowX(value_x), y, 0x0d, 1.0f);
+				if (config_menu.name_palette_open)
+					Config_DrawNamePalette(value_x, y + CONFIG_NAME_ROW_HEIGHT + 2);
+			}
 		}
 		else {
 			config_bind_draft_t *draft = Config_BindAt(item->file_id, item->data_index);
@@ -1263,10 +1367,42 @@ static void Config_AdjustSetting(config_setting_draft_t *draft, int direction)
 static void Config_BeginEdit(config_setting_draft_t *draft)
 {
 	int maximum = draft->definition->max_length > 0 ? draft->definition->max_length : MAX_EDITTEXT;
-	CEditBox_Init(&config_menu.editbox, 22, min(maximum, MAX_EDITTEXT));
+	if (Config_IsPlayerName(draft->definition))
+		maximum = min(maximum, CONFIG_NAME_MAX_LENGTH);
+	CEditBox_Init(&config_menu.editbox,
+		Config_IsPlayerName(draft->definition) ? CONFIG_NAME_MAX_LENGTH : 22,
+		min(maximum, MAX_EDITTEXT));
 	strlcpy(config_menu.editbox.text, draft->value, sizeof(config_menu.editbox.text));
+	config_menu.editbox.text[maximum] = '\0';
 	config_menu.editbox.pos = strlen(config_menu.editbox.text);
 	config_menu.editing = true;
+}
+
+static void Config_CommitEdit(config_setting_draft_t *draft)
+{
+	if (!draft || !config_menu.editing)
+		return;
+	strlcpy(draft->value, config_menu.editbox.text, sizeof(draft->value));
+	config_menu.editing = false;
+}
+
+static void Config_InsertNameCharacter(config_setting_draft_t *draft, int character)
+{
+	size_t length;
+
+	if (!draft || !Config_IsPlayerName(draft->definition) || character <= 0 ||
+		character > 255 || character == '\n' || character == '\r')
+		return;
+	if (!config_menu.editing)
+		Config_BeginEdit(draft);
+	length = strlen(config_menu.editbox.text);
+	if (length >= (size_t)min((int)config_menu.editbox.max, CONFIG_NAME_MAX_LENGTH))
+		return;
+	config_menu.editbox.pos = min(config_menu.editbox.pos, (unsigned int)length);
+	memmove(config_menu.editbox.text + config_menu.editbox.pos + 1,
+		config_menu.editbox.text + config_menu.editbox.pos,
+		length - config_menu.editbox.pos + 1);
+	config_menu.editbox.text[config_menu.editbox.pos++] = (char)(unsigned char)character;
 }
 
 static void Config_SetExpanded(config_layout_item_t *item, qbool expanded)
@@ -1294,7 +1430,11 @@ static void Config_ActivateItem(config_layout_item_t *item)
 		config_setting_draft_t *draft = Config_SettingAt(item->file_id, item->data_index);
 		if (draft->definition->widget_type == CFG_WIDGET_CHECKBOX ||
 			draft->definition->widget_type == CFG_WIDGET_SELECT) Config_AdjustSetting(draft, 1);
-		else Config_BeginEdit(draft);
+		else {
+			Config_BeginEdit(draft);
+			if (Config_IsPlayerName(draft->definition))
+				config_menu.name_palette_open = true;
+		}
 	}
 	else if (item->kind == CONFIG_ITEM_BIND)
 		CKeyCapture_Begin(&Config_BindAt(item->file_id, item->data_index)->control);
@@ -1329,10 +1469,21 @@ void Menu_Config_Key(int key, wchar unichar)
 
 	if (config_menu.editing && item->kind == CONFIG_ITEM_SETTING) {
 		config_setting_draft_t *draft = Config_SettingAt(item->file_id, item->data_index);
-		if (key == K_ESCAPE) config_menu.editing = false;
-		else if (key == K_ENTER) {
-			strlcpy(draft->value, config_menu.editbox.text, sizeof(draft->value));
+		if ((key == 's' || key == 'S') &&
+			(keydown[K_CTRL] || keydown[K_LCTRL] || keydown[K_RCTRL])) {
+			Config_CommitEdit(draft);
+			config_menu.name_palette_open = false;
+			Config_SaveSession();
+		}
+		else if (key == K_ESCAPE) {
 			config_menu.editing = false;
+			config_menu.name_palette_open = false;
+			Config_BuildLayout();
+		}
+		else if (key == K_ENTER) {
+			Config_CommitEdit(draft);
+			config_menu.name_palette_open = false;
+			Config_BuildLayout();
 		}
 		else CEditBox_Key(&config_menu.editbox, key, unichar);
 		return;
@@ -1447,6 +1598,51 @@ qbool Menu_Config_Mouse_Event(const mouse_state_t *ms)
 	if (ms->button_up == 4) { Menu_Config_Key(K_MWHEELUP, 0); return true; }
 	if (ms->button_up == 5) { Menu_Config_Key(K_MWHEELDOWN, 0); return true; }
 	Config_BuildLayout();
+	for (i = 0; i < config_menu.layout_count; ++i) {
+		config_layout_item_t *item = &config_menu.layout[i];
+		int y = config_menu.viewport_top + item->content_y - config_menu.scroll;
+		config_setting_draft_t *draft;
+		int value_x, arrow_x, palette_y, grid_x, grid_y;
+
+		if (item->kind != CONFIG_ITEM_SETTING ||
+			!(draft = Config_SettingAt(item->file_id, item->data_index)) ||
+			!Config_IsPlayerName(draft->definition))
+			continue;
+		value_x = Config_ValueColumnX();
+		arrow_x = Config_NameArrowX(value_x);
+		if (ms->button_up == 1 && ms->x >= arrow_x - 2 && ms->x < arrow_x + 14 &&
+			ms->y >= y - 2 && ms->y < y + CONFIG_NAME_ROW_HEIGHT) {
+			config_menu.cursor = i;
+			if (config_menu.name_palette_open) {
+				Config_CommitEdit(draft);
+				config_menu.name_palette_open = false;
+			}
+			else {
+				Config_BeginEdit(draft);
+				config_menu.name_palette_open = true;
+			}
+			Config_BuildLayout();
+			Config_KeepCursorVisible();
+			return true;
+		}
+		if (!config_menu.name_palette_open)
+			continue;
+		palette_y = y + CONFIG_NAME_ROW_HEIGHT + 2;
+		grid_x = value_x + CONFIG_CHARSET_PADDING;
+		grid_y = palette_y + CONFIG_CHARSET_PADDING;
+		if (ms->x >= grid_x &&
+			ms->x < grid_x + CONFIG_CHARSET_COLUMNS * CONFIG_CHARSET_CELL_SIZE &&
+			ms->y >= grid_y &&
+			ms->y < grid_y + CONFIG_CHARSET_ROWS * CONFIG_CHARSET_CELL_SIZE) {
+			if (ms->button_up == 1) {
+				int column = (ms->x - grid_x) / CONFIG_CHARSET_CELL_SIZE;
+				int row = (ms->y - grid_y) / CONFIG_CHARSET_CELL_SIZE;
+				config_menu.cursor = i;
+				Config_InsertNameCharacter(draft, row * CONFIG_CHARSET_COLUMNS + column);
+			}
+			return true;
+		}
+	}
 	if (config_menu.textarea_editing) {
 		config_layout_item_t *selected = Config_SelectedItem();
 		if (selected && selected->kind == CONFIG_ITEM_TEXTAREA) {
@@ -1474,6 +1670,12 @@ qbool Menu_Config_Mouse_Event(const mouse_state_t *ms)
 		int y = config_menu.viewport_top + item->content_y - config_menu.scroll;
 		if (ms->y >= y && ms->y < y + item->height &&
 			ms->y >= config_menu.viewport_top && ms->y < config_menu.viewport_bottom) {
+			if (config_menu.editing && i != config_menu.cursor) {
+				config_layout_item_t *previous = &config_menu.layout[config_menu.cursor];
+				if (previous->kind == CONFIG_ITEM_SETTING)
+					Config_CommitEdit(Config_SettingAt(previous->file_id, previous->data_index));
+				config_menu.name_palette_open = false;
+			}
 			config_menu.cursor = i;
 			if (ms->button_up == 1) Menu_Config_Key(K_MOUSE1, 0);
 			return true;
