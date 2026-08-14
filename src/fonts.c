@@ -69,7 +69,7 @@ static cvar_t font_facepath                   = { "font_facepath", "", 0, OnChan
 #endif
 static cvar_t font_capitalize                 = { "font_capitalize", "0" };
 static cvar_t font_gradient_normal_color1     = { "font_gradient_normal_color1", "255 255 255", CVAR_COLOR };
-static cvar_t font_gradient_normal_color2     = { "font_gradient_normal_color2", "107 98 86", CVAR_COLOR };
+static cvar_t font_gradient_normal_color2     = { "font_gradient_normal_color2", "255 255 255", CVAR_COLOR };
 static cvar_t font_gradient_normal_percent    = { "font_gradient_normal_percent", "0.2" };
 static cvar_t font_gradient_alternate_color1  = { "font_gradient_alternate_color1", "157 110 54", CVAR_COLOR };
 static cvar_t font_gradient_alternate_color2  = { "font_gradient_alternate_color2", "157 110 54", CVAR_COLOR };

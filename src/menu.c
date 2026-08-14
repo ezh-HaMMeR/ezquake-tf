@@ -391,11 +391,23 @@ typedef struct bigmenu_items_s {
 
 #define BIGMENU_ITEMS_COUNT(x) (sizeof(x) / sizeof(bigmenu_items_t))
 
+static void M_Main_ConnectQWTF(void)
+{
+	Cbuf_AddText("connect qwtf.net:27500\n");
+	M_LeaveMenus();
+}
+
+static void M_Main_ConnectLocal(void)
+{
+	Cbuf_AddText("connect localhost\n");
+	M_LeaveMenus();
+}
+
 bigmenu_items_t mainmenu_items[] = {
+	{"Connect qwtf.net", M_Main_ConnectQWTF},
+	{"Local server", M_Main_ConnectLocal},
 	{"Config", Menu_Config_Enter},
-	{"Options", M_Menu_Options_f},
 	{"Demos", M_Menu_Demos_f},
-	{"Help", M_Menu_Help_f},
 	{"Quit", M_Menu_Quit_f}
 };
 
@@ -427,15 +439,20 @@ void M_Main_Draw (void) {
 	int f = (int) (curtime * 10) % 6;
 	int i;
 	int itemheight;
-	mpic_t *discord_banner;
+	int items_top = BIGMENU_TOP;
+	mpic_t *qwtf_banner = Draw_CachePicSafe("gfx/qwtfnet", false, true);
+	mpic_t *discord_banner = Draw_CachePicSafe("gfx/discord", false, true);
 
-	M_DrawTransPic (16, BIGMENU_TOP, Draw_CachePic (CACHEPIC_QPLAQUE) );
+	if (qwtf_banner) {
+		M_DrawTransPic(BIGMENU_LEFT, BIGMENU_TOP, qwtf_banner);
+		items_top += qwtf_banner->height + 8;
+	}
 
 	// Main Menu items
 	if (Draw_BigFontAvailable()) {
 		newmainmenu = true;
 		m_main_window.x = BIGMENU_LEFT + (menuwidth - 320)/2;
-		m_main_window.y = BIGMENU_TOP + m_yofs;
+		m_main_window.y = items_top + m_yofs;
 		M_BigMenu_DrawItems(mainmenu_items, BIGMENU_ITEMS_COUNT(mainmenu_items), m_main_window.x, m_main_window.y,
 						 &m_main_window.w, &m_main_window.h);
 		itemheight = m_main_window.h / BIGMENU_ITEMS_COUNT(mainmenu_items);
@@ -443,21 +460,20 @@ void M_Main_Draw (void) {
 	else {
 		newmainmenu = true;
 		m_main_window.x = BIGMENU_LEFT + (menuwidth - 320)/2;
-		m_main_window.y = BIGMENU_TOP + m_yofs;
+		m_main_window.y = items_top + m_yofs;
 		m_main_window.w = 160;
 		m_main_window.h = BIGMENU_ITEMS_COUNT(mainmenu_items) * 16;
 		for (i = 0; i < BIGMENU_ITEMS_COUNT(mainmenu_items); ++i)
-			M_Print(BIGMENU_LEFT, BIGMENU_TOP + i * 16, va("  %s", mainmenu_items[i].label));
+			M_Print(BIGMENU_LEFT, items_top + i * 16, va("  %s", mainmenu_items[i].label));
 		itemheight = 16;
 	}
 
-	M_DrawTransPic (54, BIGMENU_TOP + m_main_cursor * itemheight,
+	M_DrawTransPic (54, items_top + m_main_cursor * itemheight,
 		Draw_CachePic(CACHEPIC_MENUDOT1 + f)
 	);
 
-	discord_banner = Draw_CachePicSafe("gfx/joinusondiscord", false, true);
 	if (discord_banner) {
-		int banner_y = BIGMENU_TOP + m_main_window.h + 10;
+		int banner_y = items_top + m_main_window.h + 10;
 		M_DrawTransPic_GetPoint(BIGMENU_LEFT, banner_y,
 			&m_discord_window.x, &m_discord_window.y, discord_banner);
 		m_discord_window.w = discord_banner->width;

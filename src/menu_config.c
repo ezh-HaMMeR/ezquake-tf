@@ -580,8 +580,43 @@ static qbool Config_ApplyMiscDraft(config_text_draft_t *draft)
 	reference_count = CFGModel_CollectMisc(&config_menu.model, draft->file_id, 1, &references);
 	text = CTextArea_Text(&draft->area, &text_length);
 	if (!reference_count) {
+		unsigned char *current = NULL;
+		size_t current_length = 0;
+		char *combined = NULL;
+		size_t combined_length = 0, combined_capacity = 0;
+		const char *ending = "\r\n";
+		cfg_model_file_t *file = CFGModel_FindFile(&config_menu.model, draft->file_id);
+		size_t node_index;
+
 		free(references);
-		return text_length == 0;
+		if (!text_length) return true;
+		if (!file || !CFGModel_SerializeFile(&config_menu.model, draft->file_id,
+			&current, &current_length)) return false;
+		for (node_index = file->document.node_count; node_index > 0; --node_index) {
+			const char *candidate = Config_NodeLineEnding(&file->document.nodes[node_index - 1]);
+			if (*candidate) {
+				ending = candidate;
+				break;
+			}
+		}
+		if (!Config_BufferAppend(&combined, &combined_length, &combined_capacity,
+			(const char *)current, current_length) ||
+			(current_length && current[current_length - 1] != '\r' && current[current_length - 1] != '\n' &&
+				!Config_BufferAppend(&combined, &combined_length, &combined_capacity,
+					ending, strlen(ending))) ||
+			!Config_BufferAppend(&combined, &combined_length, &combined_capacity, text, text_length)) {
+			free(current);
+			Q_free(combined);
+			return false;
+		}
+		free(current);
+		if (!CFGModel_ReplaceFileContents(&config_menu.model, draft->file_id,
+			(const unsigned char *)combined, combined_length)) {
+			Q_free(combined);
+			return false;
+		}
+		Q_free(combined);
+		return true;
 	}
 	for (reference_index = 0; reference_index < reference_count; ++reference_index) {
 		char *replacement = NULL;

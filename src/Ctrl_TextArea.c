@@ -29,16 +29,16 @@ static void CTextArea_DrawText(int x, int y, const char *text, qbool console_fon
 			decoded = (unsigned char)text[initial];
 			input = initial;
 		}
-		wide[output] = decoded | 128;
-		colors[output].c = COLOR_WHITE;
+		wide[output] = decoded;
+		colors[output].c = RGBA_TO_COLOR(157, 110, 54, 255);
 		colors[output].i = output;
 		++output;
 		++input;
 	}
 	wide[output] = 0;
-	// Supplying an explicit color array prevents CFG text such as &cRGB from
-	// being interpreted as Quake inline formatting. The alternate font glyphs
-	// provide the flat brown color configured in fonts.c.
+	// Supplying an explicit, uniform color array prevents CFG text such as
+	// &cRGB and comments in another charset from changing the editor color.
+	// Normal proportional glyphs are flat white and are tinted here.
 	Draw_ConsoleString(x, y, wide, colors, output, false, 1, true);
 }
 
