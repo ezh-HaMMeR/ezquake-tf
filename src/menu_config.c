@@ -50,6 +50,7 @@ typedef struct config_setting_draft_s {
 	const cfg_setting_definition_t *definition;
 	char file_id[64];
 	char value[CONFIG_VALUE_SIZE];
+	qbool changed;
 } config_setting_draft_t;
 
 typedef struct config_bind_draft_s {
@@ -677,7 +678,9 @@ static qbool Config_ReplaceSettingDraft(config_setting_draft_t *draft)
 	found = CFGModel_ResolveSetting(&config_menu.model, draft->file_id,
 		definition->storage_kind, definition->name, definition->on_command,
 		definition->off_command, &resolved);
-	if (!found || !resolved.node) {
+	if (found && resolved.inherited && resolved.value && !strcmp(resolved.value, draft->value))
+		return true;
+	if (!found || !resolved.node || resolved.inherited) {
 		unsigned char *current = NULL;
 		char *combined = NULL;
 		size_t current_length = 0, combined_length = 0, combined_capacity = 0;
@@ -716,7 +719,6 @@ static qbool Config_ReplaceSettingDraft(config_setting_draft_t *draft)
 		Q_free(combined);
 		return true;
 	}
-	if (resolved.inherited) return true;
 	if (resolved.value && !strcmp(resolved.value, draft->value)) return true;
 	line_ending = Config_NodeLineEnding(resolved.node);
 	if (!Config_FormatSettingLine(definition, draft->value, line_ending,
@@ -968,21 +970,68 @@ static const char *Config_CurrentClassFile(void)
 	return class_files[playerclass];
 }
 
-static qbool Config_VideoDimensionsChanged(void)
+static qbool Config_SettingDraftChanged(config_setting_draft_t *draft)
+{
+	cfg_setting_result_t resolved;
+
+	if (!CFGModel_ResolveSetting(&config_menu.model, draft->file_id,
+		draft->definition->storage_kind, draft->definition->name,
+		draft->definition->on_command, draft->definition->off_command, &resolved))
+		return draft->value[0] != '\0';
+	return !resolved.value || strcmp(resolved.value, draft->value);
+}
+
+static qbool Config_VideoRestartRequired(void)
 {
 	size_t i;
 	for (i = 0; i < config_menu.setting_count; ++i) {
-		const config_setting_draft_t *draft = &config_menu.settings[i];
-		cfg_setting_result_t resolved;
-		if (!Config_IsWindowDimension(draft->definition))
-			continue;
-		if (!CFGModel_ResolveSetting(&config_menu.model, draft->file_id,
-			draft->definition->storage_kind, draft->definition->name,
-			draft->definition->on_command, draft->definition->off_command, &resolved) ||
-			!resolved.value || strcmp(resolved.value, draft->value))
+		config_setting_draft_t *draft = &config_menu.settings[i];
+		if (draft->changed && draft->definition->apply &&
+			!strcmp(draft->definition->apply, "restart_required"))
 			return true;
 	}
 	return false;
+}
+
+static qbool Config_SettingAppliesToCurrentProfile(const config_setting_draft_t *draft)
+{
+	const cfg_model_file_t *file;
+	const char *current_class;
+
+	file = CFGModel_FindFileConst(&config_menu.model, draft->file_id);
+	if (!file)
+		return false;
+	if (!strcmp(file->role, "main"))
+		return true;
+	if (strcmp(file->role, "class"))
+		return false;
+	current_class = Config_CurrentClassFile();
+	return current_class && !strcmp(file->path, current_class);
+}
+
+/*
+ * The editor is file-backed, but managed cvars must also become live as soon as
+ * a successful save finishes.  Depending solely on a deferred "exec" leaves
+ * the menu draft/file value temporarily (or permanently, if the buffer is
+ * interrupted) out of sync with the running cvar.
+ */
+static void Config_ApplyChangedCvars(void)
+{
+	size_t i;
+
+	for (i = 0; i < config_menu.setting_count; ++i) {
+		config_setting_draft_t *draft = &config_menu.settings[i];
+		cvar_t *var;
+
+		if (!draft->changed ||
+			draft->definition->storage_kind != CFG_STORAGE_CVAR ||
+			!draft->definition->name ||
+			!Config_SettingAppliesToCurrentProfile(draft))
+			continue;
+		var = Cvar_Find(draft->definition->name);
+		if (var)
+			Cvar_Set(var, draft->value);
+	}
 }
 
 static qbool Config_QueueDirtyFiles(qbool restart_video)
@@ -1036,12 +1085,15 @@ static qbool Config_SaveSession(void)
 	/* Empty dimensions must become real values before change detection and CFG serialization. */
 	Config_DefaultWindowDimensions();
 	if (!Config_ApplyTextDrafts()) goto fail;
-	restart_video = Config_VideoDimensionsChanged();
-	for (i = 0; i < config_menu.setting_count; ++i)
+	for (i = 0; i < config_menu.setting_count; ++i) {
+		config_menu.settings[i].changed = Config_SettingDraftChanged(&config_menu.settings[i]);
 		if (!Config_ReplaceSettingDraft(&config_menu.settings[i])) goto fail;
+	}
+	restart_video = Config_VideoRestartRequired();
 	for (i = 0; i < config_menu.bind_count; ++i)
 		if (!Config_ReplaceBindDraft(&config_menu.binds[i])) goto fail;
 	if (!Config_WriteDirtyFiles()) goto fail;
+	Config_ApplyChangedCvars();
 	queued = Config_QueueDirtyFiles(restart_video);
 	english = Config_UseEnglish();
 	Cvar_Set(&menu_language, english ? "English" : "Russian");
