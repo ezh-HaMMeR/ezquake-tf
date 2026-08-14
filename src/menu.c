@@ -156,6 +156,17 @@ static void M_DrawTransPic_GetPoint (int x, int y, int *rx, int *ry, mpic_t *pic
 	Draw_TransPic (x + ((menuwidth - 320)>>1), y + m_yofs, pic);
 }
 
+static void M_DrawScaledTransPic_GetPoint(int x, int y, int *rx, int *ry,
+	mpic_t *pic, int width, int height)
+{
+	int draw_x = x + ((menuwidth - 320) >> 1);
+	int draw_y = y + m_yofs;
+	if (rx) *rx = draw_x;
+	if (ry) *ry = draw_y;
+	Draw_SAlphaSubPic2(draw_x, draw_y, pic, 0, 0, pic->width, pic->height,
+		(float)width / pic->width, (float)height / pic->height, 1.0f);
+}
+
 void M_DrawTransPic (int x, int y, mpic_t *pic) {
 	int tx, ty;
 	M_DrawTransPic_GetPoint(x, y, &tx, &ty, pic);
@@ -385,6 +396,10 @@ void M_Menu_Main_f (void) {
 #define BIGMENU_ITEMS_SCALE			0.3
 #define	BIGMENU_LETTER_SPACING		-2
 #define BIGMENU_VERTICAL_PADDING	2
+#define MAIN_BANNER_WIDTH			128
+#define MAIN_BANNER_HEIGHT			43
+#define MAIN_BANNER_TOP_GAP			8
+#define MAIN_BANNER_BOTTOM_GAP		10
 
 typedef struct bigmenu_items_s {
 	const char *label;
@@ -393,12 +408,6 @@ typedef struct bigmenu_items_s {
 
 #define BIGMENU_ITEMS_COUNT(x) (sizeof(x) / sizeof(bigmenu_items_t))
 
-static void M_Main_ConnectQWTF(void)
-{
-	Cbuf_AddText("connect qwtf.net:27500\n");
-	M_LeaveMenus();
-}
-
 static void M_Main_ConnectLocal(void)
 {
 	Cbuf_AddText("connect localhost\n");
@@ -406,7 +415,7 @@ static void M_Main_ConnectLocal(void)
 }
 
 bigmenu_items_t mainmenu_items[] = {
-	{"Connect qwtf.net", M_Main_ConnectQWTF},
+	{"Multiplayer", M_Menu_MultiPlayer_f},
 	{"Local server", M_Main_ConnectLocal},
 	{"Config", Menu_Config_Enter},
 	{"Demos", M_Menu_Demos_f},
@@ -440,14 +449,25 @@ static void M_BigMenu_DrawItems(bigmenu_items_t *menuitems, const unsigned int i
 void M_Main_Draw (void) {
 	int f = (int) (curtime * 10) % 6;
 	int i;
-	int itemheight;
-	int items_top = BIGMENU_TOP;
+	int itemheight = Draw_BigFontAvailable() ?
+		(int)(BIGMENU_ITEMS_SCALE * BIGLETTER_HEIGHT + BIGMENU_VERTICAL_PADDING) : 16;
+	int block_height;
+	int block_top;
+	int items_top;
 	mpic_t *qwtf_banner = Draw_CachePicSafe("gfx/qwtfnet", false, true);
 	mpic_t *discord_banner = Draw_CachePicSafe("gfx/discord", false, true);
+	mpic_t *plaque = Draw_CachePic(CACHEPIC_QPLAQUE);
+
+	block_height = MAIN_ITEMS * itemheight;
+	if (qwtf_banner) block_height += MAIN_BANNER_HEIGHT + MAIN_BANNER_TOP_GAP;
+	if (discord_banner) block_height += MAIN_BANNER_BOTTOM_GAP + MAIN_BANNER_HEIGHT;
+	block_top = (200 - block_height) / 2;
+	items_top = block_top;
 
 	if (qwtf_banner) {
-		M_DrawTransPic(BIGMENU_LEFT, BIGMENU_TOP, qwtf_banner);
-		items_top += qwtf_banner->height + 8;
+		M_DrawScaledTransPic_GetPoint(BIGMENU_LEFT, block_top, NULL, NULL,
+			qwtf_banner, MAIN_BANNER_WIDTH, MAIN_BANNER_HEIGHT);
+		items_top += MAIN_BANNER_HEIGHT + MAIN_BANNER_TOP_GAP;
 	}
 
 	// Main Menu items
@@ -470,20 +490,23 @@ void M_Main_Draw (void) {
 		itemheight = 16;
 	}
 
+	M_DrawTransPic(16, items_top + (m_main_window.h - plaque->height) / 2, plaque);
+
 	M_DrawTransPic (54, items_top + m_main_cursor * itemheight,
 		Draw_CachePic(CACHEPIC_MENUDOT1 + f)
 	);
 
 	if (discord_banner) {
-		int banner_y = items_top + m_main_window.h + 10;
-		M_DrawTransPic_GetPoint(BIGMENU_LEFT, banner_y,
-			&m_discord_window.x, &m_discord_window.y, discord_banner);
-		m_discord_window.w = discord_banner->width;
-		m_discord_window.h = discord_banner->height;
+		int banner_y = items_top + m_main_window.h + MAIN_BANNER_BOTTOM_GAP;
+		M_DrawScaledTransPic_GetPoint(BIGMENU_LEFT, banner_y,
+			&m_discord_window.x, &m_discord_window.y, discord_banner,
+			MAIN_BANNER_WIDTH, MAIN_BANNER_HEIGHT);
+		m_discord_window.w = MAIN_BANNER_WIDTH;
+		m_discord_window.h = MAIN_BANNER_HEIGHT;
 		if (m_discord_hovered)
 			Draw_AlphaRectangleRGB(m_discord_window.x, m_discord_window.y,
-				m_discord_window.w, m_discord_window.h, 1, false,
-				RGBA_TO_COLOR(255, 112, 32, 255));
+				m_discord_window.w, m_discord_window.h, 0.5f, false,
+				RGBA_TO_COLOR(190, 85, 30, 200));
 	}
 	else {
 		memset(&m_discord_window, 0, sizeof(m_discord_window));
