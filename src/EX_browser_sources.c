@@ -85,8 +85,52 @@ void Delete_Source(source_data *s)
     Q_free(s);
 }
 
-// returns true, if there were some problems (like domain-name addresses)
-// which require the source to be dumped to file in corrected form
+static char *SB_TrimSourceLine(char *line)
+{
+	char *end;
+
+	while (*line && isspace((unsigned char)*line))
+		line++;
+	end = line + strlen(line);
+	while (end > line && isspace((unsigned char)end[-1]))
+		*--end = '\0';
+	return line;
+}
+
+static void SB_NormalizeSourceAddress(const char *input, char *output, size_t output_size)
+{
+	strlcpy(output, input, output_size);
+	if (!strchr(output, ':'))
+		strlcat(output, ":27000", output_size);
+}
+
+static server_data *SB_CreateFileSourceServer(const char *display_address,
+		const char *resolved_address, qbool source_proxy)
+{
+	netadr_t addr;
+	server_data *server;
+	qbool resolved;
+
+	memset(&addr, 0, sizeof(addr));
+	resolved = NET_StringToAdr(display_address, &addr);
+	if (!resolved && resolved_address && resolved_address[0])
+		resolved = NET_StringToAdr(resolved_address, &addr);
+	if (!resolved && !source_proxy)
+		return NULL;
+
+	server = Create_Server2(addr);
+	strlcpy(server->display.ip, display_address, sizeof(server->display.ip));
+	server->source_proxy = source_proxy;
+	if (source_proxy) {
+		server->qwfwd = true;
+		strlcpy(server->display.map, "proxy", sizeof(server->display.map));
+		server->display.ping[0] = '\0';
+		server->display.bestping[0] = '\0';
+	}
+	return server;
+}
+
+// Returns true when the normalized domain/IP pair should be written back.
 qbool Update_Source_From_File(source_data *s, char *fname, server_data **servers, int *pserversn)
 {
 	vfsfile_t *f;
@@ -96,18 +140,55 @@ qbool Update_Source_From_File(source_data *s, char *fname, server_data **servers
     //length = COM_FileOpenRead (fname, &f);
 	f = FS_OpenVFS(fname, "rb", FS_ANY);
 
-    if (f) {
+	if (f) {
 		while (VFS_GETS(f, line, sizeof(line)))
 		{
-			netadr_t addr;
+			char display_address[MAX_SERVER_ADDRESS];
+			char resolved_address[MAX_SERVER_ADDRESS] = {0};
+			char *entry = SB_TrimSourceLine(line);
+			char *second;
+			qbool source_proxy = false;
+			server_data *server;
 
-			if (!strchr(line, ':'))
-				strlcat (line, ":27000", sizeof (line));
-			if (!NET_StringToAdr(line, &addr))
+			if (!entry[0] || entry[0] == '#' || entry[0] == ';' ||
+				(entry[0] == '/' && entry[1] == '/'))
 				continue;
 
-			servers[(*pserversn)++] = Create_Server2(addr);
-			if (line[0] <= '0'  ||  line[0] >= '9')
+			second = entry;
+			while (*second && !isspace((unsigned char)*second))
+				second++;
+			if (*second) {
+				*second++ = '\0';
+				second = SB_TrimSourceLine(second);
+				if (second[0]) {
+					char *end = second;
+					while (*end && !isspace((unsigned char)*end))
+						end++;
+					*end = '\0';
+					SB_NormalizeSourceAddress(second, resolved_address, sizeof(resolved_address));
+				}
+			}
+
+			if (!strncasecmp(entry, "proxy:", 6)) {
+				source_proxy = true;
+				entry += 6;
+			}
+			if (!entry[0])
+				continue;
+
+			SB_NormalizeSourceAddress(entry, display_address, sizeof(display_address));
+			server = SB_CreateFileSourceServer(display_address, resolved_address, source_proxy);
+			if (!server)
+				continue;
+
+			if (*pserversn >= MAX_SERVERS) {
+				Delete_Server(server);
+				break;
+			}
+			servers[(*pserversn)++] = server;
+
+			// Domain entries are persisted together with their resolved address.
+			if (!source_proxy && strcasecmp(display_address, NET_AdrToString(server->address)))
 				should_dump = true;
 		}
 		VFS_CLOSE(f);
@@ -1008,7 +1089,7 @@ void Rebuild_Servers_List(void)
 
                 // Try and find a matching address
                 for (k = 0; k < serversn && k < server_limit; k++) {
-                    if (!memcmp(&(servers[k]->address), &(sources[i]->servers[j]->address), sizeof(netadr_t))) {
+                    if (SB_ServersMatch(servers[k], sources[i]->servers[j])) {
                         found_duplicate = true;
                         break;
                     }
@@ -1057,11 +1138,21 @@ void DumpSource(source_data *s)
     if (!FS_FCreateFile(buf, &f, "ezquake", "wt"))
         return;
 
-    for (i=0; i < s->serversn; i++)
-        fprintf(f, "%d.%d.%d.%d:%d\n",
-        s->servers[i]->address.ip[0], s->servers[i]->address.ip[1],
-        s->servers[i]->address.ip[2], s->servers[i]->address.ip[3],
-        ntohs(s->servers[i]->address.port));
+    for (i=0; i < s->serversn; i++) {
+		server_data *server = s->servers[i];
+		char resolved[MAX_SERVER_ADDRESS];
+
+		if (server->source_proxy) {
+			fprintf(f, "proxy:%s\n", server->display.ip);
+			continue;
+		}
+
+		strlcpy(resolved, NET_AdrToString(server->address), sizeof(resolved));
+		if (server->display.ip[0] && strcasecmp(server->display.ip, resolved))
+			fprintf(f, "%s %s\n", server->display.ip, resolved);
+		else
+			fprintf(f, "%s\n", resolved);
+	}
 
     fclose(f);
 }
@@ -1087,7 +1178,7 @@ void RemoveFromFileSource(source_data *source, server_data *serv)
         return;
 
     for (i=0; i < source->serversn; i++)
-        if (!memcmp(&source->servers[i]->address, &serv->address, 6))
+        if (SB_ServersMatch(source->servers[i], serv))
         {
 			// Only add to unbound if not in any other sources...
 			int j = 0;

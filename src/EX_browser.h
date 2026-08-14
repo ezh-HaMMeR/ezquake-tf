@@ -29,6 +29,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define MAX_KEYS    100
 #define MAX_PLAYERS 128
 
+#define MAX_SERVER_ADDRESS 256
+
 // column width
 #define COL_PING        3
 #define COL_IP          21
@@ -87,7 +89,7 @@ typedef struct column_s
 {
     char ping [COL_PING + 1];
 	char bestping [COL_PING + 1];
-    char ip [COL_IP + 1];
+    char ip [MAX_SERVER_ADDRESS];
     char name [COL_NAME + 1];
     char map [COL_MAP + 1];
     char gamedir [COL_GAMEDIR + 1];
@@ -131,6 +133,7 @@ typedef struct server_data_s
     int spectatorsn;
 	qbool qizmo;
 	qbool qwfwd;
+	qbool source_proxy; // Explicit proxy: entry from a file source.
 	qbool support_teams; // is server support team per player
 } server_data;
 
@@ -205,6 +208,7 @@ extern int source_unique;
 server_data * Create_Server(char *ip);
 server_data * Clone_Server(server_data* source);
 server_data * Create_Server2(netadr_t n);
+qbool SB_ServersMatch(const server_data *first, const server_data *second);
 void Reset_Server(server_data *s);
 void Delete_Server(server_data *s);
 source_data * Create_Source(void);

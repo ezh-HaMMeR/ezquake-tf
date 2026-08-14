@@ -195,10 +195,11 @@ static pinghost_t *ParseServerList(server_data *servs[], int servsn, int *host_n
 		int addr;
 		unsigned short port;
 
-		if (ParseServerIp(servs[i]->display.ip, &addr, &port)) 
-		{
+		if (servs[i]->source_proxy || servs[i]->address.type != NA_IP) {
 			continue;
 		}
+		memcpy(&addr, servs[i]->address.ip, sizeof(addr));
+		port = ntohs(servs[i]->address.port);
 
 		/* Make sure it is unique */
 		for (j = 0; j < nelms; j++) 
@@ -246,10 +247,11 @@ static void FillServerListPings(server_data *servs[], int servsn,
 		/* Find the server from the host */
 		for (j = 0; j < servsn; j++) 
 		{
-			if (ParseServerIp(servs[j]->display.ip, &addr, &port)) 
-			{
+			if (servs[j]->source_proxy || servs[j]->address.type != NA_IP) {
 				continue;
 			}
+			memcpy(&addr, servs[j]->address.ip, sizeof(addr));
+			port = ntohs(servs[j]->address.port);
 
 			if (addr == phosts[i].ip && port == phosts[i].port) 
 			{

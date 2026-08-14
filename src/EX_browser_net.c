@@ -284,7 +284,7 @@ void Parse_Serverinfo(server_data *s, char *info)
     }
 
     // fill-in display
-	s->qwfwd = SB_IsServerQWfwd(s);
+	s->qwfwd = s->source_proxy || SB_IsServerQWfwd(s);
 
     tmp = ValueForKey(s, "hostname");
     if (tmp != NULL)
@@ -394,11 +394,15 @@ int GetServerInfosProc(void * lpParameter)
     newsocket = UDP_OpenSocket(PORT_ANY);
 
     hosts = (infohost *) Q_malloc (serversn * sizeof(infohost));
-    for (i=0; i < serversn; i++)
-    {
+	for (i=0; i < serversn; i++)
+	{
         hosts[i].phase = 0;
         hosts[i].lastsenttime = -1000;
-        Reset_Server(servers[i]);
+		Reset_Server(servers[i]);
+		if (servers[i]->source_proxy) {
+			hosts[i].phase = -1;
+			continue;
+		}
 
         // do not update dead servers
 		if (servers[i]->ping < 0) {
@@ -506,7 +510,8 @@ int GetServerInfosProc(void * lpParameter)
                 SockadrToNetadr (&hostaddr, &from);
 
                 for (i=0; i < serversn; i++)
-                    if (from.ip[0] == servers[i]->address.ip[0] &&
+                    if (!servers[i]->source_proxy &&
+						from.ip[0] == servers[i]->address.ip[0] &&
                         from.ip[1] == servers[i]->address.ip[1] &&
                         from.ip[2] == servers[i]->address.ip[2] &&
                         from.ip[3] == servers[i]->address.ip[3] &&
@@ -522,7 +527,7 @@ int GetServerInfosProc(void * lpParameter)
 
     // reset pings to 999 if server didn't answer
     for (i=0; i < serversn; i++)
-        if (servers[i]->keysn <= 0)
+        if (servers[i]->keysn <= 0 && !servers[i]->source_proxy)
             SetPing(servers[i], -1);
 
     closesocket(newsocket);

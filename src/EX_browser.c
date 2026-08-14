@@ -85,7 +85,7 @@ cvar_t  sb_status        =  {"sb_status", 			"1"}; // Shows Server status at the
 
 // columns
 cvar_t  sb_showping      = {"sb_showping",         "1"};
-cvar_t  sb_showaddress   = {"sb_showaddress",      "0"};
+cvar_t  sb_showaddress   = {"sb_showaddress",      "1"};
 cvar_t  sb_showmap       = {"sb_showmap",          "1"};
 cvar_t  sb_showgamedir   = {"sb_showgamedir",      "0"};
 cvar_t  sb_showplayers   = {"sb_showplayers",      "1"};
@@ -396,24 +396,24 @@ static void PasteServerToConsole (server_data *s)
 server_data * Create_Server (char *ip)
 {
 	server_data *s;
+	char address[MAX_SERVER_ADDRESS];
 
 	s = (server_data *) Q_malloc (sizeof(server_data));
 	memset (s, 0, sizeof(server_data));
 
 	s->ping = -1;
 
-	if (!NET_StringToAdr (ip, &(s->address)))
+	strlcpy(address, ip, sizeof(address));
+	if (!strchr(address, ':'))
+		strlcat(address, ":27500", sizeof(address));
+
+	if (!NET_StringToAdr (address, &(s->address)))
 	{
 		Q_free(s);
 		return NULL;
 	}
 
-	if (!strchr(ip, ':'))
-		s->address.port = htons(27500);
-
-	snprintf (s->display.ip, sizeof (s->display.ip), "%d.%d.%d.%d:%d",
-			s->address.ip[0], s->address.ip[1], s->address.ip[2], s->address.ip[3],
-			ntohs(s->address.port));
+	strlcpy(s->display.ip, address, sizeof(s->display.ip));
 
 	return s;
 }
@@ -446,6 +446,7 @@ server_data* Clone_Server(server_data* source)
 
 	new_server->qizmo = source->qizmo;
 	new_server->qwfwd = source->qwfwd;
+	new_server->source_proxy = source->source_proxy;
 	new_server->spectatorsn = source->spectatorsn;
 	new_server->support_teams = source->support_teams;
 
@@ -465,6 +466,15 @@ server_data * Create_Server2 (netadr_t n)
 	s->ping = -1;
 
 	return s;
+}
+
+qbool SB_ServersMatch(const server_data *first, const server_data *second)
+{
+	if (first->source_proxy || second->source_proxy) {
+		return first->source_proxy && second->source_proxy &&
+			!strcasecmp(first->display.ip, second->display.ip);
+	}
+	return NET_CompareAdr(first->address, second->address);
 }
 
 void Reset_Server (server_data *s)
@@ -713,7 +723,7 @@ qbool AddUnboundServer(char *addr)
 		return false;
 
 	for (i=0; i < sources[0]->serversn; i++)
-		if (!memcmp(&s->address, &sources[0]->servers[i]->address, sizeof(netadr_t)))
+		if (SB_ServersMatch(s, sources[0]->servers[i]))
 		{
 			Q_free(s);
 			s = sources[0]->servers[i];
@@ -981,8 +991,12 @@ static unsigned int SB_Servers_Hovered_Column(int w)
 {
 	int w_from = w, w_to = w;
 	int col;
+	int address_width = sb_showaddress.integer ? (COL_IP + 1) * LETTERWIDTH : 0;
 
-	for (col = sb_columns_size - 1; col > 0; col--) {
+	if (sb_showaddress.integer && mouse_header_pos_y < address_width)
+		return 1;
+
+	for (col = sb_columns_size - 1; col > 1; col--) {
 		if (sb_columns[col].showvar->integer) {
 			w_to = w_from;
 			w_from -= sb_columns[col].width * LETTERWIDTH + LETTERWIDTH;
@@ -998,6 +1012,7 @@ static unsigned int SB_Servers_Hovered_Column(int w)
 int SB_Servers_Draw_ColumnHeaders(int x, int y, int w)
 {
 	int pos = w/8;
+	int name_x = x;
 	char line[1024];
 	unsigned int colidx;
 	qbool hovered;
@@ -1008,7 +1023,7 @@ int SB_Servers_Draw_ColumnHeaders(int x, int y, int w)
 
 	UI_DrawColoredAlphaBox(x, y, w, 8, RGBA_TO_COLOR(10, 10, 10, 200));
 
-	for (colidx = sb_columns_size - 1; colidx > 0; colidx--) {
+	for (colidx = sb_columns_size - 1; colidx > 1; colidx--) {
 		sb_column_t *col = &sb_columns[colidx];
 		hovered = mouse_in_header_row && mouse_hovered_column == colidx;
 
@@ -1020,12 +1035,21 @@ int SB_Servers_Draw_ColumnHeaders(int x, int y, int w)
 			Add_Column2(x, y, &pos, col->name, col->width, !hovered);
 		}
 	}
-	// name is always displayed
-	hovered = mouse_in_header_row && mouse_hovered_column == colidx;
-	if (hovered) {
-		UI_DrawColoredAlphaBox(x, y, pos * LETTERWIDTH + LETTERWIDTH, 8, RGBA_TO_COLOR(30, 30, 30, 200));
+	if (sb_showaddress.integer) {
+		hovered = mouse_in_header_row && mouse_hovered_column == 1;
+		if (hovered) {
+			UI_DrawColoredAlphaBox(x, y, (COL_IP + 1) * LETTERWIDTH, 8, RGBA_TO_COLOR(30, 30, 30, 200));
+		}
+		UI_Print(x, y, "address", !hovered);
+		name_x += (COL_IP + 1) * LETTERWIDTH;
 	}
-	UI_Print(x, y, "name", !(mouse_in_header_row && mouse_hovered_column == 0));
+
+	// name is always displayed after the optional address column
+	hovered = mouse_in_header_row && mouse_hovered_column == 0;
+	if (hovered) {
+		UI_DrawColoredAlphaBox(name_x, y, max(0, x + pos * LETTERWIDTH - name_x), 8, RGBA_TO_COLOR(30, 30, 30, 200));
+	}
+	UI_Print(name_x, y, "name", !hovered);
 
 	return pos;
 }
@@ -1118,15 +1142,19 @@ void SB_Servers_Draw (int x, int y, int w, int h)
 			if (sb_showgamedir.value)
 				Add_Column2(x, y+8*(i+1), &pos, servers[servnum]->display.gamedir, COL_GAMEDIR, servnum==Servers_pos);
 			if (sb_showping.value) {
-				const char *ping = (servers[servnum]->bestping >= 0) ? servers[servnum]->display.bestping : servers[servnum]->display.ping;
+				const char *ping = servers[servnum]->source_proxy ? "" :
+					((servers[servnum]->bestping >= 0) ? servers[servnum]->display.bestping : servers[servnum]->display.ping);
 				const char *color = SB_Ping_Color((servers[servnum]->bestping >= 0) ? servers[servnum]->bestping : servers[servnum]->ping);
 				Add_ColumnColored(x, y+8*(i+1), &pos, ping, COL_PING, color);
 			}
 			if (sb_showaddress.value)
-				Add_Column2(x, y+8*(i+1), &pos, servers[servnum]->display.ip, COL_IP, servnum==Servers_pos);
+				UI_Print(x, y+8*(i+1), va("%-*.*s", COL_IP, COL_IP, servers[servnum]->display.ip), servnum==Servers_pos);
 
 			// 'name' column
-			if (servers[servnum]->qwfwd) {
+			if (servers[servnum]->source_proxy) {
+				line[0] = '\0';
+			}
+			else if (servers[servnum]->qwfwd) {
 				if (servers[servnum]->display.name[0]) {
 					snprintf(line, sizeof(line), "proxy %s", servers[servnum]->display.name);
 				}
@@ -1142,9 +1170,9 @@ void SB_Servers_Draw (int x, int y, int w, int h)
 			}
 
 			// display only as much as fits into the column
-			line[min(pos, sizeof(line)-1)] = '\0';
+			line[max(0, min(pos - (sb_showaddress.value ? COL_IP + 1 : 0), sizeof(line)-1))] = '\0';
 
-			UI_Print(x, y+8*(i+1), line, servnum==Servers_pos);
+			UI_Print(x + (sb_showaddress.value ? (COL_IP + 1) * LETTERWIDTH : 0), y+8*(i+1), line, servnum==Servers_pos);
 		}
 
 
@@ -1540,7 +1568,7 @@ int IsInSource(source_data *source, server_data *serv)
 {
 	int i;
 	for (i=0; i < source->serversn; i++)
-		if (!memcmp(&source->servers[i]->address, &serv->address, sizeof(netadr_t)))
+		if (SB_ServersMatch(source->servers[i], serv))
 			return i+1;
 	return false;
 }
@@ -2875,9 +2903,7 @@ int Servers_Compare_Func(const void * p_s1, const void * p_s2)
 				d = funcmp(s1->display.name, s2->display.name);
 				break;
 			case '2':
-				d = memcmp(&(s1->address.ip), &(s2->address.ip), 4);
-				if (!d)
-					d = ntohs(s1->address.port) - ntohs(s2->address.port);
+				d = Q_strcmp2(s1->display.ip, s2->display.ip);
 				break;
 			case '3':
 				d = Servers_Compare_Ping_Func(s1, s2);
@@ -2918,17 +2944,17 @@ void Filter_Servers(void)
 		server_data *s = servers[i];
 		s->passed_filters = 0;
 
-		if (searchstring[0] && !strstri(s->display.name, searchstring)) {
+		if (searchstring[0] && !strstri(s->display.name, searchstring) && !strstri(s->display.ip, searchstring)) {
 			continue;
 		}
 
-		if (sb_showproxies.integer == 0 && (s->qwfwd || s->qizmo))
+		if (!s->source_proxy && sb_showproxies.integer == 0 && (s->qwfwd || s->qizmo))
 			continue; // hide
 
-		if (sb_showproxies.integer == 2 && !(s->qwfwd || s->qizmo))
+		if (!s->source_proxy && sb_showproxies.integer == 2 && !(s->qwfwd || s->qizmo))
 			continue; // exclusive
 
-		if (sb_hidedead.value  &&  s->ping < 0)
+		if (!s->source_proxy && sb_hidedead.value  &&  s->ping < 0)
 			continue;
 
 		if (!s->qizmo && !s->qwfwd) {
@@ -3099,7 +3125,7 @@ void SB_Sources_Update_f(void)
 // (which is significantly faster than full refresh).
 // Of course users should do full-update of their list after some time so that 
 // new servers have a chance to appear.
-#define SERIALIZE_FILE_VERSION 1003
+#define SERIALIZE_FILE_VERSION 1004
 void SB_Serverlist_Serialize(FILE *f)
 {
 	int version = SERIALIZE_FILE_VERSION;
