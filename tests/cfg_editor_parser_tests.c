@@ -170,64 +170,34 @@ static void TestFileBackedModel(void)
 	CFGModel_Free(&model);
 }
 
-static void TestManagedFilesManifest(const char *first_config_path)
+static void TestManagedFilesManifest(const char *game_root)
 {
 	cfg_editor_model_t model;
-	char config_root[1024];
 	char error[512];
-	char *separator;
-
-	if (strlen(first_config_path) >= sizeof(config_root)) {
-		CHECK(0, "config corpus path fits test buffer");
-		return;
-	}
-	strcpy(config_root, first_config_path);
-	separator = strrchr(config_root, '\\');
-	if (!separator) separator = strrchr(config_root, '/');
-	if (!separator) {
-		CHECK(0, "config corpus has a parent directory");
-		return;
-	}
-	*separator = '\0';
 
 	CFGModel_Init(&model);
 	CHECK(CFGModel_LoadManifest(&model, "qw/config_editor/managed_files.json",
-		config_root, error, sizeof(error)), error[0] ? error : "managed-files manifest loads");
+		game_root, error, sizeof(error)), error[0] ? error : "managed-files manifest loads");
 	CHECK(model.file_count == 12, "managed-files manifest loads exactly 12 CFG files");
 	CHECK(CFGModel_FindFileConst(&model, "class_scout") != NULL, "class context exists in manifest model");
 	CFGModel_Free(&model);
 }
 
-static void TestRealDictionaries(const char *first_config_path)
+static void TestRealDictionaries(const char *game_root)
 {
 	cfg_editor_model_t model;
 	cfg_editor_dictionary_t dictionary;
 	cfg_dictionary_apply_result_t applied;
-	char config_root[1024];
 	char error[512];
-	char *separator;
 	size_t file_index, node_index;
 	size_t main_managed = 0, hud_managed = 0, bind_nodes = 0;
 	unsigned char *hud_before = NULL, *hud_after = NULL;
 	size_t hud_before_length = 0, hud_after_length = 0;
 
-	if (strlen(first_config_path) >= sizeof(config_root)) {
-		CHECK(0, "config corpus path fits dictionary test buffer");
-		return;
-	}
-	strcpy(config_root, first_config_path);
-	separator = strrchr(config_root, '\\');
-	if (!separator) separator = strrchr(config_root, '/');
-	if (!separator) {
-		CHECK(0, "config corpus has a parent directory for dictionary test");
-		return;
-	}
-	*separator = '\0';
-
 	CFGModel_Init(&model);
 	CFGDictionary_Init(&dictionary);
 	CHECK(CFGModel_LoadManifest(&model, "qw/config_editor/managed_files.json",
-		config_root, error, sizeof(error)), error[0] ? error : "manifest loads for dictionary test");
+		game_root, error, sizeof(error)), error[0] ? error : "manifest loads for dictionary test");
 	CHECK(CFGDictionary_Load(&dictionary, "qw/config_editor/dict_settings.json",
 		"qw/config_editor/dict_binds.json", error, sizeof(error)),
 		error[0] ? error : "dictionary files load");
@@ -280,23 +250,42 @@ static void TestRealDictionaries(const char *first_config_path)
 	CFGModel_Free(&model);
 }
 
-int main(int argc, char **argv)
+static void TestInstalledGameRoot(const char *game_root)
 {
-	int i;
+	static const char *config_names[] = {
+		"binds.cfg", "demoman.cfg", "engineer.cfg", "hud.cfg", "hwguy.cfg",
+		"medic.cfg", "pyro.cfg", "scout.cfg", "settings.cfg", "sniper.cfg",
+		"soldier.cfg", "spy.cfg"
+	};
+	size_t index;
 
-	TestSyntheticDocument();
-	TestFileBackedModel();
-	if (argc > 1) {
-		TestManagedFilesManifest(argv[1]);
-		TestRealDictionaries(argv[1]);
-	}
-	for (i = 1; i < argc; ++i) {
+	TestManagedFilesManifest(game_root);
+	TestRealDictionaries(game_root);
+	for (index = 0; index < sizeof(config_names) / sizeof(config_names[0]); ++index) {
+		char path[1024];
 		size_t length;
-		unsigned char *data = ReadFile(argv[i], &length);
+		unsigned char *data;
+		int written = snprintf(path, sizeof(path), "%s/fortress/%s", game_root, config_names[index]);
+		CHECK(written >= 0 && (size_t)written < sizeof(path), "installed CFG path fits test buffer");
+		if (written < 0 || (size_t)written >= sizeof(path)) continue;
+		data = ReadFile(path, &length);
 		if (data) {
-			CheckRoundTrip(argv[i], data, length);
+			CheckRoundTrip(path, data, length);
 			free(data);
 		}
+	}
+}
+
+int main(int argc, char **argv)
+{
+	TestSyntheticDocument();
+	TestFileBackedModel();
+	if (argc == 3 && !strcmp(argv[1], "--game-root")) {
+		TestInstalledGameRoot(argv[2]);
+	}
+	else if (argc != 1) {
+		fprintf(stderr, "usage: %s [--game-root <installed-game-root>]\n", argv[0]);
+		return 2;
 	}
 
 	if (failures) {

@@ -73,15 +73,20 @@ static int CFGManifest_ValidateParents(const cfg_editor_model_t *model,
 }
 
 int CFGModel_LoadManifest(cfg_editor_model_t *model, const char *manifest_path,
-	const char *config_root, char *error, size_t error_size)
+	const char *game_root, char *error, size_t error_size)
 {
 	json_error_t json_error;
-	json_t *root = NULL, *files;
+	json_t *root = NULL, *files, *config_root;
 	cfg_editor_model_t loaded;
 	size_t index;
 	json_t *entry;
+	char config_directory[1024];
 
 	if (error && error_size) error[0] = '\0';
+	if (!model || !manifest_path || !game_root || !game_root[0]) {
+		CFGManifest_Error(error, error_size, "manifest path and installed game root are required");
+		return 0;
+	}
 	root = json_load_file(manifest_path, JSON_REJECT_DUPLICATES, &json_error);
 	if (!root) {
 		CFGManifest_Error(error, error_size, "%s:%d: %s", manifest_path,
@@ -89,9 +94,13 @@ int CFGModel_LoadManifest(cfg_editor_model_t *model, const char *manifest_path,
 		return 0;
 	}
 	files = json_object_get(root, "files");
+	config_root = json_object_get(root, "config_root");
 	if (!json_is_integer(json_object_get(root, "schema_version"))
 		|| json_integer_value(json_object_get(root, "schema_version")) != 1
-		|| !json_is_array(files)) {
+		|| !json_is_array(files) || !json_is_string(config_root)
+		|| !json_string_length(config_root)
+		|| !CFGManifest_JoinPath(config_directory, sizeof(config_directory),
+			game_root, json_string_value(config_root))) {
 		CFGManifest_Error(error, error_size, "unsupported or malformed managed-files manifest");
 		json_decref(root);
 		return 0;
@@ -124,7 +133,7 @@ int CFGModel_LoadManifest(cfg_editor_model_t *model, const char *manifest_path,
 			}
 			parents[parent_count++] = json_string_value(parent);
 		}
-		if (!CFGManifest_JoinPath(full_path, sizeof(full_path), config_root, json_string_value(path))
+		if (!CFGManifest_JoinPath(full_path, sizeof(full_path), config_directory, json_string_value(path))
 			|| !CFGModel_AddFileFromDisk(&loaded, json_string_value(id), json_string_value(path),
 				json_string_value(role), parents, parent_count, full_path)) {
 			CFGManifest_Error(error, error_size, "cannot load managed file '%s'", json_string_value(path));

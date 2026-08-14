@@ -52,7 +52,7 @@ void CFGModel_Free(cfg_editor_model_t *model);
 void CFGModel_ClearManaged(cfg_editor_model_t *model);
 
 int CFGModel_LoadManifest(cfg_editor_model_t *model, const char *manifest_path,
-	const char *config_root, char *error, size_t error_size);
+	const char *game_root, char *error, size_t error_size);
 
 int CFGModel_AddFileFromMemory(cfg_editor_model_t *model,
 	const char *id, const char *path, const char *role,
