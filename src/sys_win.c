@@ -1562,6 +1562,58 @@ int Sys_Script (const char *path, const char *args)
 	                      FALSE, 0/*DETACHED_PROCESS CREATE_NEW_CONSOLE*/ , NULL, curdir, &si, &pi);
 }
 
+qbool Sys_LaunchBatchFileHidden(const char *working_directory, const char *filename)
+{
+	STARTUPINFO si;
+	PROCESS_INFORMATION pi;
+	char comspec[MAX_OSPATH];
+	char script[MAX_OSPATH];
+	char command_line[MAX_OSPATH * 3];
+	DWORD attributes;
+	DWORD comspec_length;
+	int written;
+
+	if (!working_directory || !working_directory[0] || !filename || !filename[0])
+		return false;
+
+	written = snprintf(script, sizeof(script), "%s%s%s", working_directory,
+		working_directory[strlen(working_directory) - 1] == '/' ||
+		working_directory[strlen(working_directory) - 1] == '\\' ? "" : "\\", filename);
+	if (written < 0 || (size_t)written >= sizeof(script))
+		return false;
+
+	attributes = GetFileAttributes(script);
+	if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY))
+		return false;
+
+	comspec_length = GetEnvironmentVariable("ComSpec", comspec, sizeof(comspec));
+	if (!comspec_length || comspec_length >= sizeof(comspec)) {
+		UINT system_length = GetSystemDirectory(comspec, sizeof(comspec));
+		if (!system_length || system_length >= sizeof(comspec) ||
+			strlcat(comspec, "\\cmd.exe", sizeof(comspec)) >= sizeof(comspec))
+			return false;
+	}
+
+	written = snprintf(command_line, sizeof(command_line),
+		"\"%s\" /D /S /C \"\"%s\"\"", comspec, script);
+	if (written < 0 || (size_t)written >= sizeof(command_line))
+		return false;
+
+	memset(&si, 0, sizeof(si));
+	si.cb = sizeof(si);
+	si.dwFlags = STARTF_USESHOWWINDOW;
+	si.wShowWindow = SW_HIDE;
+	memset(&pi, 0, sizeof(pi));
+
+	if (!CreateProcess(comspec, command_line, NULL, NULL, FALSE, CREATE_NO_WINDOW,
+		NULL, working_directory, &si, &pi))
+		return false;
+
+	CloseHandle(pi.hThread);
+	CloseHandle(pi.hProcess);
+	return true;
+}
+
 //=========================================================================
 
 DL_t Sys_DLOpen (const char *path)

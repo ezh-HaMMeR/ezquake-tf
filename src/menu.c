@@ -408,15 +408,20 @@ typedef struct bigmenu_items_s {
 
 #define BIGMENU_ITEMS_COUNT(x) (sizeof(x) / sizeof(bigmenu_items_t))
 
-static void M_Main_ConnectLocal(void)
+static void M_Main_StartLocalServer(void)
 {
+	if (!Sys_LaunchBatchFileHidden(com_basedir, "localserver.bat")) {
+		Com_Printf_State(PRINT_FAIL, "Unable to launch %s/localserver.bat\n", com_basedir);
+		S_LocalSound("misc/menu3.wav");
+		return;
+	}
 	Cbuf_AddText("connect localhost\n");
 	M_LeaveMenus();
 }
 
 bigmenu_items_t mainmenu_items[] = {
 	{"Multiplayer", M_Menu_MultiPlayer_f},
-	{"Local server", M_Main_ConnectLocal},
+	{"Local server", M_Main_StartLocalServer},
 	{"Config", Menu_Config_Enter},
 	{"Demos", M_Menu_Demos_f},
 	{"Quit", M_Menu_Quit_f}

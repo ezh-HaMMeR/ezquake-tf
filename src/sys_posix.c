@@ -680,6 +680,13 @@ int Sys_Script (const char *path, const char *args)
 	return 1;
 }
 
+qbool Sys_LaunchBatchFileHidden(const char *working_directory, const char *filename)
+{
+	(void)working_directory;
+	(void)filename;
+	return false;
+}
+
 DL_t Sys_DLOpen(const char *path)
 {
 	DL_t ret = dlopen(path,

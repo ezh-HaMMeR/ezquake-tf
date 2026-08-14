@@ -104,6 +104,7 @@ wchar *Sys_GetClipboardTextW(void);
 void Sys_CopyToClipboard(const char *);
 
 void Sys_GetFullExePath(char *path, unsigned int path_length, int long_name);
+qbool Sys_LaunchBatchFileHidden(const char *working_directory, const char *filename);
 
 // Inter Process Call functions.
 void Sys_InitIPC(void);
