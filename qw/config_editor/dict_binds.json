@@ -1,0 +1,46 @@
+{
+  "$schema": "dict_binds.schema.json",
+  "schema_version": 1,
+  "binds": [
+    {
+      "id": "move_forward",
+      "scope": ["global"],
+      "command": "+forward",
+      "label": "Move forward",
+      "group": "Movement",
+      "order": 10,
+      "max_keys": 2,
+      "conflict_policy": "ask"
+    },
+    {
+      "id": "jump",
+      "scope": ["global"],
+      "command": "+jump",
+      "label": "Jump",
+      "group": "Movement",
+      "order": 20,
+      "max_keys": 2,
+      "conflict_policy": "ask"
+    },
+    {
+      "id": "primary_attack",
+      "scope": ["global"],
+      "command": "+attack0 0",
+      "label": "Primary attack",
+      "group": "Combat",
+      "order": 30,
+      "max_keys": 2,
+      "conflict_policy": "ask"
+    },
+    {
+      "id": "engineer_reload_sentry",
+      "scope": ["class:engineer"],
+      "command": "cmd sg_reload",
+      "label": "Reload sentry",
+      "group": "Engineer",
+      "order": 10,
+      "max_keys": 2,
+      "conflict_policy": "ask"
+    }
+  ]
+}

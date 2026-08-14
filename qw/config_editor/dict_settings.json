@@ -1,0 +1,54 @@
+{
+  "$schema": "dict_settings.schema.json",
+  "schema_version": 1,
+  "settings": [
+    {
+      "id": "player_name",
+      "scope": ["main"],
+      "storage": {"type": "cvar", "name": "name"},
+      "widget": {"type": "text", "max_length": 31},
+      "label": "Player name",
+      "group": "Player",
+      "order": 10,
+      "apply": "on_save"
+    },
+    {
+      "id": "invert_mouse",
+      "scope": ["main"],
+      "storage": {"type": "cvar", "name": "m_pitch"},
+      "widget": {"type": "checkbox", "checked_value": "-0.022", "unchecked_value": "0.022"},
+      "label": "Invert mouse",
+      "group": "Mouse",
+      "order": 20,
+      "apply": "on_save"
+    },
+    {
+      "id": "fullscreen",
+      "scope": ["main"],
+      "storage": {"type": "cvar", "name": "vid_fullscreen"},
+      "widget": {"type": "checkbox", "checked_value": "1", "unchecked_value": "0"},
+      "label": "Fullscreen",
+      "group": "Video",
+      "order": 30,
+      "apply": "restart_required"
+    },
+    {
+      "id": "scout_scanner_limit",
+      "scope": ["main", "class:scout"],
+      "storage": {"type": "cvar", "name": "new_scanmode"},
+      "widget": {
+        "type": "select",
+        "options": [
+          {"value": "0", "label": "Disabled"},
+          {"value": "1", "label": "One player per team"},
+          {"value": "2", "label": "Two players per team"},
+          {"value": "3", "label": "Three players per team"}
+        ]
+      },
+      "label": "Enhanced Scout scanner",
+      "group": "Team Fortress",
+      "order": 40,
+      "apply": "on_save"
+    }
+  ]
+}

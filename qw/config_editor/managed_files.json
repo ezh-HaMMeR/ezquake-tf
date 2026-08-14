@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "config_root": "fortress",
+  "misc_reference_columns": ["file_id", "line_start", "line_end", "node_id"],
+  "files": [
+    {"id": "main", "path": "settings.cfg", "role": "main", "inherits": ["binds", "hud"]},
+    {"id": "binds", "path": "binds.cfg", "role": "binds", "inherits": []},
+    {"id": "hud", "path": "hud.cfg", "role": "hud", "inherits": []},
+    {"id": "class_scout", "path": "scout.cfg", "role": "class", "class": "scout", "inherits": ["main"]},
+    {"id": "class_sniper", "path": "sniper.cfg", "role": "class", "class": "sniper", "inherits": ["main"]},
+    {"id": "class_soldier", "path": "soldier.cfg", "role": "class", "class": "soldier", "inherits": ["main"]},
+    {"id": "class_demoman", "path": "demoman.cfg", "role": "class", "class": "demoman", "inherits": ["main"]},
+    {"id": "class_medic", "path": "medic.cfg", "role": "class", "class": "medic", "inherits": ["main"]},
+    {"id": "class_hwguy", "path": "hwguy.cfg", "role": "class", "class": "hwguy", "inherits": ["main"]},
+    {"id": "class_pyro", "path": "pyro.cfg", "role": "class", "class": "pyro", "inherits": ["main"]},
+    {"id": "class_spy", "path": "spy.cfg", "role": "class", "class": "spy", "inherits": ["main"]},
+    {"id": "class_engineer", "path": "engineer.cfg", "role": "class", "class": "engineer", "inherits": ["main"]}
+  ]
+}

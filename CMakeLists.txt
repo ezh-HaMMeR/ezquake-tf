@@ -13,6 +13,7 @@ option(DEBUG_MEMORY_ALLOCATIONS "Enable debug prints for memory allocations" OFF
 option(RENDERING_TRACE          "Enable tracing of the rendering pipeline"   OFF)
 option(ENABLE_SANDBOX           "Enables application sandboxing (macOS)"      ON)
 option(ENABLE_LTO               "Enable Link Time Optimization"               ON)
+option(BUILD_CFG_EDITOR_TESTS   "Build experimental config editor parser tests" ON)
 
 if(NOT RENDERER_CLASSIC_OPENGL AND NOT RENDERER_MODERN_OPENGL)
     message(FATAL_ERROR "At least one of RENDERER_CLASSIC_OPENGL or RENDERER_MODERN_OPENGL must be enabled.")
@@ -559,9 +560,14 @@ add_resources(documentation
 
 set(client_headers
         ${SOURCE_DIR}/Ctrl.h
+        ${SOURCE_DIR}/cfg_editor_model.h
+        ${SOURCE_DIR}/cfg_editor_parser.h
+        ${SOURCE_DIR}/Ctrl_Checkbox.h
         ${SOURCE_DIR}/Ctrl_EditBox.h
+        ${SOURCE_DIR}/Ctrl_KeyCapture.h
         ${SOURCE_DIR}/Ctrl_PageViewer.h
         ${SOURCE_DIR}/Ctrl_Tab.h
+        ${SOURCE_DIR}/Ctrl_TextArea.h
         ${SOURCE_DIR}/EX_FileList.h
         ${SOURCE_DIR}/EX_browser.h
         ${SOURCE_DIR}/EX_qtvlist.h
@@ -626,11 +632,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     list(APPEND client_headers ${SOURCE_DIR}/movie_avi.h)
 endif()
 set(client
+        ${SOURCE_DIR}/cfg_editor_model.c
+        ${SOURCE_DIR}/cfg_editor_manifest.c
+        ${SOURCE_DIR}/cfg_editor_parser.c
         ${SOURCE_DIR}/Ctrl.c
+        ${SOURCE_DIR}/Ctrl_Checkbox.c
         ${SOURCE_DIR}/Ctrl_EditBox.c
+        ${SOURCE_DIR}/Ctrl_KeyCapture.c
         ${SOURCE_DIR}/Ctrl_PageViewer.c
         ${SOURCE_DIR}/Ctrl_ScrollBar.c
         ${SOURCE_DIR}/Ctrl_Tab.c
+        ${SOURCE_DIR}/Ctrl_TextArea.c
         ${SOURCE_DIR}/EX_FileList.c
         ${SOURCE_DIR}/EX_browser.c
         ${SOURCE_DIR}/EX_browser_net.c
@@ -725,6 +737,21 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 endif()
 source_group(TREE ${SOURCE_DIR} PREFIX "Source Files/client" FILES ${client})
 source_group(TREE ${SOURCE_DIR} PREFIX "Header Files/client" FILES ${client_headers})
+
+if(BUILD_CFG_EDITOR_TESTS)
+    enable_testing()
+    add_executable(cfg_editor_tests EXCLUDE_FROM_ALL
+            ${PROJECT_SOURCE_DIR}/tests/cfg_editor_parser_tests.c
+            ${SOURCE_DIR}/cfg_editor_manifest.c
+            ${SOURCE_DIR}/cfg_editor_model.c
+            ${SOURCE_DIR}/cfg_editor_parser.c
+            ${SOURCE_DIR}/cfg_editor_model.h
+            ${SOURCE_DIR}/cfg_editor_parser.h
+    )
+    target_include_directories(cfg_editor_tests PRIVATE ${SOURCE_DIR})
+    target_link_libraries(cfg_editor_tests PRIVATE Dep::Jansson)
+    add_test(NAME cfg_editor_parser_synthetic COMMAND cfg_editor_tests)
+endif()
 
 set(sys_headers ${SOURCE_DIR}/localtime.h)
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")

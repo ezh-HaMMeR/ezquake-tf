@@ -1607,20 +1607,14 @@ void Key_Message (int key, wchar unichar) {
 
 byte Key_CharacterToQuakeCode(char ch);
 
-typedef enum {
-	KEY_COMBO_CTRL,
-	KEY_COMBO_ALT,
-	KEY_COMBO_SHIFT
-} key_combo_modifier_t;
-
-static qbool Key_IsModifierKeyNumber(int key)
+qbool Key_IsModifierKeyNumber(int key)
 {
 	return key == K_CTRL || key == K_LCTRL || key == K_RCTRL
 		|| key == K_ALT || key == K_LALT || key == K_RALT
 		|| key == K_SHIFT || key == K_LSHIFT || key == K_RSHIFT;
 }
 
-static int Key_ComboKeynum(key_combo_modifier_t modifier, int key)
+int Key_ComboKeynum(key_combo_modifier_t modifier, int key)
 {
 	return KEY_COMBO_BASE + modifier * KEY_COMBO_STRIDE + key;
 }

@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qwtf.net/schemas/ezquake-tf/dict_settings.schema.json",
+  "title": "ezquake-tf config editor settings dictionary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "settings"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "settings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/setting"}
+    }
+  },
+  "$defs": {
+    "scope": {
+      "type": "string",
+      "pattern": "^(main|hud|class:(scout|sniper|soldier|demoman|medic|hwguy|pyro|spy|engineer))$"
+    },
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "label"],
+      "properties": {
+        "value": {"type": "string"},
+        "label": {"type": "string"}
+      }
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"enum": ["cvar", "set", "setinfo", "command", "command_toggle", "json"]},
+        "name": {"type": "string", "minLength": 1},
+        "on_command": {"type": "string", "minLength": 1},
+        "off_command": {"type": "string", "minLength": 1},
+        "json_path": {"type": "string", "minLength": 1}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"type": {"const": "command_toggle"}}},
+          "then": {"required": ["on_command", "off_command"]}
+        },
+        {
+          "if": {"properties": {"type": {"enum": ["cvar", "set", "setinfo", "command"]}}},
+          "then": {"required": ["name"]}
+        },
+        {
+          "if": {"properties": {"type": {"const": "json"}}},
+          "then": {"required": ["json_path"]}
+        }
+      ]
+    },
+    "widget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"enum": ["text", "password", "number", "slider", "checkbox", "select", "color", "textarea", "action"]},
+        "checked_value": {"type": "string"},
+        "unchecked_value": {"type": "string"},
+        "min": {"type": "number"},
+        "max": {"type": "number"},
+        "step": {"type": "number", "exclusiveMinimum": 0},
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/option"}
+        },
+        "rows": {"type": "integer", "minimum": 2},
+        "max_length": {"type": "integer", "minimum": 1}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"type": {"const": "checkbox"}}},
+          "then": {"required": ["checked_value", "unchecked_value"]}
+        },
+        {
+          "if": {"properties": {"type": {"const": "select"}}},
+          "then": {"required": ["options"]}
+        }
+      ]
+    },
+    "setting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "scope", "storage", "widget", "label"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "scope": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/scope"}},
+        "storage": {"$ref": "#/$defs/storage"},
+        "widget": {"$ref": "#/$defs/widget"},
+        "label": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
+        "group": {"type": "string"},
+        "order": {"type": "integer"},
+        "advanced": {"type": "boolean"},
+        "apply": {"enum": ["immediate", "on_save", "restart_required"]}
+      }
+    }
+  }
+}

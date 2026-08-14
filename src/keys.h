@@ -219,6 +219,12 @@ typedef enum {
 #define KEY_COMBO_STRIDE        UNKNOWN
 #define KEY_MAX_KEYS            (KEY_COMBO_BASE + KEY_COMBO_MODIFIERS * KEY_COMBO_STRIDE)
 
+typedef enum {
+	KEY_COMBO_CTRL,
+	KEY_COMBO_ALT,
+	KEY_COMBO_SHIFT
+} key_combo_modifier_t;
+
 
 typedef enum {
 	key_game,
@@ -285,6 +291,8 @@ void Key_Unbind (int keynum);
 void Key_ClearStates (void);
 int	 Key_StringToKeynum (const char *str);
 char *Key_KeynumToString (int keynum);
+qbool Key_IsModifierKeyNumber(int key);
+int Key_ComboKeynum(key_combo_modifier_t modifier, int key);
 void Key_Unbindall_f (void);
 
 // should not be public actually but...
