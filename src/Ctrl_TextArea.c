@@ -1,6 +1,7 @@
 #include "quakedef.h"
 #include "utils.h"
 #include "Ctrl_TextArea.h"
+#include "fonts.h"
 #include "keys.h"
 #include "textencoding.h"
 
@@ -28,6 +29,12 @@ static void CTextArea_DrawText(int x, int y, const char *text, qbool console_fon
 	// Textareas use the alternate brown/gold gradient and the system FreeType
 	// face when it is available. The renderer falls back to the console charset.
 	Draw_ConsoleString(x, y, wide, NULL, 0, true, 1, true);
+}
+
+float CTextArea_CharacterWidth(const textarea_control_t *control)
+{
+	return control && control->use_console_font ?
+		max(1.0f, FontCharacterWidthWide('M', 1, true)) : 8.0f;
 }
 
 static qbool CTextArea_Reserve(textarea_control_t *control, size_t required)
@@ -202,6 +209,7 @@ void CTextArea_Draw(textarea_control_t *control, int x, int y, qbool active)
 {
 	int visible_row;
 	int gutter_chars = control->show_source_gutter ? 18 : 0;
+	float character_width = CTextArea_CharacterWidth(control);
 	CTextArea_EnsureVisible(control);
 
 	for (visible_row = 0; visible_row < control->height; ++visible_row) {
@@ -227,7 +235,7 @@ void CTextArea_Draw(textarea_control_t *control, int x, int y, qbool active)
 			else snprintf(gutter, sizeof(gutter), "%17s ", "");
 			CTextArea_DrawText(x, y + visible_row * 8, gutter, control->use_console_font);
 		}
-		CTextArea_DrawText(x + gutter_chars * 8, y + visible_row * 8, line,
+		CTextArea_DrawText(x + (int)(gutter_chars * character_width), y + visible_row * 8, line,
 			control->use_console_font);
 	}
 
@@ -235,7 +243,7 @@ void CTextArea_Draw(textarea_control_t *control, int x, int y, qbool active)
 		int row = CTextArea_RowAt(control, control->cursor) - control->first_row;
 		int column = (int)(control->cursor - CTextArea_LineStart(control, control->cursor)) - control->first_column;
 		if (row >= 0 && row < control->height && column >= 0 && column < control->width - gutter_chars) {
-			Draw_Character(x + (gutter_chars + column) * 8, y + row * 8,
+			Draw_Character(x + (int)((gutter_chars + column) * character_width), y + row * 8,
 				10 + ((int)(cls.realtime * 4) & 1));
 		}
 	}
@@ -292,6 +300,10 @@ qbool CTextArea_Key(textarea_control_t *control, int key, wchar unichar)
 			}
 			break;
 		case K_ENTER:
+			end = CTextArea_LineEnd(control, control->cursor);
+			target = control->cursor;
+			while (target < end && (control->text[target] == ' ' || control->text[target] == '\t')) ++target;
+			if (target == end) control->cursor = end;
 			if (strstr(control->text, "\r\n")) CTextArea_Insert(control, "\r\n", 2);
 			else { character = '\n'; CTextArea_Insert(control, &character, 1); }
 			break;

@@ -163,6 +163,32 @@ static void Config_DrawUTF8(int x, int y, const char *text, qbool active, int ma
 	Draw_ConsoleString(x, y, wide, NULL, 0, active, 1, false);
 }
 
+static void Config_DrawUTF8Color(int x, int y, const char *text, color_t color, int max_chars)
+{
+	wchar wide[512];
+	clrinfo_t colors[512];
+	int input = 0, output = 0, length;
+
+	if (!text) text = "";
+	length = (int)strlen(text);
+	while (input < length && output < (int)(sizeof(wide) / sizeof(wide[0])) - 1 &&
+		(max_chars <= 0 || output < max_chars)) {
+		int initial = input;
+		wchar decoded = TextEncodingDecodeUTF8((char *)text, &input);
+		if (!decoded && text[initial]) {
+			decoded = (unsigned char)text[initial];
+			input = initial;
+		}
+		wide[output] = decoded;
+		colors[output].c = color;
+		colors[output].i = output;
+		++output;
+		++input;
+	}
+	wide[output] = 0;
+	Draw_ConsoleString(x, y, wide, colors, output, false, 1, false);
+}
+
 static void Config_DrawDecoratedValue(int x, int y, const char *text, int max_chars)
 {
 	wchar wide[512];
@@ -874,7 +900,7 @@ static void Config_DrawTextArea(const config_layout_item_t *item, int x, int y, 
 	int box_height = item->height - 8;
 	if (!draft) return;
 	UI_DrawBox(x, y + 2, box_width, box_height);
-	draft->area.width = max(24, box_width / 8 - 2);
+	draft->area.width = max(24, (int)(box_width / CTextArea_CharacterWidth(&draft->area)) - 2);
 	draft->area.height = max(3, box_height / 8 - 2);
 	CTextArea_Draw(&draft->area, x + 8, y + 10, active && config_menu.textarea_editing);
 	if (!draft->area.length)
@@ -904,22 +930,25 @@ static void Config_DrawLayoutItem(const config_layout_item_t *item, int index, i
 
 	if (item->kind == CONFIG_ITEM_SECTION) {
 		snprintf(label, sizeof(label), "[%c] ", config_menu.section_open[item->auxiliary] ? '-' : '+');
-		UI_Print(value_x, y + 3, label, active);
-		Config_DrawUTF8(value_x + 4 * LETTERWIDTH, y + 3,
-			(Config_UseEnglish() ? config_sections_en : config_sections_ru)[item->auxiliary], active, 40);
+		Config_DrawUTF8Color(value_x, y + 3, label, RGBA_TO_COLOR(145, 92, 42, 255), 4);
+		Config_DrawUTF8Color(value_x + 4 * LETTERWIDTH, y + 3,
+			(Config_UseEnglish() ? config_sections_en : config_sections_ru)[item->auxiliary],
+			RGBA_TO_COLOR(145, 92, 42, 255), 40);
 	}
 	else if (item->kind == CONFIG_ITEM_CLASS) {
 		snprintf(label, sizeof(label), "[%c] ", config_menu.class_open[item->auxiliary] ? '-' : '+');
-		UI_Print(value_x + indent, y + 2, label, active);
-		Config_DrawUTF8(value_x + indent + 4 * LETTERWIDTH, y + 2,
-			(Config_UseEnglish() ? config_classes_en : config_classes_ru)[item->auxiliary], active, 40);
+		Config_DrawUTF8Color(value_x + indent, y + 2, label, RGBA_TO_COLOR(205, 150, 82, 255), 4);
+		Config_DrawUTF8Color(value_x + indent + 4 * LETTERWIDTH, y + 2,
+			(Config_UseEnglish() ? config_classes_en : config_classes_ru)[item->auxiliary],
+			RGBA_TO_COLOR(205, 150, 82, 255), 40);
 	}
 	else if (item->kind == CONFIG_ITEM_MISC) {
 		config_text_draft_t *text = Config_FindText(item->file_id);
 		snprintf(label, sizeof(label), "[%c] ", text && text->expanded ? '-' : '+');
-		UI_Print(value_x + indent, y + 2, label, active);
-		Config_DrawUTF8(value_x + indent + 4 * LETTERWIDTH, y + 2,
-			Config_Text("Остальные настройки...", "Other settings..."), active, 40);
+		Config_DrawUTF8Color(value_x + indent, y + 2, label, RGBA_TO_COLOR(205, 150, 82, 255), 4);
+		Config_DrawUTF8Color(value_x + indent + 4 * LETTERWIDTH, y + 2,
+			Config_Text("Остальные настройки...", "Other settings..."),
+			RGBA_TO_COLOR(205, 150, 82, 255), 40);
 	}
 	else {
 		int label_chars = max(12, (value_x - left - indent) / LETTERWIDTH - 3);

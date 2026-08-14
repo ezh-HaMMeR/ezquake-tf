@@ -32,5 +32,6 @@ qbool CTextArea_SetSources(textarea_control_t *control,
 void CTextArea_Draw(textarea_control_t *control, int x, int y, qbool active);
 qbool CTextArea_Key(textarea_control_t *control, int key, wchar unichar);
 const char *CTextArea_Text(const textarea_control_t *control, size_t *length);
+float CTextArea_CharacterWidth(const textarea_control_t *control);
 
 #endif
