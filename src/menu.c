@@ -371,8 +371,10 @@ int    m_main_cursor;
 static qbool	newmainmenu = false;
 menu_window_t m_main_window;
 static menu_window_t m_discord_window;
+static qbool m_discord_hovered;
 
 void M_Menu_Main_f (void) {
+	m_discord_hovered = false;
 	M_EnterMenu (m_main);
 }
 
@@ -478,8 +480,15 @@ void M_Main_Draw (void) {
 			&m_discord_window.x, &m_discord_window.y, discord_banner);
 		m_discord_window.w = discord_banner->width;
 		m_discord_window.h = discord_banner->height;
+		if (m_discord_hovered)
+			Draw_AlphaRectangleRGB(m_discord_window.x, m_discord_window.y,
+				m_discord_window.w, m_discord_window.h, 1, false,
+				RGBA_TO_COLOR(255, 112, 32, 255));
 	}
-	else memset(&m_discord_window, 0, sizeof(m_discord_window));
+	else {
+		memset(&m_discord_window, 0, sizeof(m_discord_window));
+		m_discord_hovered = false;
+	}
 }
 
 static void M_Main_Enter(const unsigned int entry)
@@ -541,8 +550,10 @@ static qbool M_Main_Mouse_Event(const mouse_state_t* ms)
 {
 	menu_window_t banner;
 	M_Window_Adjust(&m_discord_window, &banner);
-	if (banner.w > 0 && banner.h > 0 && ms->x >= banner.x && ms->y >= banner.y &&
-		ms->x <= banner.x + banner.w && ms->y <= banner.y + banner.h) {
+	m_discord_hovered = banner.w > 0 && banner.h > 0 &&
+		ms->x >= banner.x && ms->y >= banner.y &&
+		ms->x <= banner.x + banner.w && ms->y <= banner.y + banner.h;
+	if (m_discord_hovered) {
 		if (ms->button_up == 1) {
 			S_LocalSound("misc/menu2.wav");
 			if (SDL_OpenURL("https://discord.com/invite/p6ZV5nN") < 0)

@@ -186,9 +186,16 @@ static void FontLoadBitmap(int ch, FT_Face face, int base_font_width, int base_f
 static void FontClear(int grouping)
 {
 	charset_t* charset;
+	int first_glyph;
 
-	memset(glyphs, 0, sizeof(glyphs));
-	max_glyph_width = max_num_glyph_width = 0;
+	if (grouping < 0 || grouping >= MAX_CHARSETS) {
+		return;
+	}
+	first_glyph = grouping << 8;
+	memset(glyphs + first_glyph, 0, 256 * sizeof(*glyphs));
+	if (grouping == 0) {
+		max_glyph_width = max_num_glyph_width = 0;
+	}
 
 	charset = &proportional_fonts[grouping];
 	memset(charset, 0, sizeof(*charset));
@@ -201,6 +208,8 @@ static qbool FontCreate(int grouping, const char* userpath)
 	FT_Error error;
 	FT_Face face;
 	int ch;
+	int first_ch = grouping ? 0 : 18;
+	int last_ch = grouping ? 256 : 128;
 	byte* temp_buffer;
 	byte* full_buffer;
 	int original_width, original_height, original_left, original_top;
@@ -287,8 +296,10 @@ static qbool FontCreate(int grouping, const char* userpath)
 	base_font_height = texture_height / 16;
 	baseline_offset = 0;
 
-	memset(glyphs, 0, sizeof(glyphs));
-	max_glyph_width = max_num_glyph_width = 0;
+	memset(glyphs + (grouping << 8), 0, 256 * sizeof(*glyphs));
+	if (grouping == 0) {
+		max_glyph_width = max_num_glyph_width = 0;
+	}
 
 	ezFT_Set_Pixel_Sizes(
 		face,
@@ -297,24 +308,25 @@ static qbool FontCreate(int grouping, const char* userpath)
 	);
 
 	temp_buffer = full_buffer = Q_malloc(4 * base_font_width * base_font_height * 256);
-	for (ch = 18; ch < 128; ++ch, temp_buffer += 4 * base_font_width * base_font_height) {
+	for (ch = first_ch; ch < last_ch; ++ch, temp_buffer += 4 * base_font_width * base_font_height) {
 		FT_UInt glyph_index;
+		int glyph_ch = (grouping << 8) | ch;
 		int offset128 = 4 * base_font_width * base_font_height * 128;
 		int offsetCaps = 4 * base_font_width * base_font_height * ('a' - 'A');
 
-		if (ch >= 28 && ch < 32) {
+		if (!grouping && ch >= 28 && ch < 32) {
 			continue;
 		}
 
-		if (font_capitalize.integer && ch >= 'a' && ch <= 'z') {
+		if (!grouping && font_capitalize.integer && ch >= 'a' && ch <= 'z') {
 			continue;
 		}
 
-		if (ch < 32) {
+		if (!grouping && ch < 32) {
 			glyph_index = ezFT_Load_Char(face, '0' + (ch - 18), FT_LOAD_RENDER);
 		}
 		else {
-			glyph_index = ezFT_Load_Char(face, ch, FT_LOAD_RENDER);
+			glyph_index = ezFT_Load_Char(face, glyph_ch, FT_LOAD_RENDER);
 		}
 
 		if (glyph_index) {
@@ -326,7 +338,11 @@ static qbool FontCreate(int grouping, const char* userpath)
 			continue;
 		}
 
-		if (ch < 32) {
+		if (grouping) {
+			FontLoadBitmap(glyph_ch, face, base_font_width, base_font_height,
+				temp_buffer, &standard_gradient);
+		}
+		else if (ch < 32) {
 			FontLoadBitmap(ch, face, base_font_width, base_font_height, temp_buffer, &numbers_gradient);
 			FontLoadBitmap(ch + 128, face, base_font_width, base_font_height, temp_buffer + offset128, &numbers_gradient);
 		}
@@ -348,12 +364,13 @@ static qbool FontCreate(int grouping, const char* userpath)
 		int max_beneath = 0;
 		int beneath_baseline;
 
-		for (ch = 18; ch < 128; ++ch) {
-			if (!glyphs[ch].loaded) {
+		for (ch = first_ch; ch < last_ch; ++ch) {
+			int glyph_ch = (grouping << 8) | ch;
+			if (!glyphs[glyph_ch].loaded) {
 				continue;
 			}
 
-			beneath_baseline = glyphs[ch].sizes[1] - glyphs[ch].offsets[1];
+			beneath_baseline = glyphs[glyph_ch].sizes[1] - glyphs[glyph_ch].offsets[1];
 			max_beneath = max(max_beneath, beneath_baseline);
 		}
 
@@ -363,14 +380,15 @@ static qbool FontCreate(int grouping, const char* userpath)
 	// Update charset image
 	temp_buffer = full_buffer;
 	memset(charset->glyphs, 0, sizeof(charset->glyphs));
-	for (ch = 18; ch < 256; ++ch, temp_buffer += 4 * base_font_width * base_font_height) {
+	for (ch = first_ch; ch < 256; ++ch, temp_buffer += 4 * base_font_width * base_font_height) {
+		int glyph_ch = (grouping << 8) | ch;
 		int xbase = (ch % 16) * base_font_width;
 		int ybase = (ch / 16) * base_font_height;
-		int yoffset = max(0, baseline_offset - glyphs[ch].offsets[1]);
-		float width = max(base_font_width / 2, glyphs[ch].sizes[0]);
-		float height = max(base_font_height / 2, glyphs[ch].sizes[1]);
+		int yoffset = max(0, baseline_offset - glyphs[glyph_ch].offsets[1]);
+		float width = max(base_font_width / 2, glyphs[glyph_ch].sizes[0]);
+		float height = max(base_font_height / 2, glyphs[glyph_ch].sizes[1]);
 
-		if (!glyphs[ch].loaded) {
+		if (!glyphs[glyph_ch].loaded) {
 			continue;
 		}
 
@@ -379,8 +397,8 @@ static qbool FontCreate(int grouping, const char* userpath)
 			memset(temp_buffer, 0, yoffset * base_font_width * 4);
 		}
 
-		glyphs[ch].offsets[0] /= (base_font_width / 2);
-		glyphs[ch].offsets[1] /= (base_font_height / 2);
+		glyphs[glyph_ch].offsets[0] /= (base_font_width / 2);
+		glyphs[glyph_ch].offsets[1] /= (base_font_height / 2);
 
 		charset->glyphs[ch].width = width;
 		charset->glyphs[ch].height = height;
@@ -415,10 +433,11 @@ static void OnChange_font_facepath(cvar_t* cvar, char* newvalue, qbool* cancel)
 {
 	if (newvalue && !newvalue[0]) {
 		FontClear(0);
+		FontClear(4);
 		*cancel = false;
 	}
 	else {
-		*cancel = !FontCreate(0, Cmd_Argv(1));
+		*cancel = !FontCreate(0, Cmd_Argv(1)) || !FontCreate(4, Cmd_Argv(1));
 	}
 }
 
@@ -587,9 +606,11 @@ void Draw_InitFont(void)
 #ifdef EZ_FREETYPE_SUPPORT
 	if (!font_facepath.string[0]) {
 		FontClear(0);
+		FontClear(4);
 	}
 	else {
 		FontCreate(0, font_facepath.string);
+		FontCreate(4, font_facepath.string);
 	}
 #endif
 }
