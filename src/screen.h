@@ -150,6 +150,7 @@ typedef struct ti_player_s {
 	int			rockets;
 	int 		cells;
 	qbool		has_tf_status;
+	qbool		has_tf_grenade_status;
 	int			active_weapon;
 	int			active_ammo;
 	int			medikit_ammo;

@@ -27,6 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // Get rid of these once we remove matrix scaling from cl_screen.c version...
 #include "gl_model.h"
 #include "fonts.h"
+#include "tf_grenade_status.h"
 
 #define FONT_WIDTH 8
 
@@ -222,7 +223,7 @@ static void SCR_UpdateTeamInfoGrenadeLayout(const ti_player_t* ti_cl, teaminfo_g
 	const char* gren2 = SCR_TeamInfoGrenadeCode(ti_cl->gren2_code);
 	char part[64];
 
-	if (!ti_cl->has_tf_status) {
+	if (!ti_cl->has_tf_grenade_status) {
 		return;
 	}
 
@@ -895,7 +896,7 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 							width = SCR_TeamInfoBlockWidth(block, content_width, font_width);
 							{
 								float grenade_x = SCR_TeamInfoAlignedX(x, width, content_width, block);
-							if (!width_only && ti_cl->has_tf_status) {
+							if (!width_only && ti_cl->has_tf_grenade_status) {
 								int icon = gren1 ? SCR_TeamInfoGrenadeIconIndex(ti_cl->gren1_type) : 0;
 								if (icon && sb_grens[icon]) {
 									Draw_SAlphaPic(grenade_x, y, sb_grens[icon], alpha, grenades->icon_scale * scale * block_scale);
@@ -1192,6 +1193,38 @@ static int Filter_FlagsAndRunes(int client, int stats)
 	return (ti_clients[client].items & FLAGS_RUNES_MASK) | (stats & ~FLAGS_RUNES_MASK);
 }
 
+static void SCR_ClearTeamInfoGrenadeStatus(ti_player_t *player)
+{
+	player->has_tf_grenade_status = false;
+	player->gren1_type = 0;
+	player->gren1_count = 0;
+	player->gren2_type = 0;
+	player->gren2_count = 0;
+	player->gren1_code[0] = 0;
+	player->gren2_code[0] = 0;
+}
+
+static void SCR_UpdateTeamInfoMVDGrenadeStatus(ti_player_t *player, const int *stats)
+{
+	tf_grenade_status_t status;
+
+	TF_ResolveMVDGrenadeStatus(stats[STAT_TPGREN1], stats[STAT_NUMGREN1],
+		stats[STAT_TPGREN2], stats[STAT_NUMGREN2], &status);
+	SCR_ClearTeamInfoGrenadeStatus(player);
+
+	if (!status.available) {
+		return;
+	}
+
+	player->has_tf_grenade_status = true;
+	player->gren1_type = status.gren1_type;
+	player->gren1_count = status.gren1_count;
+	player->gren2_type = status.gren2_type;
+	player->gren2_count = status.gren2_count;
+	strlcpy(player->gren1_code, status.gren1_code, sizeof(player->gren1_code));
+	strlcpy(player->gren2_code, status.gren2_code, sizeof(player->gren2_code));
+}
+
 void Parse_TeamInfo(char *s)
 {
 	int		client;
@@ -1223,6 +1256,7 @@ void Parse_TeamInfo(char *s)
 
 	if (Cmd_Argc() >= 25) {
 		ti_clients[client].has_tf_status = true;
+		ti_clients[client].has_tf_grenade_status = true;
 		ti_clients[client].active_weapon = atoi(Cmd_Argv(13));
 		strlcpy(ti_clients[client].active_weapon_code, Cmd_Argv(14), sizeof(ti_clients[client].active_weapon_code));
 		strlcpy(ti_clients[client].active_ammo_code, Cmd_Argv(15), sizeof(ti_clients[client].active_ammo_code));
@@ -1238,10 +1272,13 @@ void Parse_TeamInfo(char *s)
 	}
 	else {
 		ti_clients[client].has_tf_status = false;
+		ti_clients[client].active_weapon = 0;
+		ti_clients[client].active_ammo = 0;
+		ti_clients[client].medikit_ammo = 0;
+		ti_clients[client].detpack_ammo = 0;
 		ti_clients[client].active_weapon_code[0] = 0;
 		ti_clients[client].active_ammo_code[0] = 0;
-		ti_clients[client].gren1_code[0] = 0;
-		ti_clients[client].gren2_code[0] = 0;
+		SCR_ClearTeamInfoGrenadeStatus(&ti_clients[client]);
 	}
 }
 
@@ -1259,6 +1296,7 @@ void Parse_CAInfo(char *s)
 
 	if (!cls.mvdplayback) {
 		ti_clients[client].has_tf_status = false;
+		SCR_ClearTeamInfoGrenadeStatus(&ti_clients[client]);
 		ti_clients[client].client = client; // no, its not stupid
 		ti_clients[client].time = r_refdef2.time;
 		ti_clients[client].org[0] = atoi(Cmd_Argv(2));
@@ -1315,6 +1353,9 @@ static void Update_TeamInfo(void)
 	lastupdate = cls.realtime;
 
 	for (i = 0; i < MAX_CLIENTS; i++) {
+		// Player slots and old MVDs must not retain grenade data from an earlier update.
+		SCR_ClearTeamInfoGrenadeStatus(&ti_clients[i]);
+
 		if (cl.players[i].spectator || !cl.players[i].name[0])
 			continue;
 
@@ -1334,6 +1375,7 @@ static void Update_TeamInfo(void)
 		ti_clients[i].rockets = bound(0, st[STAT_ROCKETS], 999);
 		ti_clients[i].cells = bound(0, st[STAT_CELLS], 999);
 		ti_clients[i].has_tf_status = false;
+		SCR_UpdateTeamInfoMVDGrenadeStatus(&ti_clients[i], st);
 		ti_clients[i].nick[0] = 0; // sad, we don't have nick, will use name
 	}
 }

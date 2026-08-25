@@ -542,6 +542,8 @@ set(common_hud
         ${SOURCE_DIR}/hud_scores.c
         ${SOURCE_DIR}/hud_speed.c
         ${SOURCE_DIR}/hud_teaminfo.c
+        ${SOURCE_DIR}/tf_grenade_status.c
+        ${SOURCE_DIR}/tf_grenade_status.h
         ${SOURCE_DIR}/hud_tracking.c
         ${SOURCE_DIR}/hud_weapon_stats.c
         ${SOURCE_DIR}/hud_tf.c
@@ -757,6 +759,14 @@ if(BUILD_CFG_EDITOR_TESTS)
     target_include_directories(cfg_editor_tests PRIVATE ${SOURCE_DIR})
     target_link_libraries(cfg_editor_tests PRIVATE Dep::Jansson)
     add_test(NAME cfg_editor_parser_synthetic COMMAND cfg_editor_tests)
+
+    add_executable(tf_grenade_status_tests EXCLUDE_FROM_ALL
+            ${PROJECT_SOURCE_DIR}/tests/tf_grenade_status_tests.c
+            ${SOURCE_DIR}/tf_grenade_status.c
+            ${SOURCE_DIR}/tf_grenade_status.h
+    )
+    target_include_directories(tf_grenade_status_tests PRIVATE ${SOURCE_DIR})
+    add_test(NAME tf_grenade_status_fill_and_reset COMMAND tf_grenade_status_tests)
 endif()
 
 set(sys_headers ${SOURCE_DIR}/localtime.h)
