@@ -19,6 +19,20 @@ int TF_ScoreboardShouldShowClass(int viewer_is_spectator, int viewer_team,
 		&& viewer_team > 0 && target_team == viewer_team;
 }
 
+int TF_ClockDisplaySeconds(int elapsed_seconds, int timelimit_minutes, int countdown)
+{
+	long long limit_seconds;
+
+	if (elapsed_seconds < 0)
+		elapsed_seconds = 0;
+	limit_seconds = (long long)timelimit_minutes * 60;
+	if (!countdown || limit_seconds <= 0)
+		return elapsed_seconds;
+	if (elapsed_seconds >= limit_seconds)
+		return 0;
+	return (int)(limit_seconds - elapsed_seconds);
+}
+
 void TF_ScoreboardFormatClass(char *buffer, size_t buffer_size, int playerclass)
 {
 	const char *class_name = TF_ScoreboardClassName(playerclass);

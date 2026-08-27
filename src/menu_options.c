@@ -1206,7 +1206,7 @@ setting settbinds_arr[] = {
 	ADDSET_BIND	("Teamchat", "messagemode2"),
 
 	ADDSET_SEPARATOR("Miscellaneous"),
-	ADDSET_BIND("Show Scores", "+showscores"),
+	ADDSET_BIND("Show Team Scores", "+showteamscores"),
 	ADDSET_BIND("Screenshot", "screenshot"),
 	ADDSET_ADVANCED_SECTION(),
 	ADDSET_BIND("Pause", "pause"),

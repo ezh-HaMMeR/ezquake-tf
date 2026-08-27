@@ -639,7 +639,7 @@ void ResetBinds(void)
 	Key_SetBinding('0',		 "impulse 10");
 
 	Key_SetBinding(K_ALT,    "+zoom");
-	Key_SetBinding(K_TAB,    "+showscores");
+	Key_SetBinding(K_TAB,    "+showteamscores");
 
 	Key_SetBinding('r',      "tp_msgreport");
 	Key_SetBinding('z',      "tp_msgtook");

@@ -25,6 +25,7 @@ $Id: cl_screen.c,v 1.156 2007-10-29 00:56:47 qqshka Exp $
 #include "hud.h"
 #include "cfg_editor_dictionary.h"
 #include "textencoding.h"
+#include "tf_vote.h"
 
 #define MYBINDS_MAX_ROWS 128
 #define MYBINDS_KEY_SIZE 64
@@ -40,6 +41,7 @@ static cvar_t scr_centertime  = { "scr_centertime",  "2" };
 static cvar_t scr_centershift = { "scr_centershift", "0" };
 static cvar_t scr_centerspeed = { "scr_centerspeed", "8" };
 static cvar_t showmybinds = { "showmybinds", "0" };
+static cvar_t newvote_f = { "newvote_f", "0" };
 
 static cfg_editor_dictionary_t mybinds_dictionary;
 static qbool mybinds_dictionary_attempted;
@@ -54,6 +56,7 @@ static float scr_centertime_off;
 static int   scr_center_lines;
 static int   scr_erase_lines;
 static int   scr_erase_center;
+static qbool scr_tf_vote_panel_active;
 
 static const char *SCR_MyBindsClassScope(void)
 {
@@ -214,6 +217,7 @@ void SCR_CenterPrint_Clear(void)
 {
 	// Make sure no centerprint messages are left from previous level.
 	scr_centertime_off = 0;
+	scr_tf_vote_panel_active = false;
 	memset(scr_centerstring_lines, 0, sizeof(scr_centerstring_lines));
 }
 
@@ -225,6 +229,7 @@ void SCR_CenterPrint_Init(void)
 		Cvar_Register(&scr_centershift);
 		Cvar_Register(&scr_centerspeed);
 		Cvar_Register(&showmybinds);
+		Cvar_Register(&newvote_f);
 		Cvar_ResetCurrentGroup();
 
 		Cmd_AddLegacyCommand("scr_printspeed", "scr_centerspeed");
@@ -236,9 +241,13 @@ void SCR_CenterPrint_Init(void)
 // Called for important messages that should stay in the center of the screen for a few moments
 void SCR_CenterPrint(const char *str)
 {
+	char vote_text[2048];
+
 	scr_centertime_off = scr_centertime.value;
 	scr_centertime_start = cl.time;
 	memset(scr_centerstring_lines, 0, sizeof(scr_centerstring_lines));
+	scr_tf_vote_panel_active = TF_VoteTransformCenterPrint(str, vote_text, sizeof(vote_text), newvote_f.integer);
+	str = vote_text;
 
 	// count the number of lines for centering
 	scr_center_lines = 0;
@@ -259,6 +268,11 @@ void SCR_CenterPrint(const char *str)
 			str = endl + 1;
 		}
 	}
+}
+
+qbool SCR_TFVoteFunctionKeysActive(void)
+{
+	return newvote_f.integer && scr_tf_vote_panel_active && scr_centertime_off > 0;
 }
 
 static void SCR_DrawCenterString(float x, float y, float scale, qbool proportional, float speed)

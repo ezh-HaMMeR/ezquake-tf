@@ -1249,7 +1249,7 @@ void Sbar_SoloScoreboard (void)
 #define	RANK_WIDTH_TEAMSTATS	(4 * 8)
 #define	RANK_WIDTH_TCHSTATS		(5 * 8)
 #define	RANK_WIDTH_CAPSTATS		(5 * 8)
-#define RANK_WIDTH_TFCLASS		(8 * 8)
+#define RANK_WIDTH_TFCLASS		(7 * 8 + 4)
 #define RANK_WIDTH_TFSENTRY		(6 * 8)
 
 #define RANK_WIDTH_DM				(-8 + 168 + (MAX_SCOREBOARDNAME * 8))
@@ -1269,7 +1269,7 @@ static qbool Sbar_ShowTeamKills(void)
 	}
 }
 
-static void Sbar_DeathmatchOverlay(int start)
+static void Sbar_DeathmatchOverlay(int start, qbool tf_team_scoreboard)
 {
 	int playerstats[7];
 	int scoreboardsize, colors_thickness, statswidth, stats_xoffset = 0;
@@ -1285,7 +1285,7 @@ static void Sbar_DeathmatchOverlay(int start)
 	float ca_alpha;	// alpha value for scoreboard elements during clan arena / wipeout
 	qbool proportional = scr_scoreboard_proportional.integer;
 	qbool any_flags = false;
-	qbool tf_team_scoreboard = cl.teamfortress && sb_showteamscores;
+	extern cvar_t tf_countdown;
 	extern ti_player_t ti_clients[MAX_CLIENTS];
 
 	if (!start && hud_faderankings.value) {
@@ -1383,7 +1383,7 @@ static void Sbar_DeathmatchOverlay(int start)
 	x += FONT_WIDTH;
 	if (tf_team_scoreboard) {
 		Draw_SStringAligned(x, y - 8, "class", scale, alpha, proportional,
-			text_align_center, x + FONT_WIDTH * 7);
+			text_align_left, x + RANK_WIDTH_TFCLASS);
 		x += RANK_WIDTH_TFCLASS;
 	}
 	Draw_SStringAligned(x, y - 8, "ping", scale, alpha, proportional, text_align_right, x + FONT_WIDTH * 4);
@@ -1509,7 +1509,7 @@ static void Sbar_DeathmatchOverlay(int start)
 				class_text[0] = 0;
 			}
 			Draw_SStringAligned(x, y, class_text, scale, alpha * ca_alpha, proportional,
-				text_align_center, x + FONT_WIDTH * 7);
+				text_align_left, x + RANK_WIDTH_TFCLASS);
 			x += RANK_WIDTH_TFCLASS;
 		}
 
@@ -1728,7 +1728,8 @@ static void Sbar_DeathmatchOverlay(int start)
 		int maxplayers = cl.sv_maxclients > 0 ? cl.sv_maxclients : Q_atoi(Info_ValueForKey(cl.serverinfo, "maxclients"));
 
 		TF_ScoreboardFormatFooter(footer, sizeof(footer), host_mapname.string,
-			TP_CountPlayers(), maxplayers, cl.tftime);
+			TP_CountPlayers(), maxplayers,
+			TF_ClockDisplaySeconds(cl.tftime, cl.timelimit, tf_countdown.integer));
 		Draw_Fill(xofs, y + 3, rank_width, 1, 0);
 		Draw_SStringAligned(xofs, y + 7, footer, scale, alpha, proportional,
 			text_align_center, xofs + rank_width);
@@ -1755,7 +1756,7 @@ static void Sbar_TeamOverlay(void)
 #endif
 
 	if (!cl.teamplay) {
-		Sbar_DeathmatchOverlay(0);
+		Sbar_DeathmatchOverlay(0, false);
 		return;
 	}
 
@@ -1872,7 +1873,7 @@ static void Sbar_TeamOverlay(void)
 	}
 
 	y += 14;
-	Sbar_DeathmatchOverlay(y);
+	Sbar_DeathmatchOverlay(y, cl.teamfortress);
 }
 
 
@@ -2045,7 +2046,7 @@ void Sbar_IntermissionOverlay (void) {
 		if (cl.teamplay && !sb_showscores)
 			Sbar_TeamOverlay ();
 		else
-			Sbar_DeathmatchOverlay (0);
+			Sbar_DeathmatchOverlay (0, false);
 		return;
 	}
 
@@ -2178,9 +2179,9 @@ void Sbar_Draw(void) {
 		if (cl.teamplay && !sb_showscores)
 			Sbar_TeamOverlay();
 		else
-			Sbar_DeathmatchOverlay (0);
+			Sbar_DeathmatchOverlay (0, false);
 	} else if (sb_showscores) {
-		Sbar_DeathmatchOverlay (0);
+		Sbar_DeathmatchOverlay (0, false);
 	} else if (sb_showteamscores) {
 		Sbar_TeamOverlay();
 	}

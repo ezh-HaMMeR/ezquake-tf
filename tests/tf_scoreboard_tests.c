@@ -24,6 +24,10 @@ int main(void)
 	CHECK(!TF_ScoreboardShouldShowClass(1, 2, 0, 2), "spectator cannot see classes");
 	CHECK(!TF_ScoreboardShouldShowClass(0, 0, 0, 0), "unassigned player cannot see classes");
 	CHECK(!TF_ScoreboardShouldShowClass(0, 2, 1, 2), "spectator row has no class");
+	CHECK(TF_ClockDisplaySeconds(125, 10, 0) == 125, "normal TF clock counts up");
+	CHECK(TF_ClockDisplaySeconds(125, 10, 1) == 475, "countdown TF clock uses timelimit");
+	CHECK(TF_ClockDisplaySeconds(700, 10, 1) == 0, "countdown TF clock stops at zero");
+	CHECK(TF_ClockDisplaySeconds(125, 0, 1) == 125, "countdown without timelimit falls back to elapsed time");
 
 	TF_ScoreboardFormatClass(text, sizeof(text), 6);
 	CHECK((unsigned char)text[0] == 0x10 && !strncmp(text + 1, "HWGuy", 5)

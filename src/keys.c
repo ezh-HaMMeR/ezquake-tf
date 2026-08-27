@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <wchar.h>
 #include "quakedef.h"
+#include "tf_vote.h"
 #include "textencoding.h"
 #include "menu.h"
 #include "keys.h"
@@ -2258,6 +2259,7 @@ static void Key_ReleaseModifierCombos(key_combo_modifier_t modifier)
 // Called by the system between frames for both key up and key down events Should NOT be called during an interrupt!
 void Key_EventEx (int key, wchar unichar, qbool down)
 {
+	static qbool tf_vote_function_key_consumed[3];
 	char *kb, cmd[1024];
 	int binding_key;
 
@@ -2304,6 +2306,25 @@ void Key_EventEx (int key, wchar unichar, qbool down)
 			{
 				return;	// ignore most autorepeats
 			}
+		}
+	}
+
+	if (key >= K_F1 && key <= K_F3) {
+		int vote_key = key - K_F1;
+
+		if (!down && tf_vote_function_key_consumed[vote_key]) {
+			tf_vote_function_key_consumed[vote_key] = false;
+			return;
+		}
+		if (down && key_dest == key_game && cls.state == ca_active && !cls.demoplayback
+			&& SCR_TFVoteFunctionKeysActive()) {
+			const char *command = TF_VoteCommandForFunctionKey(vote_key + 1);
+
+			if (!command)
+				return;
+			Cbuf_AddText(command);
+			tf_vote_function_key_consumed[vote_key] = true;
+			return;
 		}
 	}
 

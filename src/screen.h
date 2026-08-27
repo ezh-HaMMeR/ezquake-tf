@@ -52,6 +52,7 @@ void SCR_CenterPrint_Clear(void);
 void SCR_CenterPrint_Init(void);
 void SCR_CenterString_Draw(void);
 void SCR_MyBinds_Draw(void);
+qbool SCR_TFVoteFunctionKeysActive(void);
 
 extern	float		scr_con_current;
 extern	float		scr_conlines;		// lines of console to display

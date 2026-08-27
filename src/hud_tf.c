@@ -21,6 +21,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "hud.h"
 #include "hud_common.h"
 #include "vx_stuff.h"
+#include "tf_scoreboard.h"
+
+cvar_t tf_countdown = { "countdown", "0" };
 
 #define TFSTATE_INFECTED                1<<4
 #define TFSTATE_BURNING                 1<<9
@@ -466,6 +469,7 @@ static void SCR_HUD_DrawTfClock(hud_t* hud)
 {
 	int width, height;
 	int x, y;
+	int display_time;
 	int tens_minutes, minutes, tens_seconds, seconds;
 	char t[80] = {0};
 
@@ -485,10 +489,11 @@ static void SCR_HUD_DrawTfClock(hud_t* hud)
 		hud_tfclock_proportional = HUD_FindVar(hud, "proportional");
 	}
 
-	tens_minutes = fmod(cl.tftime / 600, 6);
-	minutes = fmod(cl.tftime / 60, 10);
-	tens_seconds = fmod(cl.tftime / 10, 6);
-	seconds = fmod(cl.tftime, 10);
+	display_time = TF_ClockDisplaySeconds(cl.tftime, cl.timelimit, tf_countdown.integer);
+	tens_minutes = fmod(display_time / 600, 6);
+	minutes = fmod(display_time / 60, 10);
+	tens_seconds = fmod(display_time / 10, 6);
+	seconds = fmod(display_time, 10);
 	snprintf(t, sizeof(t), "%i%i:%i%i", tens_minutes, minutes, tens_seconds, seconds);
 	width = SCR_GetClockStringWidth(t, hud_tfclock_big->integer, hud_tfclock_scale->value, hud_tfclock_proportional->integer);
 	height = SCR_GetClockStringHeight(hud_tfclock_big->integer, hud_tfclock_scale->value);
@@ -685,6 +690,10 @@ static void SCR_HUD_DrawTFEffHealth(hud_t* hud)
 
 void TF_HudInit(void)
 {
+	Cvar_SetCurrentGroup(CVAR_GROUP_SCREEN);
+	Cvar_Register(&tf_countdown);
+	Cvar_ResetCurrentGroup();
+
 	HUD_Register(
 		"blueflaginfodata", NULL, "Blue's flag's info data",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawBlueFlaginfoData,
