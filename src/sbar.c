@@ -1275,6 +1275,7 @@ static void Sbar_DeathmatchOverlay(int start)
 	int scoreboardsize, colors_thickness, statswidth, stats_xoffset = 0;
 	int i, k, x, y, xofs, p, skip = 10;
 	int rank_width, leftover, startx, tempx, mynum;
+	int tf_viewer_team = 0;
 	char num[12], class_text[16];
 	player_info_t *s;
 	ti_player_t *ti_cl;
@@ -1312,6 +1313,9 @@ static void Sbar_DeathmatchOverlay(int start)
 	scr_fullupdate = 0;
 
 	mynum = Sbar_PlayerNum();
+	if (tf_team_scoreboard && !cl.spectator && cl.playernum >= 0 && cl.playernum < MAX_CLIENTS) {
+		tf_viewer_team = cl.players[cl.playernum].team_no;
+	}
 
 	rank_width = (cl.teamplay ? RANK_WIDTH_TEAM : RANK_WIDTH_DM);
 	if (tf_team_scoreboard) {
@@ -1498,7 +1502,12 @@ static void Sbar_DeathmatchOverlay(int start)
 		}
 
 		if (tf_team_scoreboard) {
-			TF_ScoreboardFormatClass(class_text, sizeof(class_text), s->playerclass);
+			if (TF_ScoreboardShouldShowClass(cl.spectator, tf_viewer_team, s->spectator, s->team_no)) {
+				TF_ScoreboardFormatClass(class_text, sizeof(class_text), s->playerclass);
+			}
+			else {
+				class_text[0] = 0;
+			}
 			Draw_SStringAligned(x, y, class_text, scale, alpha * ca_alpha, proportional,
 				text_align_center, x + FONT_WIDTH * 7);
 			x += RANK_WIDTH_TFCLASS;

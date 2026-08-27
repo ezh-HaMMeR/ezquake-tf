@@ -12,6 +12,13 @@ const char *TF_ScoreboardClassName(int playerclass)
 	return playerclass >= 1 && playerclass <= 9 ? names[playerclass] : "";
 }
 
+int TF_ScoreboardShouldShowClass(int viewer_is_spectator, int viewer_team,
+	int target_is_spectator, int target_team)
+{
+	return !viewer_is_spectator && !target_is_spectator
+		&& viewer_team > 0 && target_team == viewer_team;
+}
+
 void TF_ScoreboardFormatClass(char *buffer, size_t buffer_size, int playerclass)
 {
 	const char *class_name = TF_ScoreboardClassName(playerclass);

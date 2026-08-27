@@ -19,6 +19,11 @@ int main(void)
 	for (i = 1; i <= 9; ++i)
 		CHECK(!strcmp(TF_ScoreboardClassName(i), expected[i]), "TF class abbreviation");
 	CHECK(!TF_ScoreboardClassName(0)[0] && !TF_ScoreboardClassName(10)[0], "unknown class is blank");
+	CHECK(TF_ScoreboardShouldShowClass(0, 2, 0, 2), "teammate class is visible");
+	CHECK(!TF_ScoreboardShouldShowClass(0, 2, 0, 1), "enemy class is hidden");
+	CHECK(!TF_ScoreboardShouldShowClass(1, 2, 0, 2), "spectator cannot see classes");
+	CHECK(!TF_ScoreboardShouldShowClass(0, 0, 0, 0), "unassigned player cannot see classes");
+	CHECK(!TF_ScoreboardShouldShowClass(0, 2, 1, 2), "spectator row has no class");
 
 	TF_ScoreboardFormatClass(text, sizeof(text), 6);
 	CHECK((unsigned char)text[0] == 0x10 && !strncmp(text + 1, "HWGuy", 5)
