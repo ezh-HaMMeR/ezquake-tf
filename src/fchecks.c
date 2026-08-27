@@ -52,7 +52,7 @@ extern cvar_t cl_iDrive;
 
 static void FChecks_VersionResponse (void)
 {
-	Cbuf_AddText (va("say ezQuake %s " QW_PLATFORM ":" QW_RENDERER "\n", VersionString()));
+	Cbuf_AddText (va("say ezquake-tf %s\n", EZQUAKE_TF_RELEASE_VERSION));
 }
 
 static char *FChecks_FServerResponse_Text(void)

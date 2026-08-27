@@ -687,6 +687,12 @@ qbool Sys_LaunchBatchFileHidden(const char *working_directory, const char *filen
 	return false;
 }
 
+qbool Sys_IsUdpPortInUse(unsigned short port)
+{
+	(void)port;
+	return false;
+}
+
 DL_t Sys_DLOpen(const char *path)
 {
 	DL_t ret = dlopen(path,

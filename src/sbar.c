@@ -34,6 +34,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "utils.h"
 #include "sbar.h"
 #include "keys.h"
+#include "tf_scoreboard.h"
 
 #include "qsound.h"
 
@@ -1248,6 +1249,8 @@ void Sbar_SoloScoreboard (void)
 #define	RANK_WIDTH_TEAMSTATS	(4 * 8)
 #define	RANK_WIDTH_TCHSTATS		(5 * 8)
 #define	RANK_WIDTH_CAPSTATS		(5 * 8)
+#define RANK_WIDTH_TFCLASS		(8 * 8)
+#define RANK_WIDTH_TFSENTRY		(6 * 8)
 
 #define RANK_WIDTH_DM				(-8 + 168 + (MAX_SCOREBOARDNAME * 8))
 #define RANK_WIDTH_TEAM				(-8 + 208 + (MAX_SCOREBOARDNAME * 8))
@@ -1272,7 +1275,7 @@ static void Sbar_DeathmatchOverlay(int start)
 	int scoreboardsize, colors_thickness, statswidth, stats_xoffset = 0;
 	int i, k, x, y, xofs, p, skip = 10;
 	int rank_width, leftover, startx, tempx, mynum;
-	char num[12];
+	char num[12], class_text[16];
 	player_info_t *s;
 	ti_player_t *ti_cl;
 	mpic_t *pic;
@@ -1281,6 +1284,7 @@ static void Sbar_DeathmatchOverlay(int start)
 	float ca_alpha;	// alpha value for scoreboard elements during clan arena / wipeout
 	qbool proportional = scr_scoreboard_proportional.integer;
 	qbool any_flags = false;
+	qbool tf_team_scoreboard = cl.teamfortress && sb_showteamscores;
 	extern ti_player_t ti_clients[MAX_CLIENTS];
 
 	if (!start && hud_faderankings.value) {
@@ -1310,9 +1314,15 @@ static void Sbar_DeathmatchOverlay(int start)
 	mynum = Sbar_PlayerNum();
 
 	rank_width = (cl.teamplay ? RANK_WIDTH_TEAM : RANK_WIDTH_DM);
+	if (tf_team_scoreboard) {
+		rank_width += RANK_WIDTH_TFCLASS;
+	}
 
 	statswidth = 0;
 	statswidth += RANK_WIDTH_TEAMSTATS + RANK_WIDTH_TCHSTATS + RANK_WIDTH_CAPSTATS;
+	if (tf_team_scoreboard) {
+		statswidth += RANK_WIDTH_TFSENTRY;
+	}
 
 	rank_width += statswidth;
 
@@ -1367,6 +1377,11 @@ static void Sbar_DeathmatchOverlay(int start)
 
 	x = xofs + 1;
 	x += FONT_WIDTH;
+	if (tf_team_scoreboard) {
+		Draw_SStringAligned(x, y - 8, "class", scale, alpha, proportional,
+			text_align_center, x + FONT_WIDTH * 7);
+		x += RANK_WIDTH_TFCLASS;
+	}
 	Draw_SStringAligned(x, y - 8, "ping", scale, alpha, proportional, text_align_right, x + FONT_WIDTH * 4);
 	x += 5 * FONT_WIDTH;
 	
@@ -1398,6 +1413,11 @@ static void Sbar_DeathmatchOverlay(int start)
 
 		Draw_SStringAligned(x, y - 8, "dmg", scale, alpha, proportional, text_align_right, x + FONT_WIDTH * 4);
 		x += FONT_WIDTH * 6;
+
+		if (tf_team_scoreboard) {
+			Draw_SStringAligned(x, y - 8, "sg", scale, alpha, proportional, text_align_right, x + FONT_WIDTH * 5);
+			x += RANK_WIDTH_TFSENTRY;
+		}
 	}
 
 	x = xofs + 1;
@@ -1475,6 +1495,13 @@ static void Sbar_DeathmatchOverlay(int start)
 		if (!scr_scoreboard_borderless.value) {
 			Draw_Fill(xofs - 1, y, 1, skip, 0);					//Border - Left
 			Draw_Fill(xofs - 1 + rank_width + 1, y, 1, skip, 0);	//Border - Right
+		}
+
+		if (tf_team_scoreboard) {
+			TF_ScoreboardFormatClass(class_text, sizeof(class_text), s->playerclass);
+			Draw_SStringAligned(x, y, class_text, scale, alpha * ca_alpha, proportional,
+				text_align_center, x + FONT_WIDTH * 7);
+			x += RANK_WIDTH_TFCLASS;
 		}
 
 		// draw ping
@@ -1669,6 +1696,14 @@ static void Sbar_DeathmatchOverlay(int start)
 			snprintf(num, sizeof(num), "%5i", p);
 			Draw_SStringAligned(x, y, num, scale, ca_alpha, proportional, text_align_right, x + 5 * FONT_WIDTH);
 			x += 6 * FONT_WIDTH; // move it forward, ready to print next column
+
+			if (tf_team_scoreboard) {
+				p = bound(0, s->sentry_damage, 99999);
+				snprintf(num, sizeof(num), "%5i", p);
+				Draw_SStringAligned(x, y, num, scale, ca_alpha, proportional,
+					text_align_right, x + 5 * FONT_WIDTH);
+				x += RANK_WIDTH_TFSENTRY;
+			}
 		}
 
 		y += skip;
@@ -1677,6 +1712,17 @@ static void Sbar_DeathmatchOverlay(int start)
 
 	if (!scr_scoreboard_borderless.value) {
 		Draw_Fill(xofs - 1, y - 1, rank_width + 2, 1, 0); //Border - Bottom
+	}
+
+	if (tf_team_scoreboard && y + 18 <= vid.height) {
+		char footer[160];
+		int maxplayers = cl.sv_maxclients > 0 ? cl.sv_maxclients : Q_atoi(Info_ValueForKey(cl.serverinfo, "maxclients"));
+
+		TF_ScoreboardFormatFooter(footer, sizeof(footer), host_mapname.string,
+			TP_CountPlayers(), maxplayers, cl.tftime);
+		Draw_Fill(xofs, y + 3, rank_width, 1, 0);
+		Draw_SStringAligned(xofs, y + 7, footer, scale, alpha, proportional,
+			text_align_center, xofs + rank_width);
 	}
 }
 

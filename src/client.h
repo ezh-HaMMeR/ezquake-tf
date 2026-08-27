@@ -207,8 +207,9 @@ typedef struct player_info_s
 			int touches;
 			int caps;
 			int damage;
+			int sentry_damage;
 		} __attribute__((aligned(32)));
-		int tfinfo[5];
+		int tfinfo[6];
 	};
 } __attribute__((aligned(64))) player_info_t;
 

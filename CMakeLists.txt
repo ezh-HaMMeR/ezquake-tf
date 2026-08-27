@@ -544,6 +544,8 @@ set(common_hud
         ${SOURCE_DIR}/hud_teaminfo.c
         ${SOURCE_DIR}/tf_grenade_status.c
         ${SOURCE_DIR}/tf_grenade_status.h
+        ${SOURCE_DIR}/tf_scoreboard.c
+        ${SOURCE_DIR}/tf_scoreboard.h
         ${SOURCE_DIR}/hud_tracking.c
         ${SOURCE_DIR}/hud_weapon_stats.c
         ${SOURCE_DIR}/hud_tf.c
@@ -767,6 +769,14 @@ if(BUILD_CFG_EDITOR_TESTS)
     )
     target_include_directories(tf_grenade_status_tests PRIVATE ${SOURCE_DIR})
     add_test(NAME tf_grenade_status_fill_and_reset COMMAND tf_grenade_status_tests)
+
+    add_executable(tf_scoreboard_tests EXCLUDE_FROM_ALL
+            ${PROJECT_SOURCE_DIR}/tests/tf_scoreboard_tests.c
+            ${SOURCE_DIR}/tf_scoreboard.c
+            ${SOURCE_DIR}/tf_scoreboard.h
+    )
+    target_include_directories(tf_scoreboard_tests PRIVATE ${SOURCE_DIR})
+    add_test(NAME tf_scoreboard_class_and_footer COMMAND tf_scoreboard_tests)
 endif()
 
 set(sys_headers ${SOURCE_DIR}/localtime.h)

@@ -381,10 +381,13 @@ void M_ToggleProxyMenu_f (void) {
 int    m_main_cursor;
 static qbool	newmainmenu = false;
 menu_window_t m_main_window;
+static menu_window_t m_qwtf_window;
 static menu_window_t m_discord_window;
+static qbool m_qwtf_hovered;
 static qbool m_discord_hovered;
 
 void M_Menu_Main_f (void) {
+	m_qwtf_hovered = false;
 	m_discord_hovered = false;
 	M_EnterMenu (m_main);
 }
@@ -410,7 +413,7 @@ typedef struct bigmenu_items_s {
 
 static void M_Main_StartLocalServer(void)
 {
-	if (!Sys_LaunchBatchFileHidden(com_basedir, "localserver.bat")) {
+	if (!Sys_IsUdpPortInUse(PORT_SERVER) && !Sys_LaunchBatchFileHidden(com_basedir, "localserver.bat")) {
 		Com_Printf_State(PRINT_FAIL, "Unable to launch %s/localserver.bat\n", com_basedir);
 		S_LocalSound("misc/menu3.wav");
 		return;
@@ -470,9 +473,16 @@ void M_Main_Draw (void) {
 	items_top = block_top;
 
 	if (qwtf_banner) {
-		M_DrawScaledTransPic_GetPoint(BIGMENU_LEFT, block_top, NULL, NULL,
+		M_DrawScaledTransPic_GetPoint(BIGMENU_LEFT, block_top,
+			&m_qwtf_window.x, &m_qwtf_window.y,
 			qwtf_banner, MAIN_BANNER_WIDTH, MAIN_BANNER_HEIGHT);
+		m_qwtf_window.w = MAIN_BANNER_WIDTH;
+		m_qwtf_window.h = MAIN_BANNER_HEIGHT;
 		items_top += MAIN_BANNER_HEIGHT + MAIN_BANNER_TOP_GAP;
+	}
+	else {
+		memset(&m_qwtf_window, 0, sizeof(m_qwtf_window));
+		m_qwtf_hovered = false;
 	}
 
 	// Main Menu items
@@ -576,7 +586,20 @@ void M_Main_Key (int key) {
 
 static qbool M_Main_Mouse_Event(const mouse_state_t* ms)
 {
+	menu_window_t qwtf_banner;
 	menu_window_t banner;
+	M_Window_Adjust(&m_qwtf_window, &qwtf_banner);
+	m_qwtf_hovered = qwtf_banner.w > 0 && qwtf_banner.h > 0 &&
+		ms->x >= qwtf_banner.x && ms->y >= qwtf_banner.y &&
+		ms->x <= qwtf_banner.x + qwtf_banner.w && ms->y <= qwtf_banner.y + qwtf_banner.h;
+	if (m_qwtf_hovered) {
+		if (ms->button_up == 1) {
+			S_LocalSound("misc/menu2.wav");
+			if (SDL_OpenURL("https://qwtf.net") < 0)
+				Com_Printf("Unable to open QWTF.NET: %s\n", SDL_GetError());
+		}
+		return true;
+	}
 	M_Window_Adjust(&m_discord_window, &banner);
 	m_discord_hovered = banner.w > 0 && banner.h > 0 &&
 		ms->x >= banner.x && ms->y >= banner.y &&

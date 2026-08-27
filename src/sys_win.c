@@ -1614,6 +1614,28 @@ qbool Sys_LaunchBatchFileHidden(const char *working_directory, const char *filen
 	return true;
 }
 
+qbool Sys_IsUdpPortInUse(unsigned short port)
+{
+	SOCKET socket_handle;
+	struct sockaddr_in address;
+	int bind_result;
+
+	socket_handle = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (socket_handle == INVALID_SOCKET)
+		return false;
+
+	memset(&address, 0, sizeof(address));
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = htonl(INADDR_ANY);
+	address.sin_port = htons(port);
+	bind_result = bind(socket_handle, (const struct sockaddr *)&address, sizeof(address));
+	closesocket(socket_handle);
+
+	// A local server that listens on this UDP port prevents an exclusive bind.
+	// Treat every bind failure as occupied so the menu never starts a duplicate.
+	return bind_result == SOCKET_ERROR;
+}
+
 //=========================================================================
 
 DL_t Sys_DLOpen (const char *path)
