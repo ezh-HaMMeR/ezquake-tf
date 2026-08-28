@@ -44,4 +44,5 @@ void Menu_Demo_NewHome(const char *);
 void CL_Demo_Playlist_f(void);
 void CL_Demo_NextInPlaylist(void);
 void CL_Demo_Disconnected(void);
+qbool CL_Demo_PlaylistActive(void);
 // </interface>

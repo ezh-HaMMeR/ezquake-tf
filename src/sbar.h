@@ -58,4 +58,7 @@ qbool Sbar_IsStandardBar(void);
 void Sbar_DrawTrackingString(void);
 void Sbar_DrawSpectatorMessage(void);
 
+void Sbar_ShowTeamScores(void);
+void Sbar_DontShowTeamScores(void);
+
 #endif // #ifdef EZQUAKE_SBAR_HEADER

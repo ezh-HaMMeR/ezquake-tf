@@ -104,6 +104,11 @@ char track_name[DEMO_PLAYLIST_NAME_MAX];
 char default_track[DEMO_PLAYLIST_NAME_MAX];
 qbool demo_playlist_started = false;
 
+qbool CL_Demo_PlaylistActive(void)
+{
+	return demo_playlist_started;
+}
+
 cvar_t    demo_playlist_loop = {"demo_playlist_loop","0"};
 cvar_t    demo_playlist_track_name = {"demo_playlist_track_name",""};
 

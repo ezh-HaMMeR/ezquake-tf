@@ -3634,13 +3634,21 @@ void CL_ParseServerMessage (void)
 				}
 			case svc_disconnect:
 				{
+					const char *disconnect_reason = "";
+
+					if (cls.demoplayback && net_message.cursize > msg_readcount)
+						disconnect_reason = MSG_ReadString();
+
 					VID_NotifyActivity();
 
 					if (cls.mvdplayback == QTV_PLAYBACK)
 					{ 
+						if (!strcmp(disconnect_reason, "EndOfDemo") && CL_Demo_TryEndScoreboard())
+							break;
+
 						// Workaround, do not disconnect in case of QTV playback
-						if (net_message.cursize > msg_readcount && strcmp(s = MSG_ReadString(), "EndOfDemo"))
-							Com_Printf("WARNING: Non-standard disconnect message from QTV '%s'\n", s);
+						if (disconnect_reason[0] && strcmp(disconnect_reason, "EndOfDemo"))
+							Com_Printf("WARNING: Non-standard disconnect message from QTV '%s'\n", disconnect_reason);
 						break;
 					}
 
@@ -3650,14 +3658,17 @@ void CL_ParseServerMessage (void)
 						int ms;
 
 						if (Demo_BufferSize(&ms)) {
-							if (net_message.cursize > msg_readcount && strcmp(s = MSG_ReadString(), "EndOfDemo")) {
-								Com_Printf("WARNING: Non-standard disconnect message in MVD '%s'\n", s);
+							if (disconnect_reason[0] && strcmp(disconnect_reason, "EndOfDemo")) {
+								Com_Printf("WARNING: Non-standard disconnect message in MVD '%s'\n", disconnect_reason);
 							}
 
 							Com_DPrintf("Ignoring Server disconnect\n");
 							break;
 						}
 					}
+
+					if (!strcmp(disconnect_reason, "EndOfDemo") && CL_Demo_TryEndScoreboard())
+						break;
 
 					if (cls.state == ca_connected) 
 					{

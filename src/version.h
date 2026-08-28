@@ -82,7 +82,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define VERSION_MAX_LEN 32
 
 // ezquake-tf release metadata shown by the /version command.
-#define EZQUAKE_TF_RELEASE_VERSION "v2026.08.27.1"
+#define EZQUAKE_TF_RELEASE_VERSION "v2026.08.28"
 #define EZQUAKE_TF_DISCORD_URL "http://dc.qwtf.net"
 
 #ifndef GIT_COMMIT_DATETIME

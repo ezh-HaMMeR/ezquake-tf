@@ -36,8 +36,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "logging.h"
 #include "version.h"
 #include "demo_controls.h"
+#include "demo_end_scoreboard.h"
 #include "mvd_utils.h"
+#include "qsound.h"
 #include "r_trace.h"
+#include "sbar.h"
 #include "sha3.h"
 #ifndef CLIENTONLY
 #include "server.h"
@@ -122,6 +125,10 @@ cvar_t cl_startupdemo = {"cl_startupdemo", ""};
 cvar_t demo_jump_rewind = { "demo_jump_rewind", "-10" };
 cvar_t cl_demo_qwd_delta = { "cl_demo_qwd_delta", "1" };
 cvar_t demo_jump_skip_messages = { "demo_jump_skip_messages", "1" };
+cvar_t demo_end_scoreboard = { "demo_end_scoreboard", "1" };
+
+static qbool demo_end_scoreboard_hold = false;
+static qbool demo_end_triggered = false;
 
 // Used to save track status when rewinding.
 static vec3_t rewind_angle;
@@ -1664,7 +1671,10 @@ qbool pb_ensure(void)
 {
 	// Try to fill the entire buffer with demo data.
 	if (FSMMAP_IsMemoryMapped(playbackfile)) {
-		return VFS_TELL(playbackfile) < VFS_GETLEN(playbackfile);
+		if (VFS_TELL(playbackfile) < VFS_GETLEN(playbackfile))
+			return true;
+		CL_Demo_TryEndScoreboard();
+		return false;
 	}
 	else {
 		// Increase internal TCP buffer by faking a read to it.
@@ -1676,6 +1686,10 @@ qbool pb_ensure(void)
 		}
 
 		stream_buffer_cnt += pb_raw_read(stream_buffer + stream_buffer_cnt, max(0, (int)sizeof(stream_buffer) - stream_buffer_cnt));
+
+		// Recorded QTV demos commonly finish at TCP EOF without forwarding EndOfDemo.
+		if (stream_buffer_eof && !stream_buffer_cnt && CL_Demo_TryEndScoreboard())
+			return false;
 
 		if (stream_buffer_cnt == (int)sizeof(stream_buffer) || stream_buffer_eof) {
 			return true; // Return true if we have full buffer or get EOF.
@@ -1986,6 +2000,9 @@ qbool CL_GetDemoMessage (void)
 	double demotime;
 	byte c;
 	byte message_type;
+
+	if (demo_end_scoreboard_hold)
+		return false;
 
 	// Don't try to play while QWZ is being unpacked.
 	if (qwz_unpacking) {
@@ -3343,10 +3360,18 @@ void CL_Demo_DumpBenchmarkResult(int frames, float timet)
 //
 void CL_StopPlayback(void)
 {
+	qbool end_triggered;
+
 	// Nothing to stop.
 	if (!cls.demoplayback) {
 		return;
 	}
+
+	end_triggered = demo_end_triggered;
+	if (demo_end_scoreboard_hold)
+		Sbar_DontShowTeamScores();
+	demo_end_scoreboard_hold = false;
+	demo_end_triggered = false;
 
 	// Capturing to avi/images, stop that.
 	if (Movie_IsCapturing()) {
@@ -3366,6 +3391,7 @@ void CL_StopPlayback(void)
 	cls.qtv_svversion = 0;
 	cls.qtv_ezquake_ext = 0;
 	cls.qtv_donotbuffer = false;
+	cls.qtv_replay = false;
 
 	// Stop Qizmo demo playback.
 	#ifdef WIN32
@@ -3468,7 +3494,8 @@ void CL_StopPlayback(void)
 	cls.demoseeking = DST_SEEKING_NONE;
 	cls.demorewinding = false;
 
-	TP_ExecTrigger("f_demoend");
+	if (!end_triggered)
+		TP_ExecTrigger("f_demoend");
 }
 
 //
@@ -3904,6 +3931,12 @@ static void CL_StartDemoCommand(void)
 
 static void CL_DemoStartPlayback(const char* name)
 {
+	if (demo_end_scoreboard_hold)
+		Sbar_DontShowTeamScores();
+	demo_end_scoreboard_hold = false;
+	demo_end_triggered = false;
+	cl.paused &= ~PAUSED_DEMO;
+
 	strlcpy(cls.demoname, name, sizeof(cls.demoname));
 
 	// Reset multiview track slots.
@@ -4086,6 +4119,7 @@ void CL_QTVPoll (void)
 	char *start, *end, *colon;
 	int len, need, chunk_size;
 	qbool streamavailable = false;
+	qbool qtv_replay = false;
 	qbool saidheader = false;
 	float svversion = 0;
 	int qtv_ezquake_ext = 0;
@@ -4226,6 +4260,7 @@ void CL_QTVPoll (void)
 				else if (!strcmp(start, "BEGIN"))
 				{
 					streamavailable = true;
+					qtv_replay = Demo_QTVSourceIsReplay(colon);
 				}
 				else if (!strcmp(start, QTV_EZQUAKE_EXT))
 				{
@@ -4275,6 +4310,7 @@ void CL_QTVPoll (void)
 		CL_QTVPlay(qtvrequest, qtvrequestbuffer, qtvrequestsize);
 		cls.qtv_svversion = svversion;
 		cls.qtv_ezquake_ext = qtv_ezquake_ext;
+		cls.qtv_replay = qtv_replay;
 		qtvrequest = NULL;
 
 		return;
@@ -4456,6 +4492,7 @@ void CL_QTVPlay (vfsfile_t *newf, void *buf, int buflen)
 	cls.demoplayback	= true;
 	cls.mvdplayback		= QTV_PLAYBACK;
 	cls.nqdemoplayback	= false;
+	cls.qtv_replay        = false;
 
 	// Init playback buffers.
 	CL_Demo_PB_Init(buf, buflen);
@@ -5279,6 +5316,13 @@ void CL_Demo_Jump(double seconds, int relative, demoseekingtype_t seeking)
 	double initialtime = (cls.nqdemoplayback ? cl.servertime : cls.demotime);
 	double newdemotime = relative ? (initialtime + (relative * seconds)) : (demostarttime + seconds);
 
+	if (demo_end_scoreboard_hold) {
+		Sbar_DontShowTeamScores();
+		demo_end_scoreboard_hold = false;
+		demo_end_triggered = false;
+		cl.paused &= ~PAUSED_DEMO;
+	}
+
 	// We need to rewind.
 	if (newdemotime < initialtime)
 	{
@@ -5517,8 +5561,44 @@ void CL_Demo_Init(void)
 	Cvar_Register(&demo_jump_rewind);
 	Cvar_Register(&cl_demo_qwd_delta);
 	Cvar_Register(&demo_jump_skip_messages);
+	Cvar_Register(&demo_end_scoreboard);
 
 	Cvar_ResetCurrentGroup();
+}
+
+qbool CL_Demo_TryEndScoreboard(void)
+{
+	demo_end_scoreboard_context_t context;
+
+	if (demo_end_scoreboard_hold)
+		return true;
+
+	memset(&context, 0, sizeof(context));
+	context.enabled = demo_end_scoreboard.integer;
+	context.local_mvd = cls.mvdplayback == MVD_FILE_PLAYBACK;
+	context.qtv_replay = cls.mvdplayback == QTV_PLAYBACK && cls.qtv_replay;
+	context.teamfortress = cl.teamfortress;
+	context.teamplay = cl.teamplay;
+	context.timedemo = cls.timedemo != TIMEDEMO_OFF;
+	context.playlist = CL_Demo_PlaylistActive();
+	context.capturing = Movie_IsCapturing();
+	context.startup_demo = KeyDestStartupDemo(key_dest);
+
+	if (!Demo_EndScoreboardShouldHold(&context))
+		return false;
+
+	// Preserve the last parsed frame and its authoritative scores until the viewer exits.
+	demo_end_scoreboard_hold = true;
+	cl.paused |= PAUSED_DEMO;
+	S_StopAllSounds();
+	Sbar_ShowTeamScores();
+	key_dest = key_game;
+	Con_ClearNotify();
+	if (!demo_end_triggered) {
+		demo_end_triggered = true;
+		TP_ExecTrigger("f_demoend");
+	}
+	return true;
 }
 
 qbool CL_Demo_NotForTrackedPlayer(void)

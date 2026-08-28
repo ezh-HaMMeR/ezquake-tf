@@ -3949,6 +3949,12 @@
         }
       ]
     },
+	"demo_end_scoreboard": {
+	  "default": "1",
+	  "desc": "Keeps the last frame of a completed Team Fortress MVD on screen and shows team scores. This also applies to recorded demos replayed through QTV; live QTV streams are unchanged.",
+	  "group-id": "7",
+	  "type": "boolean"
+	},
     "demo_getpings": {
       "default": "1",
       "desc": "This toggles whether the client should always record pings into the demo or only when the player died and show(team)scores are being shown (QWCL default).",

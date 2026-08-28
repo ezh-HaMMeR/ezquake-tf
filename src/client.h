@@ -530,6 +530,7 @@ typedef struct
 	float		qtv_svversion;		///< version of qtvsv/proxy, note it float
 	int			qtv_ezquake_ext;	///< qtv ezquake extensions supported by qtvsv/proxy
 	qbool		qtv_donotbuffer;	///< do not try buffering even if not enough data
+	qbool       qtv_replay;         ///< QTV source is a recorded demo, not a live stream
 	char        qtv_source[128];    ///< last qtv source sent (so we can re-send with challenge response)
 
 	/// \brief Tells which players are affected by a demo message.
@@ -941,6 +942,7 @@ void NQD_SetSpectatorFlags (void);
 
 // cl_demo.c
 qbool CL_GetDemoMessage (void);
+qbool CL_Demo_TryEndScoreboard(void);
 void CL_WriteDemoCmd (usercmd_t *pcmd);
 void CL_WriteDemoMessage (sizebuf_t *msg);
 void CL_WriteDemoEntities (void);

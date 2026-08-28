@@ -585,6 +585,7 @@ set(client_headers
         ${SOURCE_DIR}/config_manager.h
         ${SOURCE_DIR}/console.h
         ${SOURCE_DIR}/demo_controls.h
+        ${SOURCE_DIR}/demo_end_scoreboard.h
         ${SOURCE_DIR}/document_rendering.h
         ${SOURCE_DIR}/ez_button.h
         ${SOURCE_DIR}/ez_controls.h
@@ -683,6 +684,7 @@ set(client
         ${SOURCE_DIR}/config_manager.c
         ${SOURCE_DIR}/console.c
         ${SOURCE_DIR}/demo_controls.c
+        ${SOURCE_DIR}/demo_end_scoreboard.c
         ${SOURCE_DIR}/document_rendering.c
         ${SOURCE_DIR}/ez_button.c
         ${SOURCE_DIR}/ez_controls.c
@@ -787,6 +789,14 @@ if(BUILD_CFG_EDITOR_TESTS)
     )
     target_include_directories(tf_vote_tests PRIVATE ${SOURCE_DIR})
     add_test(NAME tf_vote_function_keys COMMAND tf_vote_tests)
+
+	add_executable(demo_end_scoreboard_tests EXCLUDE_FROM_ALL
+			${PROJECT_SOURCE_DIR}/tests/demo_end_scoreboard_tests.c
+			${SOURCE_DIR}/demo_end_scoreboard.c
+			${SOURCE_DIR}/demo_end_scoreboard.h
+	)
+	target_include_directories(demo_end_scoreboard_tests PRIVATE ${SOURCE_DIR})
+	add_test(NAME demo_end_scoreboard_policy COMMAND demo_end_scoreboard_tests)
 endif()
 
 set(sys_headers ${SOURCE_DIR}/localtime.h)
