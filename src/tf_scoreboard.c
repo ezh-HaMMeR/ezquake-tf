@@ -33,6 +33,43 @@ int TF_ClockDisplaySeconds(int elapsed_seconds, int timelimit_minutes, int count
 	return (int)(limit_seconds - elapsed_seconds);
 }
 
+int TF_MatchClockDisplaySeconds(int elapsed_seconds, int timelimit_minutes, int countdown,
+	int prematch, int server_time_ms, int prematch_end_ms, int match_end_ms)
+{
+	long long delta_ms;
+	long long round_duration_ms;
+	int seconds;
+
+	/* New TF servers publish absolute server-time deadlines.  Keeping this
+	 * optional preserves the old clock behavior for old servers and demos. */
+	if (prematch && server_time_ms >= 0 && prematch_end_ms > 0) {
+		delta_ms = (long long)prematch_end_ms - server_time_ms;
+		return delta_ms > 0 ? (int)((delta_ms + 999) / 1000) : 0;
+	}
+
+	if (server_time_ms >= 0 && prematch_end_ms > 0 && match_end_ms > prematch_end_ms) {
+		round_duration_ms = (long long)match_end_ms - prematch_end_ms;
+		if (countdown) {
+			delta_ms = (long long)match_end_ms - server_time_ms;
+			if (delta_ms <= 0)
+				return 0;
+			if (delta_ms > round_duration_ms)
+				delta_ms = round_duration_ms;
+			return (int)((delta_ms + 999) / 1000);
+		}
+
+		delta_ms = (long long)server_time_ms - prematch_end_ms;
+		if (delta_ms < 0)
+			delta_ms = 0;
+		if (delta_ms > round_duration_ms)
+			delta_ms = round_duration_ms;
+		seconds = (int)(delta_ms / 1000);
+		return seconds;
+	}
+
+	return TF_ClockDisplaySeconds(elapsed_seconds, timelimit_minutes, countdown);
+}
+
 void TF_ScoreboardFormatClass(char *buffer, size_t buffer_size, int playerclass)
 {
 	const char *class_name = TF_ScoreboardClassName(playerclass);

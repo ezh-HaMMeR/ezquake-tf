@@ -489,7 +489,10 @@ static void SCR_HUD_DrawTfClock(hud_t* hud)
 		hud_tfclock_proportional = HUD_FindVar(hud, "proportional");
 	}
 
-	display_time = TF_ClockDisplaySeconds(cl.tftime, cl.timelimit, tf_countdown.integer);
+	display_time = TF_MatchClockDisplaySeconds(cl.tftime, cl.timelimit,
+		tf_countdown.integer, cl.countdown, (int)(cl.servertime * 1000.0),
+		Q_atoi(Info_ValueForKey(cl.serverinfo, "tf_pmend")),
+		Q_atoi(Info_ValueForKey(cl.serverinfo, "tf_matchend")));
 	tens_minutes = fmod(display_time / 600, 6);
 	minutes = fmod(display_time / 60, 10);
 	tens_seconds = fmod(display_time / 10, 6);

@@ -1729,7 +1729,10 @@ static void Sbar_DeathmatchOverlay(int start, qbool tf_team_scoreboard)
 
 		TF_ScoreboardFormatFooter(footer, sizeof(footer), host_mapname.string,
 			TP_CountPlayers(), maxplayers,
-			TF_ClockDisplaySeconds(cl.tftime, cl.timelimit, tf_countdown.integer));
+			TF_MatchClockDisplaySeconds(cl.tftime, cl.timelimit,
+				tf_countdown.integer, cl.countdown, (int)(cl.servertime * 1000.0),
+				Q_atoi(Info_ValueForKey(cl.serverinfo, "tf_pmend")),
+				Q_atoi(Info_ValueForKey(cl.serverinfo, "tf_matchend"))));
 		Draw_Fill(xofs, y + 3, rank_width, 1, 0);
 		Draw_SStringAligned(xofs, y + 7, footer, scale, alpha, proportional,
 			text_align_center, xofs + rank_width);

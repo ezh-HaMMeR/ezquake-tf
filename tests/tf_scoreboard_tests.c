@@ -28,6 +28,18 @@ int main(void)
 	CHECK(TF_ClockDisplaySeconds(125, 10, 1) == 475, "countdown TF clock uses timelimit");
 	CHECK(TF_ClockDisplaySeconds(700, 10, 1) == 0, "countdown TF clock stops at zero");
 	CHECK(TF_ClockDisplaySeconds(125, 0, 1) == 125, "countdown without timelimit falls back to elapsed time");
+	CHECK(TF_MatchClockDisplaySeconds(0, 16, 1, 1, 12500, 66500, 966500) == 54,
+		"prematch clock counts down to the published match start");
+	CHECK(TF_MatchClockDisplaySeconds(0, 0, 0, 1, 12500, 66500, 0) == 54,
+		"prematch clock does not require a round timelimit");
+	CHECK(TF_MatchClockDisplaySeconds(0, 16, 1, 0, 66500, 66500, 966500) == 900,
+		"round countdown resets to the actual round duration");
+	CHECK(TF_MatchClockDisplaySeconds(15, 16, 1, 0, 81500, 66500, 966500) == 885,
+		"round countdown uses the published match deadline");
+	CHECK(TF_MatchClockDisplaySeconds(15, 16, 0, 0, 81500, 66500, 966500) == 15,
+		"round count-up starts at zero after prematch");
+	CHECK(TF_MatchClockDisplaySeconds(15, 16, 1, 0, 81500, 0, 0) == 945,
+		"old servers retain the legacy timelimit fallback");
 
 	TF_ScoreboardFormatClass(text, sizeof(text), 6);
 	CHECK((unsigned char)text[0] == 0x10 && !strncmp(text + 1, "HWGuy", 5)
