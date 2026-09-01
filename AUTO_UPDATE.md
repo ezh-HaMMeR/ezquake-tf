@@ -23,8 +23,8 @@ metadata; downloading and installing still require an explicit player action.
 - The archive must match the SHA-256 digest published by GitHub Releases.
 - ZIP paths are validated before extraction; absolute paths and `..` are
   rejected.
-- Only `ezquake.exe`, `update.exe`, `hud_teammates_variables.txt`, and the
-  shipped JSON/PNG resources below `qw/` may be replaced.
+- Only `ezquake.exe`, `update.exe`, and the shipped JSON/PNG resources below
+  `qw/` may be replaced.
 - `fortress/`, CFG files, demos, screenshots, logs, and all unknown files are
   outside the managed set.
 - Existing managed files are moved to `.update/backup/<version>/` before the

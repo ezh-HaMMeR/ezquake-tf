@@ -13,6 +13,7 @@ int main(void)
 	CHECK(Update_CompareVersions("v2026.09.01", "v2026.08.28.9") > 0);
 	CHECK(Update_IsSafeManagedPath("ezquake.exe"));
 	CHECK(Update_IsSafeManagedPath("update.exe"));
+	CHECK(!Update_IsSafeManagedPath("hud_teammates_variables.txt"));
 	CHECK(Update_IsSafeManagedPath("qw/gfx/cursor.png"));
 	CHECK(Update_IsSafeManagedPath("qw/textures/icons/sg1.png"));
 	CHECK(Update_IsSafeManagedPath("qw/config_editor/dict_settings.json"));

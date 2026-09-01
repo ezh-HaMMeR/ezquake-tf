@@ -60,8 +60,7 @@ int Update_IsSafeManagedPath(const char *path)
 		return 0;
 
 	length = strlen(path);
-	if (!strcmp(path, "ezquake.exe") || !strcmp(path, "update.exe") ||
-		!strcmp(path, "hud_teammates_variables.txt"))
+	if (!strcmp(path, "ezquake.exe") || !strcmp(path, "update.exe"))
 		return 1;
 	if (!strncmp(path, "qw/config_editor/", 17) && length > 22 &&
 		!strcmp(path + length - 5, ".json"))
