@@ -636,6 +636,8 @@ set(client_headers
         ${SOURCE_DIR}/xsd.h
         ${SOURCE_DIR}/xsd_document.h
         ${SOURCE_DIR}/tfdefs.h
+		${SOURCE_DIR}/update_client.h
+		${SOURCE_DIR}/update_common.h
 )
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     list(APPEND client_headers ${SOURCE_DIR}/movie_avi.h)
@@ -736,6 +738,8 @@ set(client
         ${SOURCE_DIR}/tp_msgs.c
         ${SOURCE_DIR}/tp_triggers.c
         ${SOURCE_DIR}/utils.c
+		${SOURCE_DIR}/update_client.c
+		${SOURCE_DIR}/update_common.c
         ${SOURCE_DIR}/vid_sdl2.c
         ${SOURCE_DIR}/vid_vsync.c
         ${SOURCE_DIR}/vx_tracker.c
@@ -797,6 +801,20 @@ if(BUILD_CFG_EDITOR_TESTS)
 	)
 	target_include_directories(demo_end_scoreboard_tests PRIVATE ${SOURCE_DIR})
 	add_test(NAME demo_end_scoreboard_policy COMMAND demo_end_scoreboard_tests)
+
+	add_executable(update_common_tests EXCLUDE_FROM_ALL
+			${PROJECT_SOURCE_DIR}/tests/update_common_tests.c
+			${SOURCE_DIR}/update_common.c
+			${SOURCE_DIR}/update_common.h
+	)
+	target_include_directories(update_common_tests PRIVATE ${SOURCE_DIR})
+	add_test(NAME update_version_and_path_policy COMMAND update_common_tests)
+
+	if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+		add_executable(update_restart_probe EXCLUDE_FROM_ALL
+				${PROJECT_SOURCE_DIR}/tests/update_restart_probe.c)
+		target_compile_definitions(update_restart_probe PRIVATE _CRT_SECURE_NO_WARNINGS)
+	endif()
 endif()
 
 set(sys_headers ${SOURCE_DIR}/localtime.h)
@@ -965,6 +983,19 @@ else()
 endif()
 
 set_target_properties(ezquake PROPERTIES OUTPUT_NAME ${EXECUTABLE_NAME})
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+	add_executable(update WIN32
+			${PROJECT_SOURCE_DIR}/updater/update_main.c
+			${SOURCE_DIR}/update_common.c
+			${SOURCE_DIR}/update_common.h
+	)
+	target_include_directories(update PRIVATE ${SOURCE_DIR})
+	target_compile_definitions(update PRIVATE UNICODE _UNICODE _CRT_SECURE_NO_WARNINGS)
+	target_link_libraries(update PRIVATE Dep::Jansson Dep::MiniZip bcrypt shell32)
+	set_target_properties(update PROPERTIES OUTPUT_NAME "update")
+	target_link_libraries(ezquake PRIVATE bcrypt)
+endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     get_target_property(version git_version GIT_DESCRIBE)

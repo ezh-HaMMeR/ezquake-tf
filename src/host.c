@@ -43,6 +43,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "pmove.h"
 #include "version.h"
 #include "qsound.h"
+#include "update_client.h"
 #include "keys.h"
 #include "config_manager.h"
 #include "EX_qtvlist.h"
@@ -480,6 +481,7 @@ void Host_Frame (double time)
 	CL_Frame (time);	// will also call SV_Frame
 
 	Central_ProcessResponses();
+	ClientUpdate_Frame();
 }
 
 char *Host_PrintBars(char *s, int len)
@@ -658,6 +660,7 @@ void Host_Init (int argc, char **argv, int default_memsize)
 	Cvar_Init ();
 	COM_Init ();
 	Key_Init ();
+	ClientUpdate_Init();
 
 	FS_InitFilesystem ();
 	NET_Init ();
@@ -775,6 +778,7 @@ void Host_Init (int argc, char **argv, int default_memsize)
 	Cbuf_Execute();
 
 	host_everything_loaded = true;
+	ClientUpdate_StartAutoCheck();
 #ifdef DEBUG_MEMORY_ALLOCATIONS
 	Sys_Printf("\nevent,init\n");
 #endif
@@ -802,6 +806,7 @@ void Host_Shutdown (void)
 #endif
 
 	Central_Shutdown();
+	ClientUpdate_Shutdown();
 	CL_Shutdown ();
 	NET_Shutdown ();
 	Con_Shutdown();

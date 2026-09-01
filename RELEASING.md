@@ -36,6 +36,8 @@ cmake --build --preset msbuild-x64-release
 $package = "ezquake-tf-windows-x64"
 New-Item -ItemType Directory -Path $package | Out-Null
 Copy-Item "build-msbuild-x64/Release/ezquake.exe" $package
+Copy-Item "build-msbuild-x64/Release/update.exe" $package
+Copy-Item "hud_teammates_variables.txt" $package
 Copy-Item "qw" $package -Recurse
 Compress-Archive -Path "$package/*" -DestinationPath "$package.zip" -CompressionLevel Optimal
 $hash = (Get-FileHash "$package.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -56,4 +58,6 @@ sha256sum "$package.tar.gz" > "$package.tar.gz.sha256"
 
 Before publication, verify the tag commit, both downloaded assets, their
 sidecars, executable formats, and that each archive contains exactly the local
-`qw` file set.
+`qw` file set. The Windows package must contain both `ezquake.exe` and
+`update.exe`; otherwise the in-client updater can check and download a release
+but cannot install it.

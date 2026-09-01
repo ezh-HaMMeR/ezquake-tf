@@ -33,6 +33,7 @@ jobs:
           $package = "ezquake-tf-windows-x64"
           New-Item -ItemType Directory -Path $package | Out-Null
           Copy-Item "build-msbuild-x64/Release/ezquake.exe" $package
+          Copy-Item "build-msbuild-x64/Release/update.exe" $package
           Copy-Item "hud_teammates_variables.txt" $package
           Copy-Item "qw" $package -Recurse
           Compress-Archive -Path "$package/*" -DestinationPath "$package.zip" -CompressionLevel Optimal
