@@ -155,7 +155,7 @@ static int Update_CheckThread(void *unused)
 	if (!asset_url || !digest || strncmp(digest, "sha256:", 7) || strlen(digest + 7) != 64)
 		goto data_error;
 	if (Update_CompareVersions(EZQUAKE_TF_RELEASE_VERSION, tag) >= 0) {
-		snprintf(message, sizeof(message), "Установлена актуальная версия %s.", EZQUAKE_TF_RELEASE_VERSION);
+		snprintf(message, sizeof(message), "Version %s is up to date.", EZQUAKE_TF_RELEASE_VERSION);
 		Update_SetResult(UPDATE_CURRENT, message);
 	}
 	else {
@@ -165,16 +165,16 @@ static int Update_CheckThread(void *unused)
 		strlcpy(update_context.release_url, release_url ? release_url : "", sizeof(update_context.release_url));
 		strlcpy(update_context.sha256, digest + 7, sizeof(update_context.sha256));
 		SDL_UnlockMutex(update_context.mutex);
-		snprintf(message, sizeof(message), "Доступна версия %s. Выберите Update client или выполните /update для загрузки.", tag);
+		snprintf(message, sizeof(message), "Version %s is available. Select Update client or run /update to download.", tag);
 		Update_SetResult(UPDATE_AVAILABLE, message);
 	}
 	goto done;
 
 network_error:
-	Update_SetResult(UPDATE_FAILED, "Не удалось проверить обновления: ошибка соединения с GitHub.");
+	Update_SetResult(UPDATE_FAILED, "Update check failed: could not connect to GitHub.");
 	goto done;
 data_error:
-	Update_SetResult(UPDATE_FAILED, "Не удалось проверить обновления: некорректные метаданные релиза.");
+	Update_SetResult(UPDATE_FAILED, "Update check failed: invalid release metadata.");
 done:
 	if (root) json_decref(root);
 	if (curl) curl_easy_cleanup(curl);
@@ -290,22 +290,22 @@ static int Update_DownloadThread(void *unused)
 	if (result != CURLE_OK) goto network_error;
 	if (!Update_ParseExpectedHash(expected_text, expected) || !Update_FileSha256(archive, actual) || memcmp(expected, actual, 32)) {
 		DeleteFileA(archive);
-		Update_SetResult(UPDATE_FAILED, "Загрузка завершена, но проверка SHA-256 не пройдена. Архив удалён.");
+		Update_SetResult(UPDATE_FAILED, "Download finished, but SHA-256 verification failed. The archive was deleted.");
 		goto done;
 	}
 	SDL_LockMutex(update_context.mutex);
 	strlcpy(update_context.archive, archive, sizeof(update_context.archive));
 	SDL_UnlockMutex(update_context.mutex);
-	snprintf(message, sizeof(message), "Версия %s загружена и проверена. Снова выберите Update client или выполните /update для установки.", version);
+	snprintf(message, sizeof(message), "Version %s was downloaded and verified. Select Update client or run /update again to install.", version);
 	Update_SetResult(UPDATE_READY, message);
 	goto done;
 file_error:
-	Update_SetResult(UPDATE_FAILED, "Не удалось создать временный файл обновления.");
+	Update_SetResult(UPDATE_FAILED, "Could not create the temporary update file.");
 	goto done;
 network_error:
 	if (file) { fclose(file); file = NULL; }
 	DeleteFileA(archive);
-	Update_SetResult(UPDATE_FAILED, "Не удалось загрузить архив обновления с GitHub.");
+	Update_SetResult(UPDATE_FAILED, "Could not download the update archive from GitHub.");
 done:
 	if (curl) curl_easy_cleanup(curl);
 	if (file) fclose(file);
@@ -325,7 +325,7 @@ static int Update_StartWorker(update_state_t state, int (*function)(void *), con
 	update_context.thread = SDL_CreateThread(function, name, NULL);
 	if (!update_context.thread) {
 		update_context.state = UPDATE_FAILED;
-		strlcpy(update_context.message, "Не удалось запустить поток обновления.", sizeof(update_context.message));
+		strlcpy(update_context.message, "Could not start the update worker.", sizeof(update_context.message));
 		update_context.notification_pending = 1;
 		return 0;
 	}
@@ -345,18 +345,18 @@ static int Update_WritePlan(char *plan_path, size_t plan_path_size, char *runtim
 	snprintf(runtime_path, runtime_path_size, "%s\\update-runtime-%lu.exe", update_dir, (unsigned long)GetCurrentProcessId());
 	snprintf(plan_path, plan_path_size, "%s\\plan-%lu.json", update_dir, (unsigned long)GetCurrentProcessId());
 	if (GetFileAttributesA(updater) == INVALID_FILE_ATTRIBUTES) {
-		Com_Printf_State(PRINT_FAIL, "update.exe не найден рядом с ezquake.exe.\n");
+		Com_Printf_State(PRINT_FAIL, "update.exe was not found next to ezquake.exe.\n");
 		return 0;
 	}
 	if (!CopyFileA(updater, runtime_path, FALSE)) {
-		Com_Printf_State(PRINT_FAIL, "Не удалось подготовить update.exe (ошибка %lu).\n", (unsigned long)GetLastError());
+		Com_Printf_State(PRINT_FAIL, "Could not prepare update.exe (error %lu).\n", (unsigned long)GetLastError());
 		return 0;
 	}
 	if (!Update_AnsiToUtf8(root, root_utf8, sizeof(root_utf8)) ||
 		!Update_AnsiToUtf8(client, client_utf8, sizeof(client_utf8)) ||
 		!Update_AnsiToUtf8(update_context.archive, archive_utf8, sizeof(archive_utf8))) {
 		DeleteFileA(runtime_path);
-		Com_Printf_State(PRINT_FAIL, "Не удалось преобразовать путь установки в UTF-8.\n");
+		Com_Printf_State(PRINT_FAIL, "Could not convert the installation path to UTF-8.\n");
 		return 0;
 	}
 	root_json = json_object();
@@ -384,7 +384,7 @@ static int Update_WritePlan(char *plan_path, size_t plan_path_size, char *runtim
 	json_decref(root_json);
 	if (!result) {
 		DeleteFileA(runtime_path);
-		Com_Printf_State(PRINT_FAIL, "Не удалось записать план обновления.\n");
+		Com_Printf_State(PRINT_FAIL, "Could not write the update plan.\n");
 	}
 	return result;
 }
@@ -403,12 +403,12 @@ static int Update_LaunchInstaller(void)
 	startup.wShowWindow = SW_HIDE;
 	memset(&process, 0, sizeof(process));
 	if (!CreateProcessA(runtime, command, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &startup, &process)) {
-		Com_Printf_State(PRINT_FAIL, "Не удалось запустить update.exe (ошибка %lu).\n", (unsigned long)GetLastError());
+		Com_Printf_State(PRINT_FAIL, "Could not launch update.exe (error %lu).\n", (unsigned long)GetLastError());
 		return 0;
 	}
 	CloseHandle(process.hThread);
 	CloseHandle(process.hProcess);
-	Com_Printf("Обновление подготовлено. Клиент будет закрыт и автоматически запущен снова.\n");
+	Com_Printf("Update prepared. The client will close and restart automatically.\n");
 	Cbuf_AddText("quit\n");
 	return 1;
 }
@@ -421,30 +421,32 @@ static void Update_Command(void)
 	SDL_UnlockMutex(update_context.mutex);
 	switch (state) {
 	case UPDATE_CHECKING:
-		Com_Printf("Проверка обновлений уже выполняется.\n");
+		Com_Printf("An update check is already running.\n");
 		break;
 	case UPDATE_DOWNLOADING:
-		Com_Printf("Загрузка обновления уже выполняется.\n");
+		Com_Printf("An update download is already running.\n");
 		break;
 	case UPDATE_AVAILABLE:
 		Update_StartWorker(UPDATE_DOWNLOADING, Update_DownloadThread, "ezquake-update-download");
-		Com_Printf("Загрузка обновления началась в фоне.\n");
+		Com_Printf("The update download started in the background.\n");
 		break;
 	case UPDATE_READY:
 		Update_LaunchInstaller();
 		break;
 	default:
 		Update_StartWorker(UPDATE_CHECKING, Update_CheckThread, "ezquake-update-check");
-		Com_Printf("Проверка обновлений началась в фоне.\n");
+		Com_Printf("The update check started in the background.\n");
 		break;
 	}
 }
 
 static void Update_StatusCommand(void)
 {
+	char message[UPDATE_MESSAGE_CAPACITY];
 	SDL_LockMutex(update_context.mutex);
-	Com_Printf("Updater: %s\n", update_context.message[0] ? update_context.message : "проверка ещё не выполнялась");
+	strlcpy(message, update_context.message[0] ? update_context.message : "no update check has run yet", sizeof(message));
 	SDL_UnlockMutex(update_context.mutex);
+	Com_Printf("Updater: %s\n", message);
 }
 
 void ClientUpdate_Init(void)
