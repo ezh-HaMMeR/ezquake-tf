@@ -1937,7 +1937,7 @@
     "description": "Performs a check on client settings and displays possible sources of issues."
   },
   "update": {
-    "description": "Checks for a new ezquake-tf release, downloads and verifies it, then starts update.exe after the client exits. Run the command again after each completed stage; the same action is available as Update client in the main menu."
+    "description": "Manually advances the ezquake-tf update workflow. Automatic check, download, verification, installation, and restart are enabled by default through autoupdate 1."
   },
   "update_check": {
     "description": "Alias for update. Starts the updater workflow when it is idle."

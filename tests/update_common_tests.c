@@ -10,6 +10,7 @@ int main(void)
 {
 	CHECK(Update_CompareVersions("v2026.08.28", "v2026.08.28") == 0);
 	CHECK(Update_CompareVersions("v2026.08.28", "v2026.08.28.1") < 0);
+	CHECK(Update_CompareVersions("v2026.09.01.1", "v2026.09.01.2") < 0);
 	CHECK(Update_CompareVersions("v2026.09.01", "v2026.08.28.9") > 0);
 	CHECK(Update_IsSafeManagedPath("ezquake.exe"));
 	CHECK(Update_IsSafeManagedPath("update.exe"));

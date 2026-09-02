@@ -485,6 +485,23 @@
         }
       ]
     },
+    "autoupdate": {
+      "default": "1",
+      "desc": "Checks for a new ezquake-tf release at startup. By default, a newer version is downloaded, verified, installed, and restarted automatically.",
+      "group-id": "48",
+      "remarks": "Set to 0 to keep the version check and console notification while disabling automatic download and installation. The /update command remains available for manual updates.",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Only check and report available updates.",
+          "name": "false"
+        },
+        {
+          "description": "Automatically download, verify, install, and restart when a newer release is available.",
+          "name": "true"
+        }
+      ]
+    },
     "auth_timeout": {
       "desc": "Not currently used.",
       "group-id": "43",

@@ -38,7 +38,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "EX_FileList.h"
 #include "help.h"
 #include "utils.h"
-#include "update_client.h"
 #include "qsound.h"
 #include "keys.h"
 #include "common_draw.h"
@@ -428,7 +427,6 @@ bigmenu_items_t mainmenu_items[] = {
 	{"Local server", M_Main_StartLocalServer},
 	{"Config", Menu_Config_Enter},
 	{"Demos", M_Menu_Demos_f},
-	{"Update client", ClientUpdate_MenuAction},
 	{"Quit", M_Menu_Quit_f}
 };
 

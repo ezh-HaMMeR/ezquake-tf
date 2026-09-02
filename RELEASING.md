@@ -1,6 +1,7 @@
 # ezquake-tf release process
 
-Release tags use `vYYYY.MM.DD` without prerelease/test suffixes. Build packages
+Release tags use `vYYYY.MM.DD` or `vYYYY.MM.DD.N` for same-day patches, without
+prerelease/test suffixes. Build packages
 locally whenever the required toolchain is available. The manual GitHub Actions
 workflow is a fallback, not the default release path.
 

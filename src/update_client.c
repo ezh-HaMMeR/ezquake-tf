@@ -26,6 +26,7 @@ typedef enum update_state_e {
 	UPDATE_AVAILABLE,
 	UPDATE_DOWNLOADING,
 	UPDATE_READY,
+	UPDATE_INSTALLING,
 	UPDATE_FAILED
 } update_state_t;
 
@@ -51,6 +52,7 @@ typedef struct update_context_s {
 } update_context_t;
 
 static update_context_t update_context;
+static cvar_t autoupdate = {"autoupdate", "1"};
 
 static size_t Update_MemoryWrite(void *contents, size_t size, size_t count, void *user)
 {
@@ -165,7 +167,7 @@ static int Update_CheckThread(void *unused)
 		strlcpy(update_context.release_url, release_url ? release_url : "", sizeof(update_context.release_url));
 		strlcpy(update_context.sha256, digest + 7, sizeof(update_context.sha256));
 		SDL_UnlockMutex(update_context.mutex);
-		snprintf(message, sizeof(message), "Version %s is available. Select Update client or run /update to download.", tag);
+		snprintf(message, sizeof(message), "Version %s is available. Set autoupdate 1 or run /update to install it.", tag);
 		Update_SetResult(UPDATE_AVAILABLE, message);
 	}
 	goto done;
@@ -296,7 +298,7 @@ static int Update_DownloadThread(void *unused)
 	SDL_LockMutex(update_context.mutex);
 	strlcpy(update_context.archive, archive, sizeof(update_context.archive));
 	SDL_UnlockMutex(update_context.mutex);
-	snprintf(message, sizeof(message), "Version %s was downloaded and verified. Select Update client or run /update again to install.", version);
+	snprintf(message, sizeof(message), "Version %s was downloaded and verified. Run /update again to install it.", version);
 	Update_SetResult(UPDATE_READY, message);
 	goto done;
 file_error:
@@ -455,6 +457,9 @@ void ClientUpdate_Init(void)
 	Update_CleanupRuntimeCopies();
 	update_context.mutex = SDL_CreateMutex();
 	update_context.state = UPDATE_IDLE;
+	Cvar_SetCurrentGroup(CVAR_GROUP_SYSTEM_SETTINGS);
+	Cvar_Register(&autoupdate);
+	Cvar_ResetCurrentGroup();
 	Cmd_AddCommand("update", Update_Command);
 	Cmd_AddCommand("update_check", Update_Command);
 	Cmd_AddCommand("update_status", Update_StatusCommand);
@@ -469,11 +474,13 @@ void ClientUpdate_StartAutoCheck(void)
 void ClientUpdate_Frame(void)
 {
 	int done, notify;
+	update_state_t state;
 	char message[UPDATE_MESSAGE_CAPACITY];
 	if (!update_context.mutex) return;
 	SDL_LockMutex(update_context.mutex);
 	done = update_context.thread_done;
 	notify = update_context.notification_pending;
+	state = update_context.state;
 	strlcpy(message, update_context.message, sizeof(message));
 	update_context.notification_pending = 0;
 	SDL_UnlockMutex(update_context.mutex);
@@ -481,7 +488,29 @@ void ClientUpdate_Frame(void)
 		SDL_WaitThread(update_context.thread, NULL);
 		update_context.thread = NULL;
 	}
-	if (notify && message[0])
+
+	if (done && autoupdate.integer) {
+		if (state == UPDATE_AVAILABLE) {
+			Update_StartWorker(UPDATE_DOWNLOADING, Update_DownloadThread, "ezquake-update-download");
+			return;
+		}
+		if (state == UPDATE_READY) {
+			SDL_LockMutex(update_context.mutex);
+			update_context.state = UPDATE_INSTALLING;
+			update_context.thread_done = 0;
+			SDL_UnlockMutex(update_context.mutex);
+			if (!Update_LaunchInstaller()) {
+				SDL_LockMutex(update_context.mutex);
+				update_context.state = UPDATE_FAILED;
+				update_context.thread_done = 0;
+				SDL_UnlockMutex(update_context.mutex);
+			}
+			return;
+		}
+	}
+
+	if (notify && message[0] &&
+		(state == UPDATE_CURRENT || state == UPDATE_FAILED || !autoupdate.integer))
 		Com_Printf("Updater: %s\n", message);
 }
 
@@ -500,16 +529,9 @@ void ClientUpdate_Shutdown(void)
 	}
 }
 
-void ClientUpdate_MenuAction(void)
-{
-	M_LeaveMenus();
-	Update_Command();
-}
-
 #else
 void ClientUpdate_Init(void) {}
 void ClientUpdate_StartAutoCheck(void) {}
 void ClientUpdate_Frame(void) {}
 void ClientUpdate_Shutdown(void) {}
-void ClientUpdate_MenuAction(void) {}
 #endif

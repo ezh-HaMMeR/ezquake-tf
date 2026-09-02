@@ -1,21 +1,22 @@
 # ezquake-tf updater
 
 The Windows client checks the latest release published in
-`ezh-HaMMeR/ezquake-tf` without delaying startup. The default behavior is
-notification-only: an update is never installed automatically during a match.
+`ezh-HaMMeR/ezquake-tf` without delaying startup. By default, a newer release
+is downloaded, verified, and installed automatically. Set `autoupdate 0` in a
+CFG to keep the version check but disable automatic installation.
 
 ## Player workflow
 
-1. Select `Update client` in the main menu or run `/update`.
-2. If a newer version is available, repeat the action to download it.
-3. After the SHA-256 check succeeds, repeat the action once more to install it.
-4. The client exits cleanly, `update.exe` waits for every `ezquake.exe` using
+1. The client checks for a newer release during startup.
+2. With `autoupdate 1` (the default), it downloads and verifies the archive in
+   the background, then exits cleanly to begin installation.
+3. `update.exe` waits for every `ezquake.exe` using
    the same installation path to close, replaces the managed files, and starts
    the client again with the original command-line parameters.
 
-The once-per-launch background check is always enabled. It only reads release
-metadata; downloading and installing still require an explicit player action.
-`/update_status` prints the current state.
+The once-per-launch background check is always enabled. With `autoupdate 0`, a
+new release is only reported in the console and can still be installed manually
+with `/update`. `/update_status` prints the current state.
 
 ## Safety model
 
