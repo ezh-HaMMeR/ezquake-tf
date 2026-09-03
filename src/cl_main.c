@@ -1313,6 +1313,7 @@ void CL_Disconnect (void)
 	}
 
 	cls.qport++; // A hack I picked up from qizmo.
+	NET_ApplyPendingClientInterface();
 
 	SZ_Clear(&cls.cmdmsg);
 

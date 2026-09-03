@@ -2,6 +2,7 @@
 #include "menu.h"
 #include "menu_config.h"
 #include "cfg_editor_dictionary.h"
+#include "net_interfaces.h"
 #include "Ctrl.h"
 #include "Ctrl_EditBox.h"
 #include "Ctrl_KeyCapture.h"
@@ -25,6 +26,7 @@ extern cvar_t menu_language;
 #define CONFIG_CHARSET_ROWS 16
 #define CONFIG_CHARSET_CELL_SIZE 14
 #define CONFIG_CHARSET_PADDING 6
+#define CONFIG_MAX_NETWORK_INTERFACES 64
 #define CONFIG_CHARSET_PANEL_HEIGHT \
 	(CONFIG_CHARSET_ROWS * CONFIG_CHARSET_CELL_SIZE + CONFIG_CHARSET_PADDING * 2)
 
@@ -397,6 +399,92 @@ static void Config_FreeSession(void)
 	memset(&config_menu, 0, sizeof(config_menu));
 }
 
+static char *Config_HeapString(const char *text)
+{
+	size_t length = strlen(text ? text : "") + 1;
+	char *copy = (char *)malloc(length);
+	if (copy)
+		memcpy(copy, text ? text : "", length);
+	return copy;
+}
+
+static qbool Config_PopulateNetworkInterfaces(void)
+{
+	net_interface_info_t interfaces[CONFIG_MAX_NETWORK_INTERFACES];
+	cfg_setting_definition_t *definition = NULL;
+	cfg_dictionary_option_t *options;
+	cfg_setting_result_t resolved;
+	const char *stored = "auto";
+	size_t count, i, option_count;
+	int stored_index;
+	qbool stored_known;
+
+	for (i = 0; i < config_menu.dictionary.setting_count; ++i) {
+		if (config_menu.dictionary.settings[i].name &&
+			!strcmp(config_menu.dictionary.settings[i].name, "cl_net_interface")) {
+			definition = &config_menu.dictionary.settings[i];
+			break;
+		}
+	}
+	if (!definition)
+		return true;
+	if (CFGModel_ResolveSetting(&config_menu.model, "main", definition->storage_kind,
+		definition->name, definition->on_command, definition->off_command, &resolved) &&
+		resolved.value && resolved.value[0])
+		stored = resolved.value;
+
+	count = NETIF_Enumerate(interfaces, sizeof(interfaces) / sizeof(interfaces[0]));
+	stored_index = NETIF_Find(interfaces, count, stored);
+	stored_known = !strcasecmp(stored, "auto") || stored_index >= 0;
+	option_count = 1 + count + (stored_known ? 0 : 1);
+	options = (cfg_dictionary_option_t *)calloc(option_count, sizeof(*options));
+	if (!options)
+		return false;
+
+	options[0].value = Config_HeapString("auto");
+	options[0].label = Config_HeapString("Автоматически (системный маршрут)");
+	options[0].label_en = Config_HeapString("Automatic (system routing)");
+	for (i = 0; i < count; ++i) {
+		char label[256], label_en[256];
+		snprintf(label, sizeof(label), "%s - %s%s", interfaces[i].name,
+			interfaces[i].address, interfaces[i].has_gateway ? "" : " (нет шлюза)");
+		snprintf(label_en, sizeof(label_en), "%s - %s%s", interfaces[i].name,
+			interfaces[i].address, interfaces[i].has_gateway ? "" : " (no gateway)");
+		options[i + 1].value = Config_HeapString(interfaces[i].name);
+		options[i + 1].label = Config_HeapString(label);
+		options[i + 1].label_en = Config_HeapString(label_en);
+	}
+	if (!stored_known) {
+		char label[320], label_en[320];
+		snprintf(label, sizeof(label), "%s (недоступен)", stored);
+		snprintf(label_en, sizeof(label_en), "%s (unavailable)", stored);
+		options[option_count - 1].value = Config_HeapString(stored);
+		options[option_count - 1].label = Config_HeapString(label);
+		options[option_count - 1].label_en = Config_HeapString(label_en);
+	}
+	for (i = 0; i < option_count; ++i) {
+		if (!options[i].value || !options[i].label || !options[i].label_en) {
+			size_t j;
+			for (j = 0; j < option_count; ++j) {
+				free(options[j].value);
+				free(options[j].label);
+				free(options[j].label_en);
+			}
+			free(options);
+			return false;
+		}
+	}
+	for (i = 0; i < definition->option_count; ++i) {
+		free(definition->options[i].value);
+		free(definition->options[i].label);
+		free(definition->options[i].label_en);
+	}
+	free(definition->options);
+	definition->options = options;
+	definition->option_count = option_count;
+	return true;
+}
+
 static qbool Config_BuildMisc(config_text_draft_t *text, const cfg_model_file_t *file)
 {
 	cfg_source_ref_t *references = NULL;
@@ -558,7 +646,7 @@ static qbool Config_LoadSession(void)
 	if (!CFGModel_LoadManifest(&config_menu.model, manifest, com_basedir, error, sizeof(error)) ||
 		!CFGDictionary_Load(&config_menu.dictionary, settings, binds, error, sizeof(error)) ||
 		!CFGDictionary_ApplyToModel(&config_menu.dictionary, &config_menu.model, &applied, error, sizeof(error)) ||
-		!Config_BuildDrafts()) {
+		!Config_PopulateNetworkInterfaces() || !Config_BuildDrafts()) {
 		strlcpy(config_menu.error, error[0] ? error : "Unable to prepare the config editor draft", sizeof(config_menu.error));
 		config_menu.loaded = false;
 		return false;

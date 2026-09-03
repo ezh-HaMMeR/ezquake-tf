@@ -74,6 +74,7 @@ static void Netlog_WriteSettings(void)
 		"cl_delay_packet=%s cl_delay_packet_target=%s cl_delay_packet_dev=%s cl_earlypackets=%s",
 		cl_delay_packet.string, cl_delay_packet_target.string,
 		cl_delay_packet_dev.string, cl_earlypackets.string);
+	Netlog_Write("interface", "%s", NET_ClientInterfaceStatus());
 }
 
 static qbool Netlog_Open(void)
@@ -220,8 +221,9 @@ void Netlog_Frame(void)
 		getsockopt(cls.socketip, SOL_SOCKET, SO_RCVBUF, (char *)&receive_buffer, &option_length);
 		option_length = sizeof(send_buffer);
 		getsockopt(cls.socketip, SOL_SOCKET, SO_SNDBUF, (char *)&send_buffer, &option_length);
-		Netlog_Write("socket", "handle=%d local=%s receive_buffer=%d send_buffer=%d",
-			cls.socketip, NET_AdrToString(net_local_cl_ipadr), receive_buffer, send_buffer);
+		Netlog_Write("socket", "handle=%d local=%s receive_buffer=%d send_buffer=%d %s",
+			cls.socketip, NET_AdrToString(net_local_cl_ipadr), receive_buffer, send_buffer,
+			NET_ClientInterfaceStatus());
 		netlog_socket_reported = cls.socketip;
 	}
 	if (cls.frametime > 0.050)

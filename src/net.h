@@ -183,6 +183,7 @@ void	NET_Shutdown (void);
 void	NET_InitClient (void);
 void	NET_InitServer (void);
 void	NET_CloseServer (void);
+void	NET_ApplyPendingClientInterface(void);
 qbool	NET_GetPacket (netsrc_t sock);
 void	NET_SendPacket (netsrc_t sock, int length, void *data, netadr_t to);
 
@@ -208,6 +209,9 @@ int		TCP_OpenStream (netadr_t remoteaddr);
 int		TCP_OpenListenSocket (unsigned short int port);
 // UTILITY: open UDP listen socket (useful for server).
 int		UDP_OpenSocket (unsigned short int port);
+
+/* Human-readable requested/effective client interface for diagnostics. */
+const char *NET_ClientInterfaceStatus(void);
 //============================================================================
 
 //

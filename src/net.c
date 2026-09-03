@@ -27,6 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "server.h"
 #include "utils.h"
 #include "netlog.h"
+#include "net_interfaces.h"
 #define MAX_STRINGS 16 // well, this used not only for va, anyway, static buffers is evil...
 #endif
 
@@ -44,7 +45,13 @@ netadr_t	net_local_cl_ipadr;
 void NET_CloseClient (void);
 
 static void cl_net_clientport_changed(cvar_t* var, char* value, qbool* cancel);
+static void cl_net_interface_changed(cvar_t* var, char* value, qbool* cancel);
 static cvar_t cl_net_clientport = { "cl_net_clientport", "27001", CVAR_AUTO, cl_net_clientport_changed };  // Was PORT_CLIENT in protocol.h
+static cvar_t cl_net_interface = { "cl_net_interface", "auto", 0, cl_net_interface_changed };
+
+#define NET_MAX_CLIENT_INTERFACES 64
+static qbool net_client_interface_pending;
+static char net_client_interface_effective[256] = "auto";
 
 #define MIN_TCP_TIMEOUT  500
 #define MAX_TCP_TIMEOUT 5000
@@ -821,6 +828,8 @@ qbool NET_GetTCPPacket_SV (netsrc_t netsrc, netadr_t *from, sizebuf_t *message)
 qbool NET_GetPacketEx (netsrc_t netsrc, qbool delay)
 {
 #ifndef SERVERONLY
+	if (netsrc == NS_CLIENT)
+		NET_ApplyPendingClientInterface();
 	if (delay)
 		return NET_PacketQueueRemove(&delay_queue_get, &net_message, &net_from);
 #endif
@@ -1310,6 +1319,170 @@ int UDP_OpenSocket (unsigned short int port)
 	return newsocket;
 }
 
+#ifndef SERVERONLY
+static qbool NET_IsAutoInterface(const char *selector)
+{
+	return !selector || !*selector || !strcasecmp(selector, "auto");
+}
+
+static qbool NET_ResolveClientInterface(const char *selector, net_interface_info_t *selected)
+{
+	net_interface_info_t interfaces[NET_MAX_CLIENT_INTERFACES];
+	size_t count;
+	int found;
+
+	if (NET_IsAutoInterface(selector)) {
+		memset(selected, 0, sizeof(*selected));
+		return true;
+	}
+	count = NETIF_Enumerate(interfaces, sizeof(interfaces) / sizeof(interfaces[0]));
+	found = NETIF_Find(interfaces, count, selector);
+	if (found < 0)
+		return false;
+	*selected = interfaces[found];
+	return true;
+}
+
+static qbool NET_CommandLineInterface(net_interface_info_t *selected)
+{
+	net_interface_info_t interfaces[NET_MAX_CLIENT_INTERFACES];
+	const char *address;
+	int parameter, found;
+	size_t count;
+
+	parameter = COM_CheckParm(cmdline_param_net_ipaddress);
+	if (!parameter || parameter >= COM_Argc())
+		return false;
+	address = COM_Argv(parameter + 1);
+	memset(selected, 0, sizeof(*selected));
+	strlcpy(selected->name, "-ip", sizeof(selected->name));
+	strlcpy(selected->address, address, sizeof(selected->address));
+	count = NETIF_Enumerate(interfaces, sizeof(interfaces) / sizeof(interfaces[0]));
+	found = NETIF_Find(interfaces, count, address);
+	if (found >= 0)
+		*selected = interfaces[found];
+	return true;
+}
+
+static int UDP_OpenClientSocket(unsigned short int port, const char *selector, qbool fallback_to_auto)
+{
+	int newsocket;
+	struct sockaddr_in address;
+	unsigned long nonblocking = true;
+	net_interface_info_t selected;
+	qbool command_line = NET_CommandLineInterface(&selected);
+	qbool automatic;
+
+	if (!command_line && !NET_ResolveClientInterface(selector, &selected)) {
+		Con_Printf("Network interface '%s' is unavailable", selector ? selector : "");
+		if (!fallback_to_auto) {
+			Con_Printf(".\n");
+			return INVALID_SOCKET;
+		}
+		Con_Printf("; using automatic routing.\n");
+		memset(&selected, 0, sizeof(selected));
+	}
+	automatic = !command_line && !selected.address[0];
+
+	if ((newsocket = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET) {
+		Con_Printf("UDP_OpenClientSocket: socket: (%i): %s\n", qerrno, strerror(qerrno));
+		return INVALID_SOCKET;
+	}
+#ifndef _WIN32
+	if (fcntl(newsocket, F_SETFL, O_NONBLOCK) == -1) {
+		Con_Printf("UDP_OpenClientSocket: fcntl: (%i): %s\n", qerrno, strerror(qerrno));
+		closesocket(newsocket);
+		return INVALID_SOCKET;
+	}
+#endif
+	if (ioctlsocket(newsocket, FIONBIO, &nonblocking) == -1) {
+		Con_Printf("UDP_OpenClientSocket: ioctl: (%i): %s\n", qerrno, strerror(qerrno));
+		closesocket(newsocket);
+		return INVALID_SOCKET;
+	}
+
+#ifdef _WIN32
+	if (!automatic && selected.index) {
+		DWORD interface_index = htonl(selected.index);
+		if (setsockopt(newsocket, IPPROTO_IP, IP_UNICAST_IF,
+			(const char *)&interface_index, sizeof(interface_index)) == SOCKET_ERROR) {
+			Con_Printf("Unable to select network interface %s (index %u): (%i) %s\n",
+				selected.name, selected.index, qerrno, strerror(qerrno));
+			closesocket(newsocket);
+			return INVALID_SOCKET;
+		}
+	}
+#endif
+
+	memset(&address, 0, sizeof(address));
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = automatic ? INADDR_ANY : inet_addr(selected.address);
+	address.sin_port = port == PORT_ANY ? 0 : htons(port);
+	if (!automatic && address.sin_addr.s_addr == INADDR_NONE) {
+		Con_Printf("Invalid local IPv4 address '%s'.\n", selected.address);
+		closesocket(newsocket);
+		return INVALID_SOCKET;
+	}
+	if (bind(newsocket, (void *)&address, sizeof(address)) == -1) {
+		Con_Printf("UDP_OpenClientSocket: bind %s: (%i): %s\n",
+			automatic ? "0.0.0.0" : selected.address, qerrno, strerror(qerrno));
+		closesocket(newsocket);
+		return INVALID_SOCKET;
+	}
+
+	if (automatic)
+		strlcpy(net_client_interface_effective, "auto", sizeof(net_client_interface_effective));
+	else
+		snprintf(net_client_interface_effective, sizeof(net_client_interface_effective),
+			"%s (%s, index %u)%s", selected.name, selected.address, selected.index,
+			command_line ? " via -ip" : "");
+	Con_DPrintf("Client network interface: %s\n", net_client_interface_effective);
+	return newsocket;
+}
+
+static qbool NET_ValidateClientInterface(const char *selector)
+{
+	net_interface_info_t selected;
+	if (NET_IsAutoInterface(selector))
+		return true;
+	return NET_ResolveClientInterface(selector, &selected);
+}
+
+static void NET_ListInterfaces_f(void)
+{
+	net_interface_info_t interfaces[NET_MAX_CLIENT_INTERFACES];
+	size_t count = NETIF_Enumerate(interfaces, sizeof(interfaces) / sizeof(interfaces[0]));
+	size_t i;
+
+	Com_Printf("Available IPv4 network interfaces:\n");
+	Com_Printf("  auto - system routing\n");
+	for (i = 0; i < count; ++i)
+		Com_Printf("  %s - %s (index %u%s)\n", interfaces[i].name,
+			interfaces[i].address, interfaces[i].index,
+			interfaces[i].has_gateway ? "" : ", no gateway detected");
+	Com_Printf("Requested: %s\n", cl_net_interface.string);
+	Com_Printf("Effective: %s\n", net_client_interface_effective);
+	if (COM_CheckParm(cmdline_param_net_ipaddress))
+		Com_Printf("The -ip command-line parameter overrides cl_net_interface.\n");
+}
+
+const char *NET_ClientInterfaceStatus(void)
+{
+	static char status[512];
+	const char *requested = cl_net_interface.string && cl_net_interface.string[0] ?
+		cl_net_interface.string : "auto";
+	snprintf(status, sizeof(status), "requested=%s effective=%s pending=%d command_line_ip=%d",
+		requested, net_client_interface_effective, net_client_interface_pending,
+		COM_CheckParm(cmdline_param_net_ipaddress) != 0);
+	return status;
+}
+#else
+const char *NET_ClientInterfaceStatus(void)
+{
+	return "server-only";
+}
+#endif
+
 qbool NET_Sleep(int msec, qbool stdinissocket)
 {
 	struct timeval	timeout;
@@ -1406,7 +1579,9 @@ void NET_Init (void)
 // <--TCPCONNECT
 
 	Cvar_Register(&cl_net_clientport);
+	Cvar_Register(&cl_net_interface);
 	Cvar_Register(&net_tcp_timeout);
+	Cmd_AddCommand("net_interfaces", NET_ListInterfaces_f);
 
 	delay_queue_send.outgoing = true;
 #endif
@@ -1473,7 +1648,7 @@ static void cl_net_clientport_changed(cvar_t* var, char* value, qbool* cancel)
 	}
 
 	if (new_port > 0) {
-		new_socket = UDP_OpenSocket(new_port);
+		new_socket = UDP_OpenClientSocket(new_port, cl_net_interface.string, true);
 
 		if (new_socket == INVALID_SOCKET) {
 			Con_Printf("Unable to open new socket on port %d\n", new_port);
@@ -1482,7 +1657,7 @@ static void cl_net_clientport_changed(cvar_t* var, char* value, qbool* cancel)
 		}
 	}
 	if (new_socket == INVALID_SOCKET) {
-		new_socket = UDP_OpenSocket(PORT_ANY);
+		new_socket = UDP_OpenClientSocket(PORT_ANY, cl_net_interface.string, true);
 		set_auto = true;
 	}
 	
@@ -1507,6 +1682,55 @@ static void cl_net_clientport_changed(cvar_t* var, char* value, qbool* cancel)
 	}
 }
 
+static void cl_net_interface_changed(cvar_t *var, char *value, qbool *cancel)
+{
+	(void)var;
+	if (!value || !*value)
+		value = "auto";
+	if (!NET_ValidateClientInterface(value)) {
+		Con_Printf("Network interface '%s' is not available. Use net_interfaces to list valid choices.\n", value);
+		*cancel = true;
+		return;
+	}
+	net_client_interface_pending = true;
+	if (COM_CheckParm(cmdline_param_net_ipaddress))
+		Con_Printf("cl_net_interface is ignored while the -ip command-line parameter is present.\n");
+	else if (cls.state != ca_disconnected)
+		Con_Printf("cl_net_interface change will be applied after disconnect/reconnect.\n");
+}
+
+void NET_ApplyPendingClientInterface(void)
+{
+	int port;
+	int socket;
+	qbool automatic_port = false;
+
+	if (!net_client_interface_pending || cls.state != ca_disconnected)
+		return;
+	if (cls.socketip == INVALID_SOCKET) {
+		/* NET_InitClient will create the first socket using the selected interface. */
+		return;
+	}
+	port = cl_net_clientport.integer;
+	closesocket(cls.socketip);
+	cls.socketip = INVALID_SOCKET;
+	socket = port > 0 ? UDP_OpenClientSocket(port, cl_net_interface.string, true) : INVALID_SOCKET;
+	if (socket == INVALID_SOCKET) {
+		socket = UDP_OpenClientSocket(PORT_ANY, cl_net_interface.string, true);
+		automatic_port = true;
+	}
+	if (socket == INVALID_SOCKET)
+		Sys_Error("Couldn't reopen client socket for cl_net_interface");
+	cls.socketip = socket;
+	NET_GetLocalAddress(cls.socketip, &net_local_cl_ipadr);
+	if (automatic_port)
+		Cvar_AutoSetInt(&cl_net_clientport, ntohs(net_local_cl_ipadr.port));
+	else
+		Cvar_AutoReset(&cl_net_clientport);
+	net_client_interface_pending = false;
+	Com_Printf_State(PRINT_OK, "Client network interface applied: %s\n", net_client_interface_effective);
+}
+
 // This is called after config loaded
 void NET_InitClient(void)
 {
@@ -1523,10 +1747,10 @@ void NET_InitClient(void)
 	}
 
 	if (cls.socketip == INVALID_SOCKET && port > 0)
-		cls.socketip = UDP_OpenSocket(port);
+		cls.socketip = UDP_OpenClientSocket(port, cl_net_interface.string, true);
 
 	if (cls.socketip == INVALID_SOCKET) {
-		cls.socketip = UDP_OpenSocket(PORT_ANY); // any dynamic port
+		cls.socketip = UDP_OpenClientSocket(PORT_ANY, cl_net_interface.string, true); // any dynamic port
 		set_auto = true;
 	}
 
@@ -1550,6 +1774,7 @@ void NET_InitClient(void)
 	}
 
 	Com_Printf_State(PRINT_OK, "Client port initialized: %i\n", ntohs(net_local_cl_ipadr.port));
+	net_client_interface_pending = false;
 }
 
 void NET_CloseClient (void)

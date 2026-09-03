@@ -93,6 +93,33 @@
       "apply": "on_save"
     },
     {
+      "id": "network_interface",
+      "scope": [
+        "main"
+      ],
+      "storage": {
+        "type": "cvar",
+        "name": "cl_net_interface"
+      },
+      "widget": {
+        "type": "select",
+        "options": [
+          {
+            "value": "auto",
+            "label": "Автоматически (системный маршрут)",
+            "label_en": "Automatic (system routing)"
+          }
+        ]
+      },
+      "label": "Сетевой интерфейс",
+      "label_en": "Network interface",
+      "description": "Выбирает IPv4-интерфейс для игрового UDP-соединения. Значение -ip в ярлыке имеет приоритет. При смене во время игры применяется после переподключения.",
+      "description_en": "Selects the IPv4 interface for the game UDP connection. A shortcut -ip value takes priority. Changes made in-game apply after reconnecting.",
+      "group": "Сеть",
+      "order": 18,
+      "apply": "on_save"
+    },
+    {
       "id": "mouse_sensitivity",
       "scope": [
         "main"

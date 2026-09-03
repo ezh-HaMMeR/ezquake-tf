@@ -185,6 +185,7 @@ set(common
         ${SOURCE_DIR}/md4.c
         ${SOURCE_DIR}/net.c
         ${SOURCE_DIR}/net_chan.c
+		${SOURCE_DIR}/net_interfaces.c
         ${SOURCE_DIR}/parser.c
         ${SOURCE_DIR}/pmove.c
         ${SOURCE_DIR}/pmovetst.c
@@ -812,6 +813,17 @@ if(BUILD_CFG_EDITOR_TESTS)
 	target_include_directories(update_common_tests PRIVATE ${SOURCE_DIR})
 	add_test(NAME update_version_and_path_policy COMMAND update_common_tests)
 
+	add_executable(net_interfaces_tests EXCLUDE_FROM_ALL
+			${PROJECT_SOURCE_DIR}/tests/net_interfaces_tests.c
+			${SOURCE_DIR}/net_interfaces.c
+			${SOURCE_DIR}/net_interfaces.h
+	)
+	target_include_directories(net_interfaces_tests PRIVATE ${SOURCE_DIR})
+	if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+		target_link_libraries(net_interfaces_tests PRIVATE iphlpapi ws2_32)
+	endif()
+	add_test(NAME net_interface_selector COMMAND net_interfaces_tests)
+
 	if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 		add_executable(update_restart_probe EXCLUDE_FROM_ALL
 				${PROJECT_SOURCE_DIR}/tests/update_restart_probe.c)
@@ -996,7 +1008,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 	target_compile_definitions(update PRIVATE UNICODE _UNICODE _CRT_SECURE_NO_WARNINGS)
 	target_link_libraries(update PRIVATE Dep::Jansson Dep::MiniZip bcrypt shell32)
 	set_target_properties(update PROPERTIES OUTPUT_NAME "update")
-	target_link_libraries(ezquake PRIVATE bcrypt)
+	target_link_libraries(ezquake PRIVATE bcrypt iphlpapi)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")

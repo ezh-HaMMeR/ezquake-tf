@@ -2153,6 +2153,13 @@
       "remarks": "Can set to 0 to use a dynamically allocated port",
       "type": "integer"
     },
+    "cl_net_interface": {
+      "default": "auto",
+      "desc": "Selects the local IPv4 network interface used by the game UDP socket.",
+      "group-id": "21",
+      "remarks": "Use net_interfaces to list available names, addresses and indices. The -ip command-line parameter takes priority. Changes made while connected are applied after disconnecting or reconnecting.",
+      "type": "string"
+    },
     "cl_newlerp": {
       "default": "0",
       "desc": "Experimental rockets/grenades/spikes smoothing code.\nFor example, a value of 0.1 means use 90% of our 'vision' and 10% of server 'vision'. Should be OK for most cases (see remarks).",
