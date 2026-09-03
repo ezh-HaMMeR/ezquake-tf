@@ -43,6 +43,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "version.h"
 #include "stats_grid.h"
 #include "fmod.h"
+#include "netlog.h"
 #include "sbar.h"
 #include "utils.h"
 #include "qsound.h"
@@ -1233,6 +1234,9 @@ void CL_Disconnect (void)
 {
 	byte final[10];
 
+	if (cls.state != ca_disconnected)
+		Netlog_ConnectionEvent("disconnect", &cls.netchan.remote_address);
+
 	connect_time = 0;
 	con_addtimestamp = true;
 
@@ -1726,6 +1730,7 @@ static void CL_InitLocal(void)
 	extern void Cl_Messages_Init(void);
 
 	Cl_Messages_Init();
+	Netlog_Init();
 
 	Cvar_SetCurrentGroup(CVAR_GROUP_CHAT);
 	Cvar_Register(&cl_parseWhiteText);
@@ -2689,6 +2694,7 @@ void CL_Frame(double time)
 #endif
 
 	SB_ExecuteQueuedTriggers();
+	Netlog_Frame();
 
 	R_ParticleEndFrame();
 
@@ -2700,6 +2706,7 @@ void CL_Frame(double time)
 void CL_Shutdown (void) 
 {
 	CL_Disconnect();
+	Netlog_Shutdown();
 	SList_Shutdown();
 	CDAudio_Shutdown();
 	S_Shutdown();

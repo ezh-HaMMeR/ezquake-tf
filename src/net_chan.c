@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <time.h>
 #include "quakedef.h"
 #include "server.h"
+#include "netlog.h"
 #endif
 
 #define	PACKET_HEADER 8
@@ -228,6 +229,11 @@ void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t adr, int qport, int
 	chan->rate = 1.0/2500;
 
 	SZ_InitEx (&chan->message, chan->message_buf, bound(min(MIN_MTU, (int)sizeof(chan->message_buf)), mtu, (int)sizeof(chan->message_buf)), true);
+
+#ifndef SERVERONLY
+	if (sock == NS_CLIENT)
+		Netlog_ConnectionEvent("connected", &adr);
+#endif
 }
 
 /*
@@ -338,6 +344,12 @@ void Netchan_Transmit (netchan_t *chan, int length, byte *data)
 		SZ_Write(&send, data, length);
 	}
 
+#ifndef SERVERONLY
+	if (chan->sock == NS_CLIENT)
+		Netlog_NetchanTransmit(chan, w1 & ~(1u << 31), w2 & ~(1u << 31),
+			send_reliable, length, send.cursize);
+#endif
+
 	// send the datagram
 	i = chan->outgoing_sequence & (MAX_LATENT-1);
 	chan->outgoing_size[i] = send.cursize;
@@ -392,6 +404,7 @@ qbool Netchan_Process (netchan_t *chan)
 {
 	unsigned sequence, sequence_ack;
 	unsigned reliable_ack, reliable_message;
+	int expected_sequence;
 
 #ifdef SERVERONLY
 	if (!NET_CompareAdr (net_from, chan->remote_address))
@@ -412,6 +425,7 @@ qbool Netchan_Process (netchan_t *chan)
 
 	sequence &= ~(1 << 31);
 	sequence_ack &= ~(1 << 31);
+	expected_sequence = chan->incoming_sequence + 1;
 
 	if (ShowPacket(chan->sock, PACKET_RECEIVING)) {
 #ifndef SERVERONLY
@@ -428,6 +442,11 @@ qbool Netchan_Process (netchan_t *chan)
 
 	// discard stale or duplicated packets
 	if (sequence <= (unsigned)chan->incoming_sequence) {
+#ifndef SERVERONLY
+		if (chan->sock == NS_CLIENT)
+			Netlog_NetchanReceive(chan, sequence, sequence_ack, reliable_message,
+				reliable_ack, net_message.cursize, false, expected_sequence, 0);
+#endif
 		if (ShowDrop(chan->sock)) {
 #ifndef SERVERONLY
 			Print_flags[Print_current] |= PR_TR_SKIP;
@@ -442,6 +461,11 @@ qbool Netchan_Process (netchan_t *chan)
 
 	// dropped packets don't keep the message from being used
 	chan->dropped = sequence - (chan->incoming_sequence+1);
+#ifndef SERVERONLY
+	if (chan->sock == NS_CLIENT)
+		Netlog_NetchanReceive(chan, sequence, sequence_ack, reliable_message,
+			reliable_ack, net_message.cursize, true, expected_sequence, chan->dropped);
+#endif
 	if (chan->dropped > 0) {
 		chan->drop_count += 1;
 

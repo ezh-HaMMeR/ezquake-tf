@@ -1209,6 +1209,9 @@
   "netproblem": {
     "description": "HUD element - icon displayed when network traffic is experiencing problems like lost packets, large delay, etc."
   },
+  "netlog_status": {
+    "description": "Prints the active network diagnostic log path and current packet counters."
+  },
   "noclip": {
     "description": "You can fly and go thru objects free mode as spectator",
     "remarks": "Needs cheats support by server."

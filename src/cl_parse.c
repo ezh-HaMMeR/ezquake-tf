@@ -20,6 +20,7 @@ $Id: cl_parse.c,v 1.135 2007-10-28 19:56:44 qqshka Exp $
 */
 
 #include "quakedef.h"
+#include "netlog.h"
 #include "gl_model.h"
 #include "cdaudio.h"
 #include "ignore.h"
@@ -304,6 +305,7 @@ int CL_CalcNet (void)
 			packetcount++;
 	}
 	last_lost = packetcount ? lost * 100 / packetcount : 100;
+	Netlog_LossCalculated(last_lost, lost, packetcount);
 	return last_lost;
 }
 
@@ -1993,6 +1995,7 @@ void CL_ParseClientdata (void)
 
 	// calculate latency
 	latency = frame->receivedtime - frame->senttime;
+	Netlog_ClientAck(cl.parsecount, frame->senttime, frame->receivedtime, frame->receivedsize);
 
 	if (latency >= 0 && latency <= 1) 
 	{
@@ -4015,15 +4018,19 @@ void CL_ParseServerMessage (void)
 				}
 			case svc_chokecount: // Some preceding packets were choked
 				{
-					i = MSG_ReadByte();
+					int reported = MSG_ReadByte();
+					int marked = 0;
+					i = reported;
 					for (j = cls.netchan.incoming_acknowledged - 1; i > 0 && j > cls.netchan.outgoing_sequence - UPDATE_BACKUP; j--) 
 					{
 						if (cl.frames[j & UPDATE_MASK].receivedtime != -3) 
 						{
 							cl.frames[j & UPDATE_MASK].receivedtime = -2;
 							i--;
+							marked++;
 						}
 					}
+					Netlog_ServerChoke(cls.netchan.incoming_acknowledged, reported, marked);
 					break;
 				}
 			case svc_modellist:

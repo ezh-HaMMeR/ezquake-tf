@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "input.h"
 #include "pmove.h"		// PM_FLY etc
 #include "rulesets.h"
+#include "netlog.h"
 
 static void IN_AttackUp_CommonHide(void);
 
@@ -1179,6 +1180,8 @@ void CL_SendCmd(void)
 		else {
 			// don't count this message when calculating PL
 			cl.frames[i].receivedtime = -3;
+			Netlog_ClientMove(cls.netchan.outgoing_sequence, lost, buf.cursize + 8,
+				true, pps_balance, dropcount + 1, dontdrop);
 			// drop this message
 			cls.netchan.outgoing_sequence++;
 			dropcount++;
@@ -1202,6 +1205,8 @@ void CL_SendCmd(void)
 	cls.netchan.dupe = bound(0, cl_c2sdupe.value, MAX_DUPLICATE_PACKETS);
 
 	// deliver the message
+	Netlog_ClientMove(cls.netchan.outgoing_sequence, lost, buf.cursize + 8,
+		false, pps_balance, dropcount, dontdrop);
 	Netchan_Transmit(&cls.netchan, buf.cursize, buf.data);
 }
 

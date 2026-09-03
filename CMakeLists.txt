@@ -614,6 +614,7 @@ set(client_headers
         ${SOURCE_DIR}/menu_proxy.h
         ${SOURCE_DIR}/movie.h
         ${SOURCE_DIR}/movie_avi.h
+        ${SOURCE_DIR}/netlog.h
         ${SOURCE_DIR}/mvd_utils.h
         ${SOURCE_DIR}/mvd_utils_common.h
         ${SOURCE_DIR}/qsound.h
@@ -721,6 +722,7 @@ set(client
         ${SOURCE_DIR}/mvd_autotrack.c
         ${SOURCE_DIR}/mvd_utils.c
         ${SOURCE_DIR}/mvd_xmlstats.c
+        ${SOURCE_DIR}/netlog.c
         ${SOURCE_DIR}/qtv.c
         ${SOURCE_DIR}/rulesets.c
         ${SOURCE_DIR}/sbar.c

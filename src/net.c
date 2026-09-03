@@ -26,6 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "server.h"
 #include "utils.h"
+#include "netlog.h"
 #define MAX_STRINGS 16 // well, this used not only for va, anyway, static buffers is evil...
 #endif
 
@@ -137,6 +138,7 @@ static qbool NET_PacketQueueRemove(packet_queue_t* queue, sizebuf_t* buffer, net
 	SZ_Clear(buffer);
 	SZ_Write(buffer, next->data, next->length);
 	*from_address = next->addr;
+	Netlog_RawPacket(queue->outgoing ? "TX" : "RX", "delayed", from_address, next->length, 0);
 	next->time = 0;
 
 	NET_PacketQueueSetNextIndex(&queue->head);
@@ -155,6 +157,7 @@ static qbool NET_PacketQueueAdd(packet_queue_t* queue, byte* data, int size, net
 
 	// If buffer is full, can't prevent packet loss - drop this packet
 	if (next->time && queue->head == queue->tail) {
+		Netlog_DelayQueue(queue->outgoing ? "TX" : "RX", &addr, size, 0, false);
 		return false;
 	}
 
@@ -194,6 +197,7 @@ static qbool NET_PacketQueueAdd(packet_queue_t* queue, byte* data, int size, net
 	next->length = size;
 	next->addr = addr;
 	next->time = Sys_DoubleTime() + 0.001 * ms_delay;
+	Netlog_DelayQueue(queue->outgoing ? "TX" : "RX", &addr, size, ms_delay, true);
 
 	NET_PacketQueueSetNextIndex(&queue->tail);
 	return true;
@@ -579,22 +583,38 @@ qbool NET_GetUDPPacket (netsrc_t netsrc, netadr_t *from_adr, sizebuf_t *message)
 
 		if (err == EMSGSIZE)
 		{
+#ifndef SERVERONLY
+			if (netsrc == NS_CLIENT)
+				Netlog_RawPacket("RX", "udp", from_adr, 0, err);
+#endif
 			Con_DPrintf ("Warning: Oversize packet from %s\n", NET_AdrToString (*from_adr));
 			return false;
 		}
 
 		if (err == ECONNABORTED || err == ECONNRESET)
 		{
+#ifndef SERVERONLY
+			if (netsrc == NS_CLIENT)
+				Netlog_RawPacket("RX", "udp", from_adr, 0, err);
+#endif
 			Con_DPrintf ("Connection lost or aborted\n");
 			return false;
 		}
 
+#ifndef SERVERONLY
+		if (netsrc == NS_CLIENT)
+			Netlog_RawPacket("RX", "udp", from_adr, 0, err);
+#endif
 		Con_Printf ("NET_GetPacket: recvfrom: (%i): %s\n", err, strerror(err));
 		return false;
 	}
 
 	if (ret >= message->maxsize)
 	{
+#ifndef SERVERONLY
+		if (netsrc == NS_CLIENT)
+			Netlog_RawPacket("RX", "udp", from_adr, ret, EMSGSIZE);
+#endif
 		Con_Printf ("Oversize packet from %s\n", NET_AdrToString (*from_adr));
 		return false;
 	}
@@ -807,16 +827,29 @@ qbool NET_GetPacketEx (netsrc_t netsrc, qbool delay)
 
 #ifndef SERVERONLY
 	if (NET_GetLoopPacket(netsrc, &net_from, &net_message))
+	{
+		if (netsrc == NS_CLIENT)
+			Netlog_RawPacket("RX", "loopback", &net_from, net_message.cursize, 0);
 		return true;
+	}
 #endif
 
 	if (NET_GetUDPPacket(netsrc, &net_from, &net_message))
+	{
+#ifndef SERVERONLY
+		if (netsrc == NS_CLIENT)
+			Netlog_RawPacket("RX", "udp", &net_from, net_message.cursize, 0);
+#endif
 		return true;
+	}
 
 // TCPCONNECT -->
 #ifndef SERVERONLY
 	if (netsrc == NS_CLIENT && cls.sockettcp != INVALID_SOCKET && NET_GetTCPPacket_CL(netsrc, &net_from, &net_message))
+	{
+		Netlog_RawPacket("RX", "tcp", &net_from, net_message.cursize, 0);
 		return true;
+	}
 #endif
 
 #ifndef CLIENTONLY
@@ -926,6 +959,7 @@ qbool NET_SendUDPPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 {
 	struct sockaddr_storage addr;
 	int ret;
+	int error_code = 0;
 	int socket = NET_GetSocket(netsrc, false);
 
 	if (socket == INVALID_SOCKET)
@@ -937,12 +971,18 @@ qbool NET_SendUDPPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 	if (ret == -1)
 	{
 		int err = qerrno;
+		error_code = err;
 
 		if (err == EWOULDBLOCK || err == ECONNREFUSED || err == EADDRNOTAVAIL)
 			; // nothing
 		else
 			Con_Printf ("NET_SendPacket: sendto: (%i): %s %i\n", err, strerror(err), socket);
 	}
+
+#ifndef SERVERONLY
+	if (netsrc == NS_CLIENT)
+		Netlog_RawPacket("TX", "udp", &to, ret == -1 ? 0 : ret, error_code);
+#endif
 
 	return true;
 }
@@ -961,6 +1001,8 @@ void NET_SendPacketEx (netsrc_t netsrc, int length, void *data, netadr_t to, qbo
 	if (to.type == NA_LOOPBACK)
 	{
 		NET_SendLoopPacket (netsrc, length, data, to);
+		if (netsrc == NS_CLIENT)
+			Netlog_RawPacket("TX", "loopback", &to, length, 0);
 		return;
 	}
 #endif
@@ -968,7 +1010,10 @@ void NET_SendPacketEx (netsrc_t netsrc, int length, void *data, netadr_t to, qbo
 // TCPCONNECT -->
 #ifndef SERVERONLY
 	if (netsrc == NS_CLIENT && cls.sockettcp != INVALID_SOCKET && NET_SendTCPPacket_CL(netsrc, length, data, to))
+	{
+		Netlog_RawPacket("TX", "tcp", &to, length, 0);
 		return;
+	}
 #endif
 
 #ifndef CLIENTONLY
@@ -1624,4 +1669,3 @@ void NET_CloseServer (void)
 // <--TCPCONNECT
 }
 #endif
-
