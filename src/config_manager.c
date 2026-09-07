@@ -106,6 +106,7 @@ static qbool Config_Unsaved_Cvar(const char *name)
 {
 	return (!strcmp(name, "cl_delay_packet"))
         || (!strcmp(name, "cl_proxyaddr"))
+		|| (!strcmp(name, "cl_net_interface"))
         || (!strcmp(name, "hud_planmode"))
         || (!strcmp(name, "con_bindphysical"));
 }

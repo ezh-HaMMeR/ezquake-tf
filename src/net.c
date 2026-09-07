@@ -47,11 +47,14 @@ void NET_CloseClient (void);
 static void cl_net_clientport_changed(cvar_t* var, char* value, qbool* cancel);
 static void cl_net_interface_changed(cvar_t* var, char* value, qbool* cancel);
 static cvar_t cl_net_clientport = { "cl_net_clientport", "27001", CVAR_AUTO, cl_net_clientport_changed };  // Was PORT_CLIENT in protocol.h
-static cvar_t cl_net_interface = { "cl_net_interface", "auto", 0, cl_net_interface_changed };
+static cvar_t cl_net_interface = { "cl_net_interface", "auto", CVAR_NO_RESET, cl_net_interface_changed };
 
 #define NET_MAX_CLIENT_INTERFACES 64
 static qbool net_client_interface_pending;
+static qbool net_client_interface_loading_preference;
 static char net_client_interface_effective[256] = "auto";
+
+#define NET_INTERFACE_PREFERENCE_FILE "qw/net_interface.txt"
 
 #define MIN_TCP_TIMEOUT  500
 #define MAX_TCP_TIMEOUT 5000
@@ -1325,6 +1328,56 @@ static qbool NET_IsAutoInterface(const char *selector)
 	return !selector || !*selector || !strcasecmp(selector, "auto");
 }
 
+static void NET_InterfacePreferencePath(char *path, size_t path_size)
+{
+	snprintf(path, path_size, "%s/%s", com_basedir, NET_INTERFACE_PREFERENCE_FILE);
+}
+
+static void NET_SaveInterfacePreference(const char *selector)
+{
+	char path[MAX_OSPATH];
+	const char *cursor;
+	size_t length;
+
+	if (!selector || !*selector || !com_basedir[0])
+		return;
+	for (cursor = selector; *cursor; ++cursor) {
+		if (*cursor == '\r' || *cursor == '\n')
+			return;
+	}
+	length = strlen(selector);
+	if (length > INT_MAX)
+		return;
+	NET_InterfacePreferencePath(path, sizeof(path));
+	if (!FS_WriteFile_2(path, selector, (int)length))
+		Com_Printf("Unable to save network interface preference to %s.\n", path);
+}
+
+static void NET_LoadInterfacePreference(void)
+{
+	char path[MAX_OSPATH];
+	char selector[NET_INTERFACE_NAME_SIZE];
+	FILE *file;
+	size_t length;
+
+	if (!com_basedir[0])
+		return;
+	NET_InterfacePreferencePath(path, sizeof(path));
+	file = fopen(path, "rb");
+	if (!file)
+		return;
+	length = fread(selector, 1, sizeof(selector) - 1, file);
+	fclose(file);
+	selector[length] = '\0';
+	while (length && (selector[length - 1] == '\r' || selector[length - 1] == '\n'))
+		selector[--length] = '\0';
+	if (length) {
+		net_client_interface_loading_preference = true;
+		Cvar_Set(&cl_net_interface, selector);
+		net_client_interface_loading_preference = false;
+	}
+}
+
 static qbool NET_ResolveClientInterface(const char *selector, net_interface_info_t *selected)
 {
 	net_interface_info_t interfaces[NET_MAX_CLIENT_INTERFACES];
@@ -1580,6 +1633,7 @@ void NET_Init (void)
 
 	Cvar_Register(&cl_net_clientport);
 	Cvar_Register(&cl_net_interface);
+	NET_LoadInterfacePreference();
 	Cvar_Register(&net_tcp_timeout);
 	Cmd_AddCommand("net_interfaces", NET_ListInterfaces_f);
 
@@ -1692,6 +1746,8 @@ static void cl_net_interface_changed(cvar_t *var, char *value, qbool *cancel)
 		*cancel = true;
 		return;
 	}
+	if (!net_client_interface_loading_preference)
+		NET_SaveInterfacePreference(value);
 	net_client_interface_pending = true;
 	if (COM_CheckParm(cmdline_param_net_ipaddress))
 		Con_Printf("cl_net_interface is ignored while the -ip command-line parameter is present.\n");

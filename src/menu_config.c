@@ -33,6 +33,7 @@ extern cvar_t menu_language;
 typedef enum config_item_kind_e {
 	CONFIG_ITEM_SECTION,
 	CONFIG_ITEM_CLASS,
+	CONFIG_ITEM_NETWORK_INTERFACE,
 	CONFIG_ITEM_SETTING,
 	CONFIG_ITEM_BIND,
 	CONFIG_ITEM_MISC,
@@ -91,6 +92,8 @@ typedef struct config_menu_s {
 	int viewport_top;
 	int viewport_bottom;
 	qbool name_palette_open;
+	net_interface_info_t network_interfaces[CONFIG_MAX_NETWORK_INTERFACES];
+	size_t network_interface_count;
 	char notice[256];
 } config_menu_t;
 
@@ -399,90 +402,54 @@ static void Config_FreeSession(void)
 	memset(&config_menu, 0, sizeof(config_menu));
 }
 
-static char *Config_HeapString(const char *text)
+static void Config_RefreshNetworkInterfaces(void)
 {
-	size_t length = strlen(text ? text : "") + 1;
-	char *copy = (char *)malloc(length);
-	if (copy)
-		memcpy(copy, text ? text : "", length);
-	return copy;
+	config_menu.network_interface_count = NETIF_Enumerate(config_menu.network_interfaces,
+		sizeof(config_menu.network_interfaces) / sizeof(config_menu.network_interfaces[0]));
 }
 
-static qbool Config_PopulateNetworkInterfaces(void)
+static int Config_CurrentNetworkInterface(void)
 {
-	net_interface_info_t interfaces[CONFIG_MAX_NETWORK_INTERFACES];
-	cfg_setting_definition_t *definition = NULL;
-	cfg_dictionary_option_t *options;
-	cfg_setting_result_t resolved;
-	const char *stored = "auto";
-	size_t count, i, option_count;
-	int stored_index;
-	qbool stored_known;
+	const char *selector = Cvar_String("cl_net_interface");
+	int found = NETIF_Find(config_menu.network_interfaces,
+		config_menu.network_interface_count, selector);
+	return found < 0 ? 0 : found + 1;
+}
 
-	for (i = 0; i < config_menu.dictionary.setting_count; ++i) {
-		if (config_menu.dictionary.settings[i].name &&
-			!strcmp(config_menu.dictionary.settings[i].name, "cl_net_interface")) {
-			definition = &config_menu.dictionary.settings[i];
-			break;
-		}
-	}
-	if (!definition)
-		return true;
-	if (CFGModel_ResolveSetting(&config_menu.model, "main", definition->storage_kind,
-		definition->name, definition->on_command, definition->off_command, &resolved) &&
-		resolved.value && resolved.value[0])
-		stored = resolved.value;
+static const char *Config_NetworkInterfaceValue(void)
+{
+	static char value[320];
+	const char *selector = Cvar_String("cl_net_interface");
+	int current = Config_CurrentNetworkInterface();
 
-	count = NETIF_Enumerate(interfaces, sizeof(interfaces) / sizeof(interfaces[0]));
-	stored_index = NETIF_Find(interfaces, count, stored);
-	stored_known = !strcasecmp(stored, "auto") || stored_index >= 0;
-	option_count = 1 + count + (stored_known ? 0 : 1);
-	options = (cfg_dictionary_option_t *)calloc(option_count, sizeof(*options));
-	if (!options)
-		return false;
+	if (!selector[0] || !strcasecmp(selector, "auto"))
+		return Config_Text("Автоматически (системный маршрут)", "Automatic (system routing)");
+	if (current > 0) {
+		const net_interface_info_t *adapter = &config_menu.network_interfaces[current - 1];
+		snprintf(value, sizeof(value), "%s - %s%s", adapter->name, adapter->address,
+			adapter->has_gateway ? "" : Config_Text(" (нет шлюза)", " (no gateway)"));
+	}
+	else {
+		snprintf(value, sizeof(value), "%s%s", selector,
+			Config_Text(" (недоступен)", " (unavailable)"));
+	}
+	return value;
+}
 
-	options[0].value = Config_HeapString("auto");
-	options[0].label = Config_HeapString("Автоматически (системный маршрут)");
-	options[0].label_en = Config_HeapString("Automatic (system routing)");
-	for (i = 0; i < count; ++i) {
-		char label[256], label_en[256];
-		snprintf(label, sizeof(label), "%s - %s%s", interfaces[i].name,
-			interfaces[i].address, interfaces[i].has_gateway ? "" : " (нет шлюза)");
-		snprintf(label_en, sizeof(label_en), "%s - %s%s", interfaces[i].name,
-			interfaces[i].address, interfaces[i].has_gateway ? "" : " (no gateway)");
-		options[i + 1].value = Config_HeapString(interfaces[i].name);
-		options[i + 1].label = Config_HeapString(label);
-		options[i + 1].label_en = Config_HeapString(label_en);
-	}
-	if (!stored_known) {
-		char label[320], label_en[320];
-		snprintf(label, sizeof(label), "%s (недоступен)", stored);
-		snprintf(label_en, sizeof(label_en), "%s (unavailable)", stored);
-		options[option_count - 1].value = Config_HeapString(stored);
-		options[option_count - 1].label = Config_HeapString(label);
-		options[option_count - 1].label_en = Config_HeapString(label_en);
-	}
-	for (i = 0; i < option_count; ++i) {
-		if (!options[i].value || !options[i].label || !options[i].label_en) {
-			size_t j;
-			for (j = 0; j < option_count; ++j) {
-				free(options[j].value);
-				free(options[j].label);
-				free(options[j].label_en);
-			}
-			free(options);
-			return false;
-		}
-	}
-	for (i = 0; i < definition->option_count; ++i) {
-		free(definition->options[i].value);
-		free(definition->options[i].label);
-		free(definition->options[i].label_en);
-	}
-	free(definition->options);
-	definition->options = options;
-	definition->option_count = option_count;
-	return true;
+static void Config_AdjustNetworkInterface(int direction)
+{
+	int count = (int)config_menu.network_interface_count + 1;
+	int current = Config_CurrentNetworkInterface();
+	const char *next;
+	cvar_t *variable;
+
+	if (count <= 0)
+		return;
+	current = (current + count + direction) % count;
+	next = current == 0 ? "auto" : config_menu.network_interfaces[current - 1].name;
+	variable = Cvar_Find("cl_net_interface");
+	if (variable)
+		Cvar_Set(variable, (char *)next);
 }
 
 static qbool Config_BuildMisc(config_text_draft_t *text, const cfg_model_file_t *file)
@@ -646,12 +613,13 @@ static qbool Config_LoadSession(void)
 	if (!CFGModel_LoadManifest(&config_menu.model, manifest, com_basedir, error, sizeof(error)) ||
 		!CFGDictionary_Load(&config_menu.dictionary, settings, binds, error, sizeof(error)) ||
 		!CFGDictionary_ApplyToModel(&config_menu.dictionary, &config_menu.model, &applied, error, sizeof(error)) ||
-		!Config_PopulateNetworkInterfaces() || !Config_BuildDrafts()) {
+		!Config_BuildDrafts()) {
 		strlcpy(config_menu.error, error[0] ? error : "Unable to prepare the config editor draft", sizeof(config_menu.error));
 		config_menu.loaded = false;
 		return false;
 	}
 	config_menu.loaded = true;
+	Config_RefreshNetworkInterfaces();
 	config_menu.section_open[0] = true;
 	return true;
 }
@@ -1272,7 +1240,10 @@ static void Config_BuildLayout(void)
 	for (section = 0; section < 4; ++section) {
 		Config_AddLayout(CONFIG_ITEM_SECTION, NULL, 0, section, 16);
 		if (!config_menu.section_open[section]) continue;
-		if (section == 0) Config_AddFileLayout("main", true, false);
+		if (section == 0) {
+			Config_AddLayout(CONFIG_ITEM_NETWORK_INTERFACE, NULL, 0, 0, 10);
+			Config_AddFileLayout("main", true, false);
+		}
 		else if (section == 1) Config_AddFileLayout("binds", false, true);
 		else if (section == 2) {
 			for (class_index = 0; class_index < 9; ++class_index) {
@@ -1373,10 +1344,12 @@ static void Config_DrawLayoutItem(const config_layout_item_t *item, int index, i
 	}
 	if (item->kind == CONFIG_ITEM_CLASS) indent = 12;
 	else if (item->kind != CONFIG_ITEM_SECTION) indent = 28;
-	item_x = (item->kind == CONFIG_ITEM_SETTING || item->kind == CONFIG_ITEM_BIND) ?
+	item_x = (item->kind == CONFIG_ITEM_SETTING || item->kind == CONFIG_ITEM_BIND ||
+		item->kind == CONFIG_ITEM_NETWORK_INTERFACE) ?
 		left + indent : value_x + indent;
 	if (active) UI_DrawGrayBox(item_x, y, left + width - item_x,
-		item->kind == CONFIG_ITEM_SETTING ? min(10, item->height - 2) : item->height - 2);
+		(item->kind == CONFIG_ITEM_SETTING || item->kind == CONFIG_ITEM_NETWORK_INTERFACE) ?
+		min(10, item->height - 2) : item->height - 2);
 
 	if (item->kind == CONFIG_ITEM_SECTION) {
 		color_t color = active ? RGBA_TO_COLOR(255, 112, 32, 255) : RGBA_TO_COLOR(145, 92, 42, 255);
@@ -1405,7 +1378,18 @@ static void Config_DrawLayoutItem(const config_layout_item_t *item, int index, i
 	}
 	else {
 		int label_chars = max(12, (value_x - left - indent) / LETTERWIDTH - 3);
-		if (item->kind == CONFIG_ITEM_SETTING) {
+		if (item->kind == CONFIG_ITEM_NETWORK_INTERFACE) {
+			const char *network_label = Config_Text("Сетевой интерфейс", "Network interface");
+			int label_length = min(label_chars, Config_UTF8Length(network_label));
+			if (active)
+				Config_DrawUTF8Color(value_x - label_length * LETTERWIDTH - LETTERWIDTH * 2, y,
+					network_label, RGBA_TO_COLOR(255, 112, 32, 255), label_chars);
+			else Config_DrawUTF8(value_x - label_length * LETTERWIDTH - LETTERWIDTH * 2, y,
+				network_label, false, label_chars);
+			Config_DrawDecoratedValue(value_x, y, Config_NetworkInterfaceValue(),
+				max(3, (left + width - value_x) / LETTERWIDTH));
+		}
+		else if (item->kind == CONFIG_ITEM_SETTING) {
 			config_setting_draft_t *draft = Config_SettingAt(item->file_id, item->data_index);
 			const char *setting_label = Config_SettingLabel(draft->definition);
 			int label_length = min(label_chars, Config_UTF8Length(setting_label));
@@ -1441,6 +1425,10 @@ static const char *Config_SelectedHelp(void)
 {
 	config_layout_item_t *item = config_menu.layout_count ? &config_menu.layout[config_menu.cursor] : NULL;
 	if (!item) return "";
+	if (item->kind == CONFIG_ITEM_NETWORK_INTERFACE)
+		return Config_Text(
+			"IPv4-интерфейс игрового UDP-соединения. Сохраняется самим клиентом; -ip имеет приоритет. Во время игры применяется после переподключения.",
+			"IPv4 interface for the game UDP connection. Saved by the client; -ip takes priority. In-game changes apply after reconnecting.");
 	if (item->kind == CONFIG_ITEM_SETTING)
 		return Config_SettingDescription(Config_SettingAt(item->file_id, item->data_index)->definition);
 	if (item->kind == CONFIG_ITEM_BIND)
@@ -1576,6 +1564,8 @@ static void Config_ActivateItem(config_layout_item_t *item)
 				config_menu.name_palette_open = true;
 		}
 	}
+	else if (item->kind == CONFIG_ITEM_NETWORK_INTERFACE)
+		Config_AdjustNetworkInterface(1);
 	else if (item->kind == CONFIG_ITEM_BIND)
 		CKeyCapture_Begin(&Config_BindAt(item->file_id, item->data_index)->control);
 	else if (item->kind == CONFIG_ITEM_TEXTAREA)
@@ -1671,6 +1661,8 @@ void Menu_Config_Key(int key, wchar unichar)
 		case K_LEFTARROW: case K_RIGHTARROW:
 			if (item->kind == CONFIG_ITEM_SECTION || item->kind == CONFIG_ITEM_CLASS || item->kind == CONFIG_ITEM_MISC)
 				Config_SetExpanded(item, key == K_RIGHTARROW);
+			else if (item->kind == CONFIG_ITEM_NETWORK_INTERFACE)
+				Config_AdjustNetworkInterface(key == K_RIGHTARROW ? 1 : -1);
 			else if (item->kind == CONFIG_ITEM_SETTING) {
 				config_setting_draft_t *draft = Config_SettingAt(item->file_id, item->data_index);
 				if (draft->definition->widget_type == CFG_WIDGET_CHECKBOX ||
@@ -1827,6 +1819,7 @@ qbool Menu_Config_Mouse_Event(const mouse_state_t *ms)
 void Menu_Config_Enter(void)
 {
 	if (!config_menu.loaded) Config_LoadSession();
+	else Config_RefreshNetworkInterfaces();
 	config_menu.cursor = config_menu.scroll = 0;
 	config_menu.editing = config_menu.textarea_editing = false;
 	M_EnterMenu(m_config);

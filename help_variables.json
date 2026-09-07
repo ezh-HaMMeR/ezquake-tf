@@ -2157,7 +2157,7 @@
       "default": "auto",
       "desc": "Selects the local IPv4 network interface used by the game UDP socket.",
       "group-id": "21",
-      "remarks": "Use net_interfaces to list available names, addresses and indices. The -ip command-line parameter takes priority. Changes made while connected are applied after disconnecting or reconnecting.",
+      "remarks": "Use net_interfaces to list available names, addresses and indices. The selection is stored independently in qw/net_interface.txt and is not written to player CFG files. The -ip command-line parameter takes priority. Changes made while connected are applied after disconnecting or reconnecting.",
       "type": "string"
     },
     "cl_newlerp": {
