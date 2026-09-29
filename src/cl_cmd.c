@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <time.h>
 #include "quakedef.h"
+#include "tf_throwgren_guard.h"
 #include "sha1.h"
 #include "gl_model.h"
 #include "teamplay.h"
@@ -83,6 +84,7 @@ void Cmd_ForwardToServer (void) {
 // don't forward the first argument
 void CL_ForwardToServer_f (void) {
 // Added by VVD {
+	static tf_throwgren_guard_t throwgren_guard;
 	char* server_string;
 	char client_time_str[sizeof(__qtime_t) * 2 + 1] = { 0 };
 	int i, server_string_len;
@@ -115,6 +117,12 @@ void CL_ForwardToServer_f (void) {
 			return;
 		}
 //<-
+		if (TF_IsExactThrowGrenadeCommand(Cmd_Argc(), Cmd_Argv(1))
+			&& TF_ThrowGrenadeGuard_IsDuplicate(&throwgren_guard,
+				cls.framecount, cls.netchan.message.cursize)) {
+			return;
+		}
+
 		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
 /* johnnycz: disabled due to security reasons -- fixme
 		if (strcasecmp(Cmd_Argv(1), "download") == 0 && Cmd_Argc() > 2)
@@ -167,6 +175,13 @@ void CL_ForwardToServer_f (void) {
 		else
 // Added by VVD }
 			SZ_Print (&cls.netchan.message, Cmd_Args());
+
+		if (TF_IsExactThrowGrenadeCommand(Cmd_Argc(), Cmd_Argv(1))) {
+			// Fold only adjacent wheel-generated throws in this frame. Any reliable
+			// write changes cursize, so a prime or another command preserves the throw.
+			TF_ThrowGrenadeGuard_Record(&throwgren_guard,
+				cls.framecount, cls.netchan.message.cursize);
+		}
 	}
 }
 

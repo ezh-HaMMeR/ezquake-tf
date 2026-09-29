@@ -547,6 +547,8 @@ set(common_hud
         ${SOURCE_DIR}/tf_grenade_status.h
         ${SOURCE_DIR}/tf_scoreboard.c
         ${SOURCE_DIR}/tf_scoreboard.h
+		${SOURCE_DIR}/tf_throwgren_guard.c
+		${SOURCE_DIR}/tf_throwgren_guard.h
         ${SOURCE_DIR}/tf_vote.c
         ${SOURCE_DIR}/tf_vote.h
         ${SOURCE_DIR}/hud_tracking.c
@@ -780,6 +782,14 @@ if(BUILD_CFG_EDITOR_TESTS)
     )
     target_include_directories(tf_grenade_status_tests PRIVATE ${SOURCE_DIR})
     add_test(NAME tf_grenade_status_fill_and_reset COMMAND tf_grenade_status_tests)
+
+	add_executable(tf_throwgren_guard_tests EXCLUDE_FROM_ALL
+			${PROJECT_SOURCE_DIR}/tests/tf_throwgren_guard_tests.c
+			${SOURCE_DIR}/tf_throwgren_guard.c
+			${SOURCE_DIR}/tf_throwgren_guard.h
+	)
+	target_include_directories(tf_throwgren_guard_tests PRIVATE ${SOURCE_DIR})
+	add_test(NAME tf_throwgren_guard_frame_local COMMAND tf_throwgren_guard_tests)
 
     add_executable(tf_scoreboard_tests EXCLUDE_FROM_ALL
             ${PROJECT_SOURCE_DIR}/tests/tf_scoreboard_tests.c
