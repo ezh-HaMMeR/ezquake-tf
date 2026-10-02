@@ -885,6 +885,22 @@ void R_TranslatePlayerSkin(int playernum)
 	}
 }
 
+/* Keep texture forcing and outlines on the same immutable visual team.
+ * Never use the owner's scoreboard colors for a disguise or a corpse. */
+qbool R_TFModelAppearance(entity_t* ent, player_info_t* appearance)
+{
+	static const int team_colors[] = { 0, 13, 4, 12, 11 };
+	int team = TF_ModelSkinTeam(ent->model->name);
+	if (!cl.teamfortress || !team) return false;
+	memset(appearance, 0, sizeof(*appearance));
+	appearance->topcolor = appearance->bottomcolor = team_colors[team];
+	appearance->teammate = TP_TFTeamTeammate(team);
+	if (!gl_nocolors.integer) {
+		TP_ApplyForcedColors(appearance, appearance->teammate, team, true);
+	}
+	return true;
+}
+
 qbool R_SetSkinForTFModel(entity_t* ent, texture_ref* texture)
 {
 	int team = TF_ModelSkinTeam(ent->model->name);
@@ -905,9 +921,8 @@ qbool R_SetSkinForTFModel(entity_t* ent, texture_ref* texture)
 	if (!hdr->tf_skinpixels[skin]) return true;
 	teammate = TP_TFTeamTeammate(team);
 	variant = teammate ? 1 : 0;
-	memset(&appearance, 0, sizeof(appearance));
+	R_TFModelAppearance(ent, &appearance);
 	memset(colors, 0, sizeof(colors));
-	TP_ApplyForcedColors(&appearance, teammate, team, true);
 	colors[0].enabled = appearance.topcolor_rgb || (teammate ? cl_teamtopcolor.integer : cl_enemytopcolor.integer) != -1;
 	colors[1].enabled = appearance.bottomcolor_rgb || (teammate ? cl_teambottomcolor.integer : cl_enemybottomcolor.integer) != -1;
 	if (!colors[0].enabled && !colors[1].enabled) return true;

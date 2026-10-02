@@ -65,6 +65,7 @@ void R_AliasModelColor(const entity_t* ent, float* color, qbool* invalidate_text
 #define ALIASMODEL_MAX_LERP_DISTANCE (6.3)
 
 void R_SetSkinForPlayerEntity(entity_t* ent, texture_ref* texture, texture_ref* fb_texture, byte** color32bit);
+qbool R_TFModelAppearance(entity_t* ent, player_info_t* appearance);
 qbool R_SetSkinForTFModel(entity_t* ent, texture_ref* texture);
 void R_AliasModelDeterminePoses(const maliasframedesc_t* oldframe, const maliasframedesc_t* frame, int* prevpose, int* nextpose, float* lerpfrac);
 

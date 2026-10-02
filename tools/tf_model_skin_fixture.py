@@ -34,7 +34,7 @@ def corpse(number, model, x):
     return struct.pack("<H", flags) + bytes([4 | 8 | 16, model, 178, 0, 3]) + struct.pack("<2hbh", x*8, 80*8, 64, -311*8)
 
 
-def build(runtime, source, tf_root):
+def build(runtime, source, tf_root, outlines=False):
     for directory in ["id1", "fortress/maps", "fortress/progs", "fortress/skins", "qw"]:
         (runtime / directory).mkdir(parents=True, exist_ok=True)
     for name in ["id1/pak0.pak", "fortress/pak0.pak", "fortress/pak1.pak", "fortress/maps/caverns.bsp",
@@ -75,6 +75,17 @@ def build(runtime, source, tf_root):
         230: 'gl_nocolors 0; echo TF_STAGE_REENABLED; screenshot reenabled\n',
         270: 'echo TF_FIXTURE_COMPLETE; quit\n',
     }
+    if outlines:
+        stages = {
+            5: 'menu_ingame 0; menu_main; togglemenu\n',
+            30: 'red_team_color FF2020; blue_team_color 4080FF; gl_outline 1; gl_outline_scale_model 0.5; gl_outline_color_model "255 255 255"; gl_outline_use_player_color 1; echo OUTLINE_MODE_1; screenshot outline1\n',
+            70: 'gl_outline_use_player_color 2; echo OUTLINE_MODE_2; screenshot outline2\n',
+            110: 'gl_outline_use_player_color 3; echo OUTLINE_MODE_3; screenshot outline3\n',
+            150: 'red_team_color off; blue_team_color off; teamcolor FF00FF 00FF00; enemycolor 00FFFF FFFF00; gl_outline_use_player_color 1; echo OUTLINE_SPLIT; screenshot outline_split\n',
+            190: 'teamcolor off; enemycolor off; gl_outline_use_player_color 3; echo OUTLINE_FALLBACK; screenshot outline_fallback\n',
+            230: 'gl_outline_use_player_color 0; echo OUTLINE_MODE_0; screenshot outline0\n',
+            270: 'echo TF_OUTLINE_COMPLETE; quit\n',
+        }
     for frame in range(1, 281):
         msg = player(0, 2, 158) + player(1, 3, 192) + player(2, 2, 294)
         msg += bytes([47]) + corpse(40, 3, 226) + corpse(41, 4, 260) + b"\0\0"
@@ -97,10 +108,21 @@ def build(runtime, source, tf_root):
         "playdemo tf_model_skin", "\n"]), encoding="ascii")
 
 
+    if outlines:
+        # Read before video startup; changing latched video cvars after playdemo
+        # would restart the renderer and interrupt the automated sequence.
+        (runtime / "ezquake/configs").mkdir(parents=True, exist_ok=True)
+        (runtime / "ezquake/configs/config.cfg").write_text(
+            "cfg_save_onquit 0\nautoupdate 0\nvid_renderer 1\nvid_fullscreen 0\n"
+            "vid_width 1000\nvid_height 600\nvid_win_width 1000\nvid_win_height 600\n"
+            "cl_onload console\n", encoding="ascii")
+        (runtime / "fortress/autoexec.cfg").write_text("", encoding="ascii")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--tf-root", type=Path, required=True)
+    parser.add_argument("--outlines", action="store_true", help="Compare soldier, disguised Spy and corpses in outline modes 0-3")
     args = parser.parse_args()
-    build(args.runtime, args.source, args.tf_root)
+    build(args.runtime, args.source, args.tf_root, args.outlines)

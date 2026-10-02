@@ -319,6 +319,8 @@ static void GLM_QueueAliasModelDrawImpl(
 	aliasmodel_draw_type_t shelltype = aliasmodel_draw_shells;
 	aliasmodel_draw_instructions_t* instr;
 	int textureSampler = -1;
+	player_info_t tf_appearance, *appearance;
+	qbool tf_model;
 	extern cvar_t gl_spec_xray;
 	int i;
 
@@ -389,21 +391,31 @@ static void GLM_QueueAliasModelDrawImpl(
 	uniform->materialSamplerMapping = textureSampler;
 	uniform->minLumaMix = 1.0f - (ent->full_light ? bound(0, gl_fb_models.integer, 1) : 0);
 	uniform->outline_normal_scale = ent->outlineScale;
-	if(ent->scoreboard != NULL) {
-		int tc = 16 * (bound(0, ent->scoreboard->topcolor, 13)) + 8;
-		int bc = 16 * (bound(0, ent->scoreboard->bottomcolor, 13)) + 8;
+	appearance = ent->scoreboard;
+	tf_model = R_TFModelAppearance(ent, &tf_appearance);
+	memset(uniform->plrtopcolor, 0, sizeof(uniform->plrtopcolor));
+	memset(uniform->plrbotcolor, 0, sizeof(uniform->plrbotcolor));
+	if (tf_model) {
+		appearance = &tf_appearance;
+		uniform->amFlags |= AMF_PLAYERMODEL;
+		uniform->amFlags &= ~AMF_TEAMMATE;
+		if (appearance->teammate) uniform->amFlags |= AMF_TEAMMATE;
+	}
+	if (appearance != NULL) {
+		int tc = 16 * (bound(0, appearance->topcolor, 13)) + 8;
+		int bc = 16 * (bound(0, appearance->bottomcolor, 13)) + 8;
 		byte top[] = { host_basepal[tc * 3], host_basepal[tc * 3 + 1], host_basepal[tc * 3 + 2] };
 		byte bot[] = { host_basepal[bc * 3], host_basepal[bc * 3 + 1], host_basepal[bc * 3 + 2] };
-		if (ent->scoreboard->topcolor_rgb) {
-			memcpy(top, ent->scoreboard->forced_topcolor_rgb, sizeof(top));
+		if (appearance->topcolor_rgb) {
+			memcpy(top, appearance->forced_topcolor_rgb, sizeof(top));
 		}
-		if (ent->scoreboard->bottomcolor_rgb) {
-			memcpy(bot, ent->scoreboard->forced_bottomcolor_rgb, sizeof(bot));
+		if (appearance->bottomcolor_rgb) {
+			memcpy(bot, appearance->forced_bottomcolor_rgb, sizeof(bot));
 		}
 		for(i = 0; i < 3; i++) uniform->plrtopcolor[i] = (float)top[i] / 255.0f;
 		for(i = 0; i < 3; i++) uniform->plrbotcolor[i] = (float)bot[i] / 255.0f;
-		uniform->plrtopcolor[3] = ent->scoreboard->topcolor_rgb ||
-			(cl.teamfortress && (ent->scoreboard->teammate ? cl_teamtopcolor.value >= 0 : cl_enemytopcolor.value >= 0));
+		uniform->plrtopcolor[3] = appearance->topcolor_rgb ||
+			((!tf_model || !gl_nocolors.integer) && cl.teamfortress && (appearance->teammate ? cl_teamtopcolor.value >= 0 : cl_enemytopcolor.value >= 0));
 	}
 
 	// Add to queues
