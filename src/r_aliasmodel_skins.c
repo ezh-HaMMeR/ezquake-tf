@@ -163,6 +163,14 @@ void* Mod_LoadAllSkins(model_t* loadmodel, int numskins, daliasskintype_t* pskin
 		if (pskintype->type == ALIAS_SKIN_SINGLE) {
 			Mod_FloodFillSkin(skin, pheader->skinwidth, pheader->skinheight);
 
+			if (TF_ModelSkinTeam(loadmodel->name) && pheader->numskins == 10 &&
+				pheader->skinwidth == TF_MODEL_SKIN_WIDTH && pheader->skinheight == TF_MODEL_SKIN_HEIGHT) {
+				byte *baked = Hunk_AllocName(s, "tf baked skin");
+				pheader->tf_skinpixels[i] = baked - (byte *)pheader;
+				memcpy(baked, (byte *)(pskintype + 1), s);
+				Mod_FloodFillSkin(baked, pheader->skinwidth, pheader->skinheight);
+			}
+
 			// save 8 bit texels for the player model to remap
 			if (loadmodel->modhint == MOD_PLAYER) {
 				if (s > sizeof(player_8bit_texels)) {

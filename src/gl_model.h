@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "modelgen.h"
 #include "spritegn.h"
 #include "bspfile.h"
+#include "tf_model_skin.h"
 
 #define VBO_FIELDOFFSET(type, field) (void*)((uintptr_t)&(((type*)0)->field))
 #define VK_VBO_FIELDOFFSET(type, field) (uint32_t)((uintptr_t)&(((type*)0)->field))
@@ -387,6 +388,10 @@ typedef struct aliashdr_s {
 	int          commands;	// gl command list with embedded s/t
 	texture_ref  gl_texturenum[MAX_SKINS][4];
 	texture_ref  glc_fb_texturenum[MAX_SKINS][4];
+	/* Relocatable baked pixels; textures are keyed by appearance, never owner. */
+	int          tf_skinpixels[MAX_SKINS];
+	texture_ref  tf_textures[MAX_SKINS][2];
+	tf_skin_color_t tf_colors[MAX_SKINS][2][2];
 
 	int          vertsPerPose;
 

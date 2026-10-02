@@ -67,6 +67,10 @@ extern cvar_t cl_teamtopcolor, cl_teambottomcolor, cl_enemytopcolor, cl_enemybot
 extern cvar_t cl_red_team_color, cl_blue_team_color, cl_green_team_color, cl_yellow_team_color;
 int TP_TFVisualTeam(int slot);
 qbool TP_TFVisualTeamColor(int slot, byte rgb[3]);
+qbool TP_TFTeamColor(int team, byte rgb[3]);
+qbool TP_TFTeamTeammate(int team);
+struct player_info_s;
+void TP_ApplyForcedColors(struct player_info_s *player, qbool teammate, int tf_team, qbool enemy_allowed);
 qbool TP_TFVisualTeammate(int slot);
 qbool TP_ParseRGBColor(const char *string, byte rgb[3]);
 

@@ -2008,9 +2008,14 @@ int TP_TFVisualTeam(int slot)
 
 qbool TP_TFVisualTeamColor(int slot, byte rgb[3])
 {
+	return TP_TFTeamColor(TP_TFVisualTeam(slot), rgb);
+}
+
+qbool TP_TFTeamColor(int team, byte rgb[3])
+{
 	cvar_t *team_color;
 
-	switch (TP_TFVisualTeam(slot)) {
+	switch (team) {
 		case 1: team_color = &cl_blue_team_color; break;
 		case 2: team_color = &cl_red_team_color; break;
 		case 3: team_color = &cl_yellow_team_color; break;
@@ -2019,6 +2024,40 @@ qbool TP_TFVisualTeamColor(int slot, byte rgb[3])
 	}
 
 	return TP_ParseRGBColor(team_color->string, rgb);
+}
+
+qbool TP_TFTeamTeammate(int team)
+{
+	int pov = TP_CurrentTrackNum();
+	int viewer_team = TP_TFActualTeam(pov);
+	if (viewer_team) return team == viewer_team;
+	return cl.teamplay && team == TP_TFTeamFromPaletteColor(Utils_TF_TeamToColor(TP_SkinForcingTeam()));
+}
+
+/* Shared by normal players and immutable server-model appearances. */
+void TP_ApplyForcedColors(player_info_t *player, qbool teammate, int tf_team, qbool enemy_allowed)
+{
+	byte rgb[3];
+	cvar_t *top = teammate ? &cl_teamtopcolor : &cl_enemytopcolor;
+	cvar_t *bottom = teammate ? &cl_teambottomcolor : &cl_enemybottomcolor;
+	player->teammate = teammate;
+	if (tf_team && TP_TFTeamColor(tf_team, rgb)) {
+		player->topcolor_rgb = player->bottomcolor_rgb = true;
+		memcpy(player->forced_topcolor_rgb, rgb, 3);
+		memcpy(player->forced_bottomcolor_rgb, rgb, 3);
+		return;
+	}
+	if (!teammate && !enemy_allowed) return;
+	if (top->integer != -1) {
+		player->topcolor_rgb = TP_ParseRGBColor(top->string, rgb);
+		if (player->topcolor_rgb) memcpy(player->forced_topcolor_rgb, rgb, 3);
+		else player->topcolor = top->value;
+	}
+	if (bottom->integer != -1) {
+		player->bottomcolor_rgb = TP_ParseRGBColor(bottom->string, rgb);
+		if (player->bottomcolor_rgb) memcpy(player->forced_bottomcolor_rgb, rgb, 3);
+		else player->bottomcolor = bottom->value;
+	}
 }
 
 qbool TP_TFVisualTeammate(int slot)

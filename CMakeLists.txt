@@ -731,6 +731,9 @@ set(client
         ${SOURCE_DIR}/sbar.c
         ${SOURCE_DIR}/settings_page.c
         ${SOURCE_DIR}/skin.c
+        ${SOURCE_DIR}/tf_model_skin.c
+        ${SOURCE_DIR}/tf_model_skin.h
+        ${SOURCE_DIR}/tf_model_skin_masks.h
         ${SOURCE_DIR}/snd_main.c
         ${SOURCE_DIR}/snd_mem.c
         ${SOURCE_DIR}/snd_mix.c
@@ -790,6 +793,13 @@ if(BUILD_CFG_EDITOR_TESTS)
 	)
 	target_include_directories(tf_throwgren_guard_tests PRIVATE ${SOURCE_DIR})
 	add_test(NAME tf_throwgren_guard_frame_local COMMAND tf_throwgren_guard_tests)
+
+	add_executable(tf_model_skin_tests EXCLUDE_FROM_ALL
+			${PROJECT_SOURCE_DIR}/tests/tf_model_skin_tests.c
+			${SOURCE_DIR}/tf_model_skin.c)
+	target_include_directories(tf_model_skin_tests PRIVATE ${SOURCE_DIR})
+	target_link_libraries(tf_model_skin_tests PRIVATE Dep::zlib)
+	add_test(NAME tf_model_skin_ramps COMMAND tf_model_skin_tests)
 
     add_executable(tf_scoreboard_tests EXCLUDE_FROM_ALL
             ${PROJECT_SOURCE_DIR}/tests/tf_scoreboard_tests.c

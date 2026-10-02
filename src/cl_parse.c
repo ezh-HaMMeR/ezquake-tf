@@ -2040,8 +2040,6 @@ void CL_NewTranslation (int slot)
 	if (cl.teamfortress || !(cl.fpd & FPD_NO_FORCE_COLOR)) {
 		qbool lockedTeams = TP_TeamLockSpecified();
 		qbool teammate = false;
-		qbool tf_team_color = false;
-		byte rgb[3];
 
 		// it's me or it's teamplay and he's my teammate
 		if (cl.teamfortress) {
@@ -2057,51 +2055,7 @@ void CL_NewTranslation (int slot)
 			teammate = true;
 		}
 
-		player->teammate = teammate;
-		tf_team_color = cl.teamfortress && TP_TFVisualTeamColor(slot, rgb);
-
-		if (tf_team_color) {
-			player->topcolor_rgb = true;
-			player->bottomcolor_rgb = true;
-			memcpy(player->forced_topcolor_rgb, rgb, 3);
-			memcpy(player->forced_bottomcolor_rgb, rgb, 3);
-		}
-		else if (teammate) {
-			if (cl_teamtopcolor.integer != -1) {
-				if ((player->topcolor_rgb = TP_ParseRGBColor(cl_teamtopcolor.string, rgb))) {
-					memcpy(player->forced_topcolor_rgb, rgb, 3);
-				}
-				else {
-					player->topcolor = cl_teamtopcolor.value;
-				}
-			}
-			if (cl_teambottomcolor.integer != -1) {
-				if ((player->bottomcolor_rgb = TP_ParseRGBColor(cl_teambottomcolor.string, rgb))) {
-					memcpy(player->forced_bottomcolor_rgb, rgb, 3);
-				}
-				else {
-					player->bottomcolor = cl_teambottomcolor.value;
-				}
-			}
-		}
-		else if (slot != cl.playernum) {
-			if (cl_enemytopcolor.integer != -1) {
-				if ((player->topcolor_rgb = TP_ParseRGBColor(cl_enemytopcolor.string, rgb))) {
-					memcpy(player->forced_topcolor_rgb, rgb, 3);
-				}
-				else {
-					player->topcolor = cl_enemytopcolor.value;
-				}
-			}
-			if (cl_enemybottomcolor.integer != -1) {
-				if ((player->bottomcolor_rgb = TP_ParseRGBColor(cl_enemybottomcolor.string, rgb))) {
-					memcpy(player->forced_bottomcolor_rgb, rgb, 3);
-				}
-				else {
-					player->bottomcolor = cl_enemybottomcolor.value;
-				}
-			}
-		}
+		TP_ApplyForcedColors(player, teammate, cl.teamfortress ? TP_TFVisualTeam(slot) : 0, slot != cl.playernum);
 	}
 
 	R_TranslatePlayerSkin(slot);

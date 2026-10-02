@@ -27,6 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "utils.h"
 #include "tr_types.h"
 #include "r_texture.h"
+#include "r_local.h"
 #include "rulesets.h"
 
 extern cvar_t gl_playermip;
@@ -882,6 +883,65 @@ void R_TranslatePlayerSkin(int playernum)
 
 		R_BlendPlayerSkin(player->skin, teammate, playernum, (byte*)pixels, scaled_width, scaled_height, true);
 	}
+}
+
+qbool R_SetSkinForTFModel(entity_t* ent, texture_ref* texture)
+{
+	int team = TF_ModelSkinTeam(ent->model->name);
+	int skin = ent->skinnum, variant, count;
+	aliashdr_t *hdr;
+	player_info_t appearance;
+	tf_skin_color_t colors[2];
+	byte *mask;
+	unsigned int *pixels;
+	qbool teammate;
+	char identifier[128];
+	if (!team) return false;
+	/* Do not fall through to the scoreboard skin, even if forcing is off or
+	 * this is an incompatible replacement model. Its baked skin is authoritative. */
+	if (!cl.teamfortress || gl_nocolors.integer || !ent->model->cached_data) return true;
+	hdr = ent->model->cached_data;
+	if (skin < 0 || skin >= hdr->numskins) skin = 0;
+	if (!hdr->tf_skinpixels[skin]) return true;
+	teammate = TP_TFTeamTeammate(team);
+	variant = teammate ? 1 : 0;
+	memset(&appearance, 0, sizeof(appearance));
+	memset(colors, 0, sizeof(colors));
+	TP_ApplyForcedColors(&appearance, teammate, team, true);
+	colors[0].enabled = appearance.topcolor_rgb || (teammate ? cl_teamtopcolor.integer : cl_enemytopcolor.integer) != -1;
+	colors[1].enabled = appearance.bottomcolor_rgb || (teammate ? cl_teambottomcolor.integer : cl_enemybottomcolor.integer) != -1;
+	if (!colors[0].enabled && !colors[1].enabled) return true;
+	colors[0].palette = appearance.topcolor;
+	colors[1].palette = appearance.bottomcolor;
+	colors[0].rgb = appearance.topcolor_rgb;
+	colors[1].rgb = appearance.bottomcolor_rgb;
+	memcpy(colors[0].color, appearance.forced_topcolor_rgb, 3);
+	memcpy(colors[1].color, appearance.forced_bottomcolor_rgb, 3);
+	if (!R_TextureReferenceIsValid(hdr->tf_textures[skin][variant]) ||
+		memcmp(colors, hdr->tf_colors[skin][variant], sizeof(colors))) {
+		count = hdr->skinwidth * hdr->skinheight;
+		mask = Q_malloc(count);
+		if (!TF_ModelSkinMask(TF_ModelSkinHeadless(ent->model->name), skin, hdr->skinwidth, hdr->skinheight, mask)) {
+			Q_free(mask);
+			return true;
+		}
+		pixels = Q_malloc(count * sizeof(*pixels));
+		TF_ModelSkinTranslate((byte *)hdr + hdr->tf_skinpixels[skin], mask, count, d_8to24table, colors, pixels);
+		snprintf(identifier, sizeof(identifier), "$tf-%s-%d-%d", ent->model->name, skin, variant);
+		/* Modern renderer uses alpha zero for fullbright pixels in merged skins. */
+		if (R_CompressFullbrightTextures()) {
+			int i;
+			byte *original = (byte *)hdr + hdr->tf_skinpixels[skin];
+			for (i = 0; i < count; ++i) if (original[i] >= 224 && !mask[i]) ((byte *)&pixels[i])[3] = 0;
+		}
+		hdr->tf_textures[skin][variant] = R_LoadTexture(identifier, hdr->skinwidth, hdr->skinheight,
+			(byte *)pixels, TEX_MIPMAP | TEX_NOSCALE | (R_CompressFullbrightTextures() ? TEX_ALPHA | TEX_MERGED_LUMA : 0), 4);
+		memcpy(hdr->tf_colors[skin][variant], colors, sizeof(colors));
+		Q_free(pixels);
+		Q_free(mask);
+	}
+	*texture = hdr->tf_textures[skin][variant];
+	return true;
 }
 
 void R_SetSkinForPlayerEntity(entity_t* ent, texture_ref* texture, texture_ref* fb_texture, byte** color32bit)

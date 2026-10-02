@@ -268,7 +268,8 @@ void R_OverrideModelTextures(entity_t* ent, texture_ref* texture, texture_ref* f
 		playernum = ent->scoreboard - cl.players;
 	}
 
-	if (playernum >= 0 && playernum < MAX_CLIENTS) {
+	/* Resolve server appearances before the owner path, including colormap-zero corpses. */
+	if (!R_SetSkinForTFModel(ent, texture) && playernum >= 0 && playernum < MAX_CLIENTS) {
 		R_SetSkinForPlayerEntity(ent, texture, fb_texture, color32bit);
 	}
 	// TODO: Can we move the custom_model logic to here?  If fullbright, nullify textures and set color?
@@ -542,7 +543,8 @@ void R_AliasSetupLighting(entity_t *ent)
 	float fbskins = 0;
 	unsigned int i;
 	model_t* clmodel = ent->model;
-	qbool player_model = (clmodel->modhint == MOD_PLAYER || ent->renderfx & RF_PLAYERMODEL);
+	qbool player_model = (clmodel->modhint == MOD_PLAYER || ent->renderfx & RF_PLAYERMODEL ||
+		(cl.teamfortress && TF_ModelSkinTeam(clmodel->name)));
 	qbool calculate_lighting = true;
 
 	//VULT COLOURED MODEL LIGHTING
