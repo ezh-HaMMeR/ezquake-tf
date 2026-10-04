@@ -79,5 +79,28 @@ int main(void)
 	for (i = 0; i < 16; ++i) CHECK(pixels[i] == palette[original[i]]);
 	for (i = 0; i < 16; ++i) CHECK(((unsigned char *)&pixels[16+i])[1] == 255-16*i);
 	puts("PASS: twelve identities, 30 bounded masks, palette/RGB shading, selective ramps, settings changes and forcing off");
+	{
+		unsigned char rgba[] = { 9,8,7,255, 20,30,40,128, 11,22,33,64, 1,2,3,255 };
+		unsigned char hdmask[] = { 255,0,127,255, 0,255,200,255, 0,0,255,255, 255,255,255,255 };
+		unsigned char result[sizeof(rgba)+1];
+		memset(colors,0,sizeof(colors));
+		memset(result,77,sizeof(result));
+		TF_ModelSkinTranslateRGBA(rgba,hdmask,4,palette,colors,result);
+		CHECK(!memcmp(result,rgba,sizeof(rgba)) && result[sizeof(rgba)]==77);
+		colors[0].enabled=colors[1].enabled=1;
+		colors[0].rgb=colors[1].rgb=1;
+		colors[0].color[0]=255; colors[1].color[2]=255;
+		TF_ModelSkinTranslateRGBA(rgba,hdmask,4,palette,colors,result);
+		CHECK(result[0]==127 && result[1]==0 && result[2]==0 && result[3]==255);
+		CHECK(result[4]==0 && result[5]==0 && result[6]==200 && result[7]==128);
+		CHECK(!memcmp(result+8,rgba+8,8) && result[sizeof(rgba)]==77);
+		colors[0].enabled=0;
+		TF_ModelSkinTranslateRGBA(rgba,hdmask,4,palette,colors,result);
+		CHECK(!memcmp(result,rgba,4));
+		colors[1].rgb=0; colors[1].palette=999;
+		TF_ModelSkinTranslateRGBA(rgba,hdmask,4,palette,colors,result);
+		CHECK(result[7]==128);
+		puts("PASS: HD detail brightness, independent top/bottom RGB, alpha, disabled and invalid mask regions, bounded output");
+	}
 	return 0;
 }

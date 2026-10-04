@@ -32,6 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t gl_playermip;
 extern cvar_t gl_nocolors;
+extern cvar_t gl_no24bit;
 
 typedef struct player_skin_s {
 	texture_ref base;       // The standard skin.
@@ -685,6 +686,69 @@ static void Skin_SetRGBTranslationRamp(unsigned translate32[256], int range, con
 	}
 }
 
+/* Opt-in HD TF skins use a companion mask. Unrelated 32-bit skins retain
+ * their existing behaviour; the texture and mask must have identical sizes. */
+static qbool Skin_TranslateTFHDPlayer(player_info_t *player, int playernum, qbool teammate)
+{
+	static const char *names[] = { "tf_scout", "tf_snipe", "tf_sold", "tf_demo",
+		"tf_medic", "tf_hwguy", "tf_pyro", "tf_spy", "tf_eng" };
+	byte *original, *mask, *pixels;
+	int i, mw, mh;
+	char path[MAX_OSPATH];
+	tf_skin_color_t colors[2];
+	if (!cl.teamfortress || gl_no24bit.integer || gl_nocolors.integer || !player->skin) return false;
+	for (i = 0; i < 9; ++i) if (!strcasecmp(player->skin->name, names[i])) break;
+	if (i == 9) return false;
+	original = Skin_Cache(player->skin, false);
+	if (!original || player->skin->bpp != 4) return false;
+	snprintf(path, sizeof(path), "skins/%s_mask", names[i]);
+	mask = R_LoadImagePixels(path, 0, 0, TEX_NO_PCX, &mw, &mh);
+	if (!mask) return false;
+	if (mw != player->skin->width || mh != player->skin->height || mw < 1 || mh < 1 || mw > 4096 || mh > 4096) {
+		Q_free(mask);
+		return false;
+	}
+	memset(colors, 0, sizeof(colors));
+	colors[0].enabled = colors[1].enabled = true;
+	colors[0].palette = player->topcolor;
+	colors[1].palette = player->bottomcolor;
+	colors[0].rgb = player->topcolor_rgb;
+	colors[1].rgb = player->bottomcolor_rgb;
+	memcpy(colors[0].color, player->forced_topcolor_rgb, 3);
+	memcpy(colors[1].color, player->forced_bottomcolor_rgb, 3);
+	pixels = Q_malloc(mw * mh * 4);
+	TF_ModelSkinTranslateRGBA(original, mask, mw * mh, d_8to24table, colors, pixels);
+	Com_DPrintf("TF HD player skin: %s (%dx%d)\n", names[i], mw, mh);
+	R_BlendPlayerSkin(player->skin, teammate, playernum, pixels, mw, mh, false);
+	Q_free(pixels);
+	Q_free(mask);
+	return true;
+}
+
+static byte *Skin_LoadTFHDModel(entity_t *ent, int skin, byte **mask, int *width, int *height)
+{
+	byte *rgba = NULL;
+	char path[MAX_OSPATH], base[64];
+	int mw, mh, dir;
+	*mask = NULL;
+	COM_StripExtension(COM_SkipPath(ent->model->name), base, sizeof(base));
+	for (dir = 0; dir < 2; ++dir) {
+		snprintf(path, sizeof(path), "%s/%s_%d", dir ? "textures" : "textures/models", base, skin);
+		rgba = R_LoadImagePixels(path, 0, 0, TEX_NO_PCX, width, height);
+		if (!rgba) continue;
+		strlcat(path, "_mask", sizeof(path));
+		*mask = R_LoadImagePixels(path, 0, 0, TEX_NO_PCX, &mw, &mh);
+		if (*mask && *width > 0 && *height > 0 && *width <= 4096 && *height <= 4096 && mw == *width && mh == *height) {
+			Com_DPrintf("TF HD model skin: %s_%d (%dx%d)\n", base, skin, *width, *height);
+			return rgba;
+		}
+		Q_free(rgba);
+		Q_free(*mask);
+		*mask = NULL;
+	}
+	return NULL;
+}
+
 //Translates a skin texture by the per-player color lookup
 void R_TranslatePlayerSkin(int playernum)
 {
@@ -731,6 +795,7 @@ void R_TranslatePlayerSkin(int playernum)
 	}
 
 	Skin_RemoveSkinsForPlayer(playernum);
+	if (Skin_TranslateTFHDPlayer(player, playernum, teammate)) return;
 
 	if (R_TextureReferenceIsValid(player->skin->texnum[skin_base]) && player->skin->bpp == 4 && !(r_enemyskincolor.string[0] || r_teamskincolor.string[0])) {
 		// do not even bother call Skin_Cache(), we have texture num already
@@ -904,11 +969,11 @@ qbool R_TFModelAppearance(entity_t* ent, player_info_t* appearance)
 qbool R_SetSkinForTFModel(entity_t* ent, texture_ref* texture)
 {
 	int team = TF_ModelSkinTeam(ent->model->name);
-	int skin = ent->skinnum, variant, count;
+	int skin = ent->skinnum, variant, count, width, height, hd_enabled;
 	aliashdr_t *hdr;
 	player_info_t appearance;
 	tf_skin_color_t colors[2];
-	byte *mask;
+	byte *mask, *rgba, *hd_mask;
 	unsigned int *pixels;
 	qbool teammate;
 	char identifier[128];
@@ -932,26 +997,37 @@ qbool R_SetSkinForTFModel(entity_t* ent, texture_ref* texture)
 	colors[1].rgb = appearance.bottomcolor_rgb;
 	memcpy(colors[0].color, appearance.forced_topcolor_rgb, 3);
 	memcpy(colors[1].color, appearance.forced_bottomcolor_rgb, 3);
+	hd_enabled = !gl_no24bit.integer && !RuleSets_DisallowExternalTexture(ent->model);
 	if (!R_TextureReferenceIsValid(hdr->tf_textures[skin][variant]) ||
-		memcmp(colors, hdr->tf_colors[skin][variant], sizeof(colors))) {
+		hdr->tf_hd_enabled[skin][variant] != hd_enabled || memcmp(colors, hdr->tf_colors[skin][variant], sizeof(colors))) {
+		width = hdr->skinwidth;
+		height = hdr->skinheight;
+		rgba = hd_enabled ? Skin_LoadTFHDModel(ent, skin, &hd_mask, &width, &height) : NULL;
+		if (!rgba) { width = hdr->skinwidth; height = hdr->skinheight; hd_mask = NULL; }
 		count = hdr->skinwidth * hdr->skinheight;
 		mask = Q_malloc(count);
 		if (!TF_ModelSkinMask(TF_ModelSkinKind(ent->model->name), skin, hdr->skinwidth, hdr->skinheight, mask)) {
 			Q_free(mask);
+			Q_free(rgba);
+			Q_free(hd_mask);
 			return true;
 		}
-		pixels = Q_malloc(count * sizeof(*pixels));
-		TF_ModelSkinTranslate((byte *)hdr + hdr->tf_skinpixels[skin], mask, count, d_8to24table, colors, pixels);
+		pixels = Q_malloc(width * height * sizeof(*pixels));
+		if (rgba) TF_ModelSkinTranslateRGBA(rgba, hd_mask, width * height, d_8to24table, colors, (byte *)pixels);
+		else TF_ModelSkinTranslate((byte *)hdr + hdr->tf_skinpixels[skin], mask, count, d_8to24table, colors, pixels);
 		snprintf(identifier, sizeof(identifier), "$tf-%s-%d-%d", ent->model->name, skin, variant);
 		/* Modern renderer uses alpha zero for fullbright pixels in merged skins. */
-		if (R_CompressFullbrightTextures()) {
+		if (!rgba && R_CompressFullbrightTextures()) {
 			int i;
 			byte *original = (byte *)hdr + hdr->tf_skinpixels[skin];
 			for (i = 0; i < count; ++i) if (original[i] >= 224 && !mask[i]) ((byte *)&pixels[i])[3] = 0;
 		}
-		hdr->tf_textures[skin][variant] = R_LoadTexture(identifier, hdr->skinwidth, hdr->skinheight,
+		hdr->tf_textures[skin][variant] = R_LoadTexture(identifier, width, height,
 			(byte *)pixels, TEX_MIPMAP | TEX_NOSCALE | (R_CompressFullbrightTextures() ? TEX_ALPHA | TEX_MERGED_LUMA : 0), 4);
 		memcpy(hdr->tf_colors[skin][variant], colors, sizeof(colors));
+		hdr->tf_hd_enabled[skin][variant] = hd_enabled;
+		Q_free(rgba);
+		Q_free(hd_mask);
 		Q_free(pixels);
 		Q_free(mask);
 	}

@@ -19,4 +19,10 @@ void TF_ModelSkinTranslate(const unsigned char *original, const unsigned char *m
 	size_t count, const unsigned int palette[256], const tf_skin_color_t colors[2],
 	unsigned int *pixels);
 
+/* Optional HD mask: red=top region, green=bottom region, blue=brightness.
+ * All other pixels retain the original RGBA texture verbatim. */
+void TF_ModelSkinTranslateRGBA(const unsigned char *original, const unsigned char *mask,
+	size_t count, const unsigned int palette[256], const tf_skin_color_t colors[2],
+	unsigned char *pixels);
+
 #endif

@@ -391,6 +391,7 @@ typedef struct aliashdr_s {
 	/* Relocatable baked pixels; textures are keyed by appearance, never owner. */
 	int          tf_skinpixels[MAX_SKINS];
 	texture_ref  tf_textures[MAX_SKINS][2];
+	int          tf_hd_enabled[MAX_SKINS][2];
 	tf_skin_color_t tf_colors[MAX_SKINS][2][2];
 
 	int          vertsPerPose;

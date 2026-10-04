@@ -3,6 +3,40 @@
 #include <string.h>
 #include <zlib.h>
 
+void TF_ModelSkinTranslateRGBA(const unsigned char *original, const unsigned char *mask,
+	size_t count, const unsigned int palette[256], const tf_skin_color_t colors[2],
+	unsigned char *pixels)
+{
+	unsigned char peaks[2][3];
+	int r, c, i;
+	size_t p;
+	for (r = 0; r < 2; ++r) {
+		int best = -1, pal = colors[r].palette;
+		if (pal < 0) pal = 0;
+		if (pal > 13) pal = 13;
+		for (i = 0; i < 16; ++i) {
+			const unsigned char *rgb = (const unsigned char *)&palette[pal * 16 + i];
+			int brightness = rgb[0];
+			if (rgb[1] > brightness) brightness = rgb[1];
+			if (rgb[2] > brightness) brightness = rgb[2];
+			if (brightness > best) {
+				best = brightness;
+				memcpy(peaks[r], rgb, 3);
+			}
+		}
+		if (colors[r].rgb) memcpy(peaks[r], colors[r].color, 3);
+	}
+	for (p = 0; p < count; ++p) {
+		const unsigned char *m = mask + p * 4;
+		unsigned char *dst = pixels + p * 4;
+		memcpy(dst, original + p * 4, 4);
+		r = m[0] == 255 && m[1] == 0 ? 0 : m[1] == 255 && m[0] == 0 ? 1 : -1;
+		if (r >= 0 && colors[r].enabled) {
+			for (c = 0; c < 3; ++c) dst[c] = peaks[r][c] * m[2] / 255;
+		}
+	}
+}
+
 int TF_ModelSkinTeam(const char *name)
 {
 	const char *suffix;
