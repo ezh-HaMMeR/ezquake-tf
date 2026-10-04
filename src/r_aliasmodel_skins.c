@@ -164,7 +164,7 @@ void* Mod_LoadAllSkins(model_t* loadmodel, int numskins, daliasskintype_t* pskin
 			Mod_FloodFillSkin(skin, pheader->skinwidth, pheader->skinheight);
 
 			if (TF_ModelSkinTeam(loadmodel->name) && pheader->numskins == 10 &&
-				pheader->skinwidth == TF_MODEL_SKIN_WIDTH && pheader->skinheight == TF_MODEL_SKIN_HEIGHT) {
+				TF_ModelSkinDimensions(TF_ModelSkinKind(loadmodel->name), pheader->skinwidth, pheader->skinheight)) {
 				byte *baked = Hunk_AllocName(s, "tf baked skin");
 				pheader->tf_skinpixels[i] = baked - (byte *)pheader;
 				memcpy(baked, (byte *)(pskintype + 1), s);

@@ -8,23 +8,31 @@ int TF_ModelSkinTeam(const char *name)
 	const char *suffix;
 	if (!strncmp(name, "progs/tfbody", 12)) suffix = name + 12;
 	else if (!strncmp(name, "progs/tfheadless", 16)) suffix = name + 16;
+	else if (!strncmp(name, "progs/tfhead", 12)) suffix = name + 12;
 	else return 0;
 	return suffix[0] >= '1' && suffix[0] <= '4' && !strcmp(suffix + 1, ".mdl") ? suffix[0] - '0' : 0;
 }
 
-int TF_ModelSkinHeadless(const char *name)
+int TF_ModelSkinKind(const char *name)
 {
-	return !strncmp(name, "progs/tfheadless", 16);
+	if (!strncmp(name, "progs/tfheadless", 16)) return 1;
+	return !strncmp(name, "progs/tfhead", 12) ? 2 : 0;
+}
+
+int TF_ModelSkinDimensions(int kind, int width, int height)
+{
+	return kind >= 0 && kind < 3 && width == tf_mask_widths[kind] && height == tf_mask_heights[kind];
 }
 
 int TF_ModelSkinMask(int headless, int skin, int width, int height, unsigned char *mask)
 {
 	unsigned int i, end;
-	uLongf size = TF_MASK_WIDTH * TF_MASK_HEIGHT;
-	if (skin < 0 || skin >= 10 || width != TF_MASK_WIDTH || height != TF_MASK_HEIGHT) return 0;
-	i = tf_mask_offsets[(headless ? 10 : 0) + skin];
-	end = tf_mask_offsets[(headless ? 10 : 0) + skin + 1];
-	return uncompress(mask, &size, tf_mask_data + i, end - i) == Z_OK && size == TF_MASK_WIDTH * TF_MASK_HEIGHT;
+	uLongf size;
+	if (skin < 0 || skin >= 10 || !TF_ModelSkinDimensions(headless, width, height)) return 0;
+	size = width * height;
+	i = tf_mask_offsets[(headless * 10) + skin];
+	end = tf_mask_offsets[(headless * 10) + skin + 1];
+	return uncompress(mask, &size, tf_mask_data + i, end - i) == Z_OK && size == (uLongf)(width * height);
 }
 
 void TF_ModelSkinTranslate(const unsigned char *original, const unsigned char *mask,

@@ -12,7 +12,8 @@ typedef struct {
 
 /* Model identity is authoritative, including corpses without a player slot. */
 int TF_ModelSkinTeam(const char *name);
-int TF_ModelSkinHeadless(const char *name);
+int TF_ModelSkinKind(const char *name);
+int TF_ModelSkinDimensions(int kind, int width, int height);
 int TF_ModelSkinMask(int headless, int skin, int width, int height, unsigned char *mask);
 void TF_ModelSkinTranslate(const unsigned char *original, const unsigned char *mask,
 	size_t count, const unsigned int palette[256], const tf_skin_color_t colors[2],

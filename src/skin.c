@@ -936,7 +936,7 @@ qbool R_SetSkinForTFModel(entity_t* ent, texture_ref* texture)
 		memcmp(colors, hdr->tf_colors[skin][variant], sizeof(colors))) {
 		count = hdr->skinwidth * hdr->skinheight;
 		mask = Q_malloc(count);
-		if (!TF_ModelSkinMask(TF_ModelSkinHeadless(ent->model->name), skin, hdr->skinwidth, hdr->skinheight, mask)) {
+		if (!TF_ModelSkinMask(TF_ModelSkinKind(ent->model->name), skin, hdr->skinwidth, hdr->skinheight, mask)) {
 			Q_free(mask);
 			return true;
 		}

@@ -13,10 +13,10 @@ int main(void)
 	tf_skin_color_t colors[2];
 	int i, team, skin, kind;
 	char name[64];
-	for (team = 1; team <= 4; ++team) for (kind = 0; kind < 2; ++kind) {
-		snprintf(name, sizeof(name), "progs/%s%d.mdl", kind ? "tfheadless" : "tfbody", team);
+	for (team = 1; team <= 4; ++team) for (kind = 0; kind < 3; ++kind) {
+		snprintf(name, sizeof(name), "progs/%s%d.mdl", kind == 2 ? "tfhead" : kind ? "tfheadless" : "tfbody", team);
 		CHECK(TF_ModelSkinTeam(name) == team);
-		CHECK(TF_ModelSkinHeadless(name) == kind);
+		CHECK(TF_ModelSkinKind(name) == kind);
 	}
 	CHECK(!TF_ModelSkinTeam("progs/player.mdl"));
 	CHECK(!TF_ModelSkinTeam("progs/tfbody0.mdl"));
@@ -24,16 +24,19 @@ int main(void)
 	CHECK(!TF_ModelSkinTeam("progs/tfbody1.mdl.extra"));
 	CHECK(!TF_ModelSkinTeam("progs/tfbody"));
 	CHECK(!TF_ModelSkinTeam("tfbody1.mdl"));
-	for (kind = 0; kind < 2; ++kind) for (skin = 0; skin < 10; ++skin) {
+	for (kind = 0; kind < 3; ++kind) for (skin = 0; skin < 10; ++skin) {
 		int top = 0, bottom = 0;
 		memset(decoded, 255, sizeof(decoded));
-		CHECK(TF_ModelSkinMask(kind, skin, TF_MODEL_SKIN_WIDTH, TF_MODEL_SKIN_HEIGHT, decoded));
-		for (i = 0; i < sizeof(decoded) - 1; ++i) {
+		int width = kind == 2 ? 68 : TF_MODEL_SKIN_WIDTH;
+		int height = kind == 2 ? 50 : TF_MODEL_SKIN_HEIGHT;
+		int count = width * height;
+		CHECK(TF_ModelSkinMask(kind, skin, width, height, decoded));
+		for (i = 0; i < count; ++i) {
 			CHECK(!decoded[i] || (decoded[i] >= 16 && decoded[i] < 32) || (decoded[i] >= 96 && decoded[i] < 112));
 			top += decoded[i] >= 16 && decoded[i] < 32;
 			bottom += decoded[i] >= 96 && decoded[i] < 112;
 		}
-		CHECK(top && bottom && decoded[sizeof(decoded)-1] == 255);
+		CHECK((kind == 2 || (top && bottom)) && decoded[count] == 255);
 	}
 	CHECK(!TF_ModelSkinMask(0, 10, 296, 194, decoded));
 	CHECK(!TF_ModelSkinMask(0, -1, 296, 194, decoded));
@@ -75,6 +78,6 @@ int main(void)
 	TF_ModelSkinTranslate(original, mask, 64, palette, colors, pixels);
 	for (i = 0; i < 16; ++i) CHECK(pixels[i] == palette[original[i]]);
 	for (i = 0; i < 16; ++i) CHECK(((unsigned char *)&pixels[16+i])[1] == 255-16*i);
-	puts("PASS: eight identities, 20 bounded masks, palette/RGB shading, selective ramps, settings changes and forcing off");
+	puts("PASS: twelve identities, 30 bounded masks, palette/RGB shading, selective ramps, settings changes and forcing off");
 	return 0;
 }

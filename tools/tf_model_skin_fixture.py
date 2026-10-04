@@ -29,9 +29,9 @@ def player(slot, model, x, skin=3):
     return bytes([42, slot]) + struct.pack("<H", flags) + bytes([0]) + struct.pack("<3h3H", x*8, 80*8, -311*8, 0, 16384, 0) + bytes([model, skin])
 
 
-def corpse(number, model, x):
+def corpse(number, model, x, frame=178, skin=3, zpos=-311):
     flags = number | (7 << 9) | (1 << 12) | (1 << 13) | (1 << 15)
-    return struct.pack("<H", flags) + bytes([4 | 8 | 16, model, 178, 0, 3]) + struct.pack("<2hbh", x*8, 80*8, 64, -311*8)
+    return struct.pack("<H", flags) + bytes([4 | 8 | 16, model, frame, 0, skin]) + struct.pack("<2hbh", x*8, 80*8, 64, zpos*8)
 
 
 def build(runtime, source, tf_root, outlines=False):
@@ -51,7 +51,7 @@ def build(runtime, source, tf_root, outlines=False):
         for pos in range(offset, offset+length, stride):
             struct.pack_into("<i" if lump == 14 else "<H", bsp, pos+field, 0)
     (runtime / "fortress/maps/fixture.bsp").write_bytes(bsp)
-    models = ["maps/fixture.bsp", "progs/player.mdl", "progs/tfbody2.mdl", "progs/tfheadless2.mdl"]
+    models = ["maps/fixture.bsp", "progs/player.mdl", "progs/tfbody2.mdl", "progs/tfheadless2.mdl", "progs/tfhead2.mdl", "progs/tfhead1.mdl"]
     init = bytes([11]) + struct.pack("<2i", 28, 1) + z("fortress") + struct.pack("<f", 0) + z("TF model skin fixture")
     init += struct.pack("<10f", 800, 100, 320, 500, 10, .7, 10, 4, 4, 1)
     init += bytes([9]) + z('fullserverinfo "\\*gamedir\\fortress\\teamplay\\1\\maxclients\\32\\fpd\\512"\n')
@@ -88,7 +88,10 @@ def build(runtime, source, tf_root, outlines=False):
         }
     for frame in range(1, 281):
         msg = player(0, 2, 158) + player(1, 3, 192) + player(2, 2, 294)
-        msg += bytes([47]) + corpse(40, 3, 226) + corpse(41, 4, 260) + b"\0\0"
+        msg += bytes([47]) + corpse(40, 3, 226) + corpse(41, 4, 260)
+        msg += corpse(42, 5, 190, frame=0, skin=3, zpos=-265)
+        msg += corpse(43, 5, 225, frame=0, skin=9, zpos=-265)
+        msg += corpse(44, 6, 295, frame=0, skin=1, zpos=-265) + b"\0\0"
         if frame == 90: msg += user(3, "CorpseOwner", "green", 11, "tf_medic")
         if frame == 91: msg += bytes([40, 3]) + struct.pack("<i", 0) + b"\0"
         if frame in stages:

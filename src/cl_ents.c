@@ -18,6 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
+#include "tf_model_skin.h"
 #include "gl_model.h"
 #include "vx_stuff.h"
 #include "pmove.h"
@@ -55,6 +56,14 @@ static struct predicted_player {
 
 char *cl_modelnames[cl_num_modelindices];
 int cl_modelindices[cl_num_modelindices];
+
+/* Detached TF heads retain their own team/class and still obey gib filters. */
+static qbool CL_IsPlayerHeadModel(int modelindex)
+{
+    model_t *model = cl.model_precache[modelindex];
+    return modelindex == cl_modelindices[mi_h_player] ||
+        (model && TF_ModelSkinTeam(model->name) && TF_ModelSkinKind(model->name) == 2);
+}
 
 void CL_InitEnts(void) {
 	int i;
@@ -968,7 +977,7 @@ void CL_LinkPacketEntities(void)
 		}
 
 		if (cl_gibfilter.value &&
-			(state->modelindex == cl_modelindices[mi_h_player]
+			(CL_IsPlayerHeadModel(state->modelindex)
 			|| state->modelindex == cl_modelindices[mi_gib1]
 			|| state->modelindex == cl_modelindices[mi_gib2]
 			|| state->modelindex == cl_modelindices[mi_gib3]))
@@ -1813,7 +1822,7 @@ static void CL_LinkPlayers(void)
 		if (!state->modelindex)
 			continue;
 
-		if (cl_gibfilter.value && state->modelindex == cl_modelindices[mi_h_player]) {
+		if (cl_gibfilter.value && CL_IsPlayerHeadModel(state->modelindex)) {
 			continue;
 		}
 
@@ -1967,7 +1976,7 @@ static void CL_LinkPlayers(void)
 					info->dead = true;
 				}
 			}
-			else if (state->modelindex == cl_modelindices[mi_h_player])
+			else if (CL_IsPlayerHeadModel(state->modelindex))
 			{
 				if (info->dead == false)
 				{
@@ -2287,8 +2296,8 @@ static void MVD_InitInterpolation(void) {
 			continue;	// not present last frame
 
 		// Identify dead bodies
-		dead_body = (state->modelindex == cl_modelindices[mi_player] && ISDEAD(state->frame)) || state->modelindex == cl_modelindices[mi_h_player];
-		was_dead_body = (oldstate->modelindex == cl_modelindices[mi_player] && ISDEAD(oldstate->frame)) || oldstate->modelindex == cl_modelindices[mi_h_player];
+		dead_body = (state->modelindex == cl_modelindices[mi_player] && ISDEAD(state->frame)) || CL_IsPlayerHeadModel(state->modelindex);
+		was_dead_body = (oldstate->modelindex == cl_modelindices[mi_player] && ISDEAD(oldstate->frame)) || CL_IsPlayerHeadModel(oldstate->modelindex);
 
 		// Don't lerp if respawning
 		if (!dead_body && was_dead_body) {
@@ -2296,7 +2305,7 @@ static void MVD_InitInterpolation(void) {
 		}
 
 		// Don't lerp if first frame being gibbed
-		if (state->modelindex == cl_modelindices[mi_h_player] && !was_dead_body) {
+		if (CL_IsPlayerHeadModel(state->modelindex) && !was_dead_body) {
 			continue;
 		}
 
