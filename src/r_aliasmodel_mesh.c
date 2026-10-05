@@ -51,37 +51,13 @@ void GL_AliasModelSetVertexDirection(int num_triangles, vbo_model_vert_t* vbo_bu
 // Also used by .md3
 void GL_AliasModelFixNormals(vbo_model_vert_t* vbo_buffer, int v, int vertsPerPose)
 {
-	int j, k;
-	vec3_t new_normal;  // 2020...
-	int matches;
-
-	for (j = 0; j < vertsPerPose; ++j) {
-		if (vbo_buffer[v + j].flags & AM_VERTEX_NORMALFIXED) {
-			continue;
-		}
-
-		VectorCopy(vbo_buffer[v + j].normal, new_normal);
-		matches = 1;
-
-		for (k = j + 1; k < vertsPerPose; ++k) {
-			if (VectorCompare(vbo_buffer[v + j].position, vbo_buffer[v + k].position)) {
-				VectorAdd(new_normal, vbo_buffer[v + k].normal, new_normal);
-				++matches;
-			}
-		}
-
-		if (matches > 1) {
-			VectorScale(new_normal, 1.0f / matches, new_normal);
-
-			VectorCopy(new_normal, vbo_buffer[v + j].normal);
-			for (k = j + 1; k < vertsPerPose; ++k) {
-				if (VectorCompare(vbo_buffer[v + j].position, vbo_buffer[v + k].position)) {
-					VectorCopy(new_normal, vbo_buffer[v + k].normal);
-					vbo_buffer[v + k].flags |= AM_VERTEX_NORMALFIXED;
-				}
-			}
-		}
-	}
+	vbo_model_vert_t** scratch;
+	if (vertsPerPose < 2) return;
+	/* Sort a temporary index, not the VBO: triangle order, UVs and animation
+	 * offsets stay intact. Avoid quadratic scans on high-detail MDL/MD3s. */
+	scratch = Q_malloc((size_t)vertsPerPose * sizeof(*scratch));
+	AliasModel_FixNormals(vbo_buffer + v, vertsPerPose, scratch);
+	Q_free(scratch);
 }
 
 void GL_PrepareAliasModel(model_t* m, aliashdr_t* hdr)

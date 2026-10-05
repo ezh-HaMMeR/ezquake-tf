@@ -461,6 +461,7 @@ set(common_renderer
         ${SOURCE_DIR}/r_aliasmodel.c
         ${SOURCE_DIR}/r_aliasmodel_md3.c
         ${SOURCE_DIR}/r_aliasmodel_mesh.c
+        ${SOURCE_DIR}/alias_model_normals.c
         ${SOURCE_DIR}/r_aliasmodel_skins.c
         ${SOURCE_DIR}/r_atlas.c
         ${SOURCE_DIR}/r_bloom.c
@@ -764,6 +765,11 @@ source_group(TREE ${SOURCE_DIR} PREFIX "Header Files/client" FILES ${client_head
 
 if(BUILD_CFG_EDITOR_TESTS)
     enable_testing()
+    add_executable(alias_model_normals_tests EXCLUDE_FROM_ALL
+            ${PROJECT_SOURCE_DIR}/tests/alias_model_normals_tests.c
+            ${SOURCE_DIR}/alias_model_normals.c)
+    target_include_directories(alias_model_normals_tests PRIVATE ${SOURCE_DIR})
+    add_test(NAME alias_model_normals_equivalence COMMAND alias_model_normals_tests)
     add_executable(cfg_editor_tests EXCLUDE_FROM_ALL
             ${PROJECT_SOURCE_DIR}/tests/cfg_editor_parser_tests.c
             ${SOURCE_DIR}/cfg_editor_dictionary.c

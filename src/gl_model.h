@@ -149,17 +149,7 @@ typedef struct glc_vbo_world_vert_s {
 #define VERTEXSIZE 9  //xyz s1t1 s2t2 s3t3 where xyz = vert coords; s1t1 = normal tex coords; 
 					  //s2t2 = lightmap tex coords; s3t3 = detail tex coords
 
-typedef struct vbo_model_vert_s {
-	vec3_t position;
-	int lightnormalindex;
-	vec3_t normal;
-	int padding2;
-	vec3_t direction;
-	int padding3;
-	float texture_coords[2];
-	unsigned int flags;
-	int padding4;
-} vbo_model_vert_t;
+#include "alias_model_normals.h"
 
 typedef struct glpoly_s {
 	struct	glpoly_s	*next;
