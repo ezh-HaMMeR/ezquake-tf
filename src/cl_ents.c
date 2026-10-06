@@ -181,9 +181,21 @@ void CL_ClearScene(void)
 	cl_visents.count = 0;
 }
 
+static qbool CL_IsOutlinePlayerOrCorpse(const entity_t *ent)
+{
+	// Weapon attachments share player lighting flags but are separate objects.
+	if (ent->renderfx & (RF_WEAPONMODEL | RF_VWEPMODEL)) {
+		return false;
+	}
+	// Body-queue entities may have no scoreboard owner or player render flags.
+	return ent->model->modhint == MOD_PLAYER || (ent->renderfx & RF_PLAYERMODEL) ||
+		(cl.teamfortress && (!strcmp(ent->model->name, "progs/headless.mdl") ||
+		 (TF_ModelSkinTeam(ent->model->name) && TF_ModelSkinKind(ent->model->name) != 2)));
+}
+
 void CL_AddEntityToList(visentlist_t* list, visentlist_entrytype_t vistype, entity_t* ent, modtype_t type, qbool shell)
 {
-	extern cvar_t gl_outline;
+	extern cvar_t gl_outline, gl_outline_onlyplayers;
 
 	if (list->count < sizeof(list->list) / sizeof(list->list[0])) {
 		list->list[cl_visents.count].ent = *ent;
@@ -204,7 +216,8 @@ void CL_AddEntityToList(visentlist_t* list, visentlist_entrytype_t vistype, enti
 		// Check for outline on models.
 		// We don't support outline for transparent models,
 		// and we also check for ruleset, since we don't want outline on eyes.
-		if (((gl_outline.integer & 1) && !RuleSets_DisallowModelOutline(ent->model))) {
+		if ((gl_outline.integer & 1) && !RuleSets_DisallowModelOutline(ent->model) &&
+			(!gl_outline_onlyplayers.integer || CL_IsOutlinePlayerOrCorpse(ent))) {
 			list->list[cl_visents.count].draw[visent_outlines] = true;
 			++list->typecount[visent_outlines];
 		}

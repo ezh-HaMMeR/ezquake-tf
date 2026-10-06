@@ -5150,6 +5150,13 @@
         }
       ]
     },
+    "gl_outline_onlyplayers": {
+      "default": "0",
+      "desc": "Restricts model outlines to players and their corpses, including TF server body models. Other objects and world outlines are disabled when enabled.",
+      "group-id": "35",
+      "remarks": "Requires gl_outline 1 or 3. Disabled by default to preserve normal outline behavior. Applies to both OpenGL renderers.",
+      "type": "boolean"
+    },
     "gl_outline_color_enemy": {
       "default": "",
       "desc": "Determines the outline color of enemy players. Set to \"\" to use the value of gl_outline_color_model.",
