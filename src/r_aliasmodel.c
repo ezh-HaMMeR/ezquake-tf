@@ -39,6 +39,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_trace.h"
 #include "r_lighting.h"
 #include "r_renderer.h"
+#include "tf_sentry_animation.h"
 
 texture_ref shelltexture;
 model_t* cl_custommodels[custom_model_count];
@@ -1013,6 +1014,13 @@ void R_AliasModelPrepare(entity_t* ent, int framecount, int* frame1_, int* frame
 	ent->r_modelcolor[0] = -1;  // by default no solid fill color for model, using texture
 
 	R_AliasSetupLighting(ent);
+
+	if (ent->model->type == mod_alias3 && ent->model->tf_sentry_spin && framecount == TF_SENTRY_SPIN_FRAMES
+		&& TF_SentrySpinPoses(ent->frame, ent->oldframe, ent->framelerp, cl.time, frame1_, frame2_, lerpfrac)) {
+		if (!r_lerpframes.value) *lerpfrac = 0;
+		*outline &= ent->r_modelalpha == 1;
+		return;
+	}
 
 	if (!r_lerpframes.value || ent->framelerp < 0 || frame1 == frame2 || (frame2 != expected1 && frame1 != expected2)) {
 		*lerpfrac = 1.0f;

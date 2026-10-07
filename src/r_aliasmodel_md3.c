@@ -25,6 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "r_texture.h"
 #include "r_buffers.h"
 #include "r_local.h"
+#include "tf_sentry_animation.h"
 
 void GLM_MakeAlias3DisplayLists(model_t* model);
 
@@ -218,6 +219,13 @@ void Mod_LoadAlias3Model(model_t *mod, void *buffer, int filesize)
 	pheader->numframes = mem->numFrames;
 	pheader->numtags = mem->numTags;
 	pheader->ofstags = pheader->md3model + mem->ofsTags;
+	mod->tf_sentry_spin = false;
+	if ((!strcmp(mod->name, "progs/turrgun.mdl") || !strcmp(mod->name, "progs/turrgun.md3"))
+		&& mem->numFrames == TF_SENTRY_SPIN_FRAMES && mem->ofsFrames >= (int)sizeof(md3Header_t)
+		&& mem->ofsFrames <= filesize && mem->numFrames <= (filesize - mem->ofsFrames) / (int)sizeof(md3Frame_t)) {
+		md3Frame_t *frames = (md3Frame_t *)((char *)mem + mem->ofsFrames);
+		mod->tf_sentry_spin = TF_SentrySpinFramesValid(frames[0].name, mem->numFrames, sizeof(md3Frame_t));
+	}
 	for (fr = 0; fr < mem->numFrames; fr++) {
 		mFrame = ((md3Frame_t *)((char *)mem + mem->ofsFrames)) + fr;
 		for (j = 0; j < 3; j++) {

@@ -765,6 +765,12 @@ source_group(TREE ${SOURCE_DIR} PREFIX "Header Files/client" FILES ${client_head
 
 if(BUILD_CFG_EDITOR_TESTS)
     enable_testing()
+    add_executable(tf_sentry_animation_tests EXCLUDE_FROM_ALL ${PROJECT_SOURCE_DIR}/tests/tf_sentry_animation_tests.c)
+    target_include_directories(tf_sentry_animation_tests PRIVATE ${SOURCE_DIR})
+    if(NOT WIN32)
+        target_link_libraries(tf_sentry_animation_tests m)
+    endif()
+    add_test(NAME tf_sentry_animation COMMAND tf_sentry_animation_tests)
     add_executable(alias_model_normals_tests EXCLUDE_FROM_ALL
             ${PROJECT_SOURCE_DIR}/tests/alias_model_normals_tests.c
             ${SOURCE_DIR}/alias_model_normals.c)

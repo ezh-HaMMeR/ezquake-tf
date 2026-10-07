@@ -487,6 +487,7 @@ typedef struct model_s {
 	modhint_t			modhint_trail;
 
 	modtype_t			type;
+	qbool               tf_sentry_spin; // validated, explicitly marked MD3 rotor frames
 	int					numframes;
 	synctype_t			synctype;
 	

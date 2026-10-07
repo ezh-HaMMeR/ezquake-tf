@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "gl_model.h"
+#include "tf_sentry_animation.h"
 #include "teamplay.h"
 #include "rulesets.h"
 #include "wad.h"
@@ -703,6 +704,11 @@ model_t* Mod_CustomModel(custom_model_id_t id, qbool crash)
 // Used for lerping between frames
 int Mod_ExpectedNextFrame(model_t* mod, int framenum, int framecount)
 {
+	if (mod->type == mod_alias3 && mod->tf_sentry_spin && framecount == TF_SENTRY_SPIN_FRAMES) {
+		int next = TF_SentrySpinNextFrame(framenum);
+		if (next >= 0) return next;
+	}
+
 	// axe has 0, 1...4, 5...8
 	if (!strcmp(mod->name, cl_modelnames[mi_weapon1]) && framenum == 4) {
 		return 0;
