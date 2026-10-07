@@ -35,6 +35,7 @@ void VID_GfxInfo_f(void)
 
 void R_Shutdown(r_shutdown_mode_t mode)
 {
+	R_InvalidateAliasModelCache();
 	if (renderer.Shutdown) {
 		renderer.Shutdown(mode);
 	}

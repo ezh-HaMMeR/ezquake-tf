@@ -11,6 +11,19 @@
 #define TF_SENTRY_SPIN_LEVELS 3
 #define TF_SENTRY_SPIN_FRAMES (TF_SENTRY_SPIN_FIRST + TF_SENTRY_SPIN_POSES * TF_SENTRY_SPIN_LEVELS)
 
+#define TF_SENTRY_RIG_FRAMES 13
+static int TF_SentryRigFramesValid(const char *names, int count, size_t stride)
+{
+    int level;
+    if (count != TF_SENTRY_RIG_FRAMES || stride < 16) return 0;
+    for (level = 0; level < 3; ++level) {
+        char expected[16] = {0};
+        snprintf(expected, sizeof(expected), "tfrig%d_x", level + 1);
+        if (memcmp(names + (10 + level) * stride, expected, 16)) return 0;
+    }
+    return 1;
+}
+
 static int TF_SentrySpinNextFrame(int frame)
 {
     int local = frame - TF_SENTRY_SPIN_FIRST;

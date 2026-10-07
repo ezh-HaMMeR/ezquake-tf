@@ -9,6 +9,13 @@ int main(void)
     int l, i, a, b; float f;
     for (l=0;l<3;l++) for(i=0;i<24;i++) snprintf(names[10+l*24+i],16,"tfspin%d_%02d",l+1,i);
     assert(TF_SentrySpinFramesValid(names[0],82,56));
+    {
+        char rig[13][56] = {{0}};
+        for (l=0;l<3;l++) snprintf(rig[10+l],16,"tfrig%d_x",l+1);
+        assert(TF_SentryRigFramesValid(rig[0],13,56));
+        assert(!TF_SentryRigFramesValid(rig[0],12,56));
+        rig[12][15]=1;assert(!TF_SentryRigFramesValid(rig[0],13,56));
+    }
     assert(!TF_SentrySpinFramesValid(names[0],81,56));
     names[81][15]=1;assert(!TF_SentrySpinFramesValid(names[0],82,56));names[81][15]=0;
     for (l=0;l<3;l++) {

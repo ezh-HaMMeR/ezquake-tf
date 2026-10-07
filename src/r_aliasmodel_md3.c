@@ -26,6 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "r_buffers.h"
 #include "r_local.h"
 #include "tf_sentry_animation.h"
+#include "r_matrix.h"
 
 void GLM_MakeAlias3DisplayLists(model_t* model);
 
@@ -111,7 +112,7 @@ static void Mod_MD3LoadSkins(model_t* mod, md3Header_t* header, md3model_t* mode
 		// Scan the file for the textures to use for each surface
 		MD3_ForEachSurface(header, surf, surface) {
 			int name_length = strlen(surf->name);
-			md3_skin_list_entry_t* new_skin = Q_malloc(sizeof(md3_skin_list_entry_t));
+			md3_skin_list_entry_t* new_skin = Q_calloc(1, sizeof(md3_skin_list_entry_t));
 
 			new_skin->next = skin_list;
 			skin_list = new_skin;
@@ -127,7 +128,7 @@ static void Mod_MD3LoadSkins(model_t* mod, md3Header_t* header, md3model_t* mode
 				if (!nl) {
 					nl = sfile + skinfile_length;
 				}
-				if (sfile[name_length] == ',' && !strncasecmp(surf->name, sfile, name_length)) {
+				if (nl - sfile > name_length && sfile[name_length] == ',' && !strncasecmp(surf->name, sfile, name_length)) {
 					strlcpy(new_skin->surface_info.name, sfile + name_length + 1, sizeof(new_skin->surface_info.name));
 					new_skin->surface_info.name[min(sizeof(new_skin->surface_info.name) - 1, nl - (sfile + name_length + 1))] = '\0';
 					nl = strchr(new_skin->surface_info.name, '\r');
@@ -136,7 +137,6 @@ static void Mod_MD3LoadSkins(model_t* mod, md3Header_t* header, md3model_t* mode
 					}
 					break;
 				}
-				sfile = nl + 1;
 			}
 		}
 		Q_free(sfilestart);
@@ -144,17 +144,18 @@ static void Mod_MD3LoadSkins(model_t* mod, md3Header_t* header, md3model_t* mode
 		++found_skins;
 	}
 
-	// End: make sure we allocate at least as many skins as defined in the model
-	while (found_skins < max(header->numSkins, 1)) {
-		MD3_ForEachSurface(header, surf, surface) {
-			md3_skin_list_entry_t* new_skin = Q_malloc(sizeof(md3_skin_list_entry_t));
-			new_skin->next = skin_list;
-			skin_list = new_skin;
-			strlcpy(new_skin->surface_info.name, "textures/", sizeof(new_skin->surface_info.name));
-			strlcat(new_skin->surface_info.name, COM_SkipPath(surf->name), sizeof(new_skin->surface_info.name));
-			++found_skins;
-		}
-	}
+    // Fill all surfaces of each fallback skin before advancing the skin.
+    while (found_skins < max(header->numSkins, 1)) {
+        MD3_ForEachSurface(header, surf, surface) {
+            md3_skin_list_entry_t* entry = Q_calloc(1, sizeof(*entry));
+            entry->next = skin_list;
+            skin_list = entry;
+            entry->surface_number = surface;
+            entry->skin_number = found_skins;
+            snprintf(entry->surface_info.name, sizeof(entry->surface_info.name), "textures/%s", COM_SkipPath(surf->name));
+        }
+        ++found_skins;
+    }
 
 	header->numSkins = found_skins;
 
@@ -172,6 +173,22 @@ static void Mod_MD3LoadSkins(model_t* mod, md3Header_t* header, md3model_t* mode
 	}
 }
 
+/* Multiple surfaces commonly share a skin. Do not decode/upload its image
+ * again for every surface; only use references already resolved this load. */
+static texture_ref Mod_MD3LoadSharedTexture(surfinf_t* skins, int count, const char* name)
+{
+    int i;
+    for (i = 0; i < count; ++i) {
+        if (R_TextureReferenceIsValid(skins[i].texnum) && !strcmp(skins[i].name, name)) return skins[i].texnum;
+    }
+    return R_LoadTextureImage(name, name, 0, 0, 0);
+}
+
+/* MD3 encodes each angle in one byte: calculate the 256 possibilities once. */
+static float md3_angles[256];
+static double md3_sines[256], md3_cosines[256];
+static qbool md3_angles_ready;
+
 void Mod_LoadAlias3Model(model_t *mod, void *buffer, int filesize)
 {
 	int start, end, total;
@@ -188,6 +205,15 @@ void Mod_LoadAlias3Model(model_t *mod, void *buffer, int filesize)
 	md3St_t *st;
 	ezMd3XyzNormal_t* output_vert;
 
+	if (!md3_angles_ready) {
+        for (i = 0; i < 256; ++i) {
+            md3_angles[i] = i * (2.0 * M_PI) / 255.0;
+            md3_sines[i] = sin(md3_angles[i]);
+            md3_cosines[i] = cos(md3_angles[i]);
+        }
+        md3_angles_ready = true;
+    }
+    Com_BlockFullChecksum(buffer, filesize, mod->md3_source_digest);
 	start = Hunk_LowMark();
 
 	mod->type = mod_alias3;
@@ -220,12 +246,32 @@ void Mod_LoadAlias3Model(model_t *mod, void *buffer, int filesize)
 	pheader->numtags = mem->numTags;
 	pheader->ofstags = pheader->md3model + mem->ofsTags;
 	mod->tf_sentry_spin = false;
+	mod->tf_sentry_rig = false;
 	if ((!strcmp(mod->name, "progs/turrgun.mdl") || !strcmp(mod->name, "progs/turrgun.md3"))
 		&& mem->numFrames == TF_SENTRY_SPIN_FRAMES && mem->ofsFrames >= (int)sizeof(md3Header_t)
 		&& mem->ofsFrames <= filesize && mem->numFrames <= (filesize - mem->ofsFrames) / (int)sizeof(md3Frame_t)) {
 		md3Frame_t *frames = (md3Frame_t *)((char *)mem + mem->ofsFrames);
 		mod->tf_sentry_spin = TF_SentrySpinFramesValid(frames[0].name, mem->numFrames, sizeof(md3Frame_t));
 	}
+    if ((!strcmp(mod->name, "progs/turrgun.mdl") || !strcmp(mod->name, "progs/turrgun.md3"))
+        && mem->numFrames == TF_SENTRY_RIG_FRAMES && mem->numTags == 2 && mem->numSurfaces == 3
+        && mem->ofsFrames >= (int)sizeof(md3Header_t) && mem->ofsFrames <= filesize
+        && mem->numFrames <= (filesize-mem->ofsFrames)/(int)sizeof(md3Frame_t)
+        && mem->ofsTags >= (int)sizeof(md3Header_t) && mem->ofsTags <= filesize
+        && mem->numFrames * 2 <= (filesize-mem->ofsTags)/(int)sizeof(md3tag_t)) {
+        md3Frame_t* frames = (md3Frame_t*)((char*)mem + mem->ofsFrames);
+        md3tag_t* tags = (md3tag_t*)((char*)mem + mem->ofsTags);
+        mod->tf_sentry_rig = TF_SentryRigFramesValid(frames[0].name, mem->numFrames, sizeof(md3Frame_t));
+        for (i = 0; i < mem->numFrames * 2 && mod->tf_sentry_rig; ++i) {
+            const char* expected = i % 2 ? "tfrotor_r" : "tfrotor_l";
+            if (strncmp(tags[i].name, expected, sizeof(tags[i].name))) mod->tf_sentry_rig = false;
+            for (j = 0; j < 3; ++j) {
+                float origin = LittleFloat(tags[i].org[j]);
+                if (!isfinite(origin) || fabs(origin) > 4096) mod->tf_sentry_rig = false;
+            }
+        }
+    }
+	if (r_modelcache_stats.integer && mod->tf_sentry_rig) Com_Printf("ModelCache rigid rotor model: %s\n", mod->name);
 	for (fr = 0; fr < mem->numFrames; fr++) {
 		mFrame = ((md3Frame_t *)((char *)mem + mem->ofsFrames)) + fr;
 		for (j = 0; j < 3; j++) {
@@ -286,12 +332,12 @@ void Mod_LoadAlias3Model(model_t *mod, void *buffer, int filesize)
 
 				VectorScale(vert[j].xyz, MD3_XYZ_SCALE, output_vert[j].xyz);
 				{
-					output_vert[j].normal_lat = ((vert[j].normal >> 8) & 255) * (2.0 * M_PI) / 255.0;
-					output_vert[j].normal_lng = (vert[j].normal & 255) * (2.0 * M_PI) / 255.0;
-
-					output_vert[j].normal[0] = cos(output_vert[j].normal_lat) * sin(output_vert[j].normal_lng);
-					output_vert[j].normal[1] = sin(output_vert[j].normal_lat) * sin(output_vert[j].normal_lng);
-					output_vert[j].normal[2] = cos(output_vert[j].normal_lng);
+                    unsigned lat = (vert[j].normal >> 8) & 255, lng = vert[j].normal & 255;
+                    output_vert[j].normal_lat = md3_angles[lat];
+                    output_vert[j].normal_lng = md3_angles[lng];
+                    output_vert[j].normal[0] = md3_cosines[lat] * md3_sines[lng];
+                    output_vert[j].normal[1] = md3_sines[lat] * md3_sines[lng];
+                    output_vert[j].normal[2] = md3_cosines[lng];
 				}
 			}
 			surf->ofsXyzNormals = (char*)output_vert - (char*)surf;
@@ -300,6 +346,7 @@ void Mod_LoadAlias3Model(model_t *mod, void *buffer, int filesize)
 			sshad->shaderIndex = LittleLong(sshad->shaderIndex);
 
 			for (i = 0; i < mem->numSkins; ++i) {
+				sinf = (surfinf_t*)((char*)pheader + pheader->surfinf) + i * mem->numSurfaces + surfn;
 				char specifiedskinnameinfolder[128] = { 0 };
 				char tenebraeskinname[128] = { 0 };
 
@@ -322,7 +369,7 @@ void Mod_LoadAlias3Model(model_t *mod, void *buffer, int filesize)
 
 				// Try and load
 				for (j = 0; j < sizeof(potential_textures) / sizeof(potential_textures[0]); ++j) {
-					if (potential_textures[j][0] && R_TextureReferenceIsValid(sinf->texnum = R_LoadTextureImage(potential_textures[j], potential_textures[j], 0, 0, 0))) {
+					if (potential_textures[j][0] && R_TextureReferenceIsValid(sinf->texnum = Mod_MD3LoadSharedTexture((surfinf_t*)((char*)pheader + pheader->surfinf), mem->numSkins * mem->numSurfaces, potential_textures[j]))) {
 						if (potential_textures[j] != sinf->name) {
 							strlcpy(sinf->name, potential_textures[j], sizeof(sinf->name));
 						}
@@ -333,7 +380,6 @@ void Mod_LoadAlias3Model(model_t *mod, void *buffer, int filesize)
 					sinf->texnum = R_LoadTextureImage("dummy", "dummy", 0, 0, 0);
 					strlcpy(sinf->name, "dummy", sizeof(sinf->name));
 				}
-				++sinf;
 			}
 
 			surf = (md3Surface_t *)((char *)surf + surf->ofsEnd);
@@ -439,4 +485,22 @@ surfinf_t* MD3_ExtraSurfaceInfoForModel(md3model_t* model)
 md3Header_t* MD3_HeaderForModel(md3model_t* model)
 {
 	return (md3Header_t *)((uintptr_t)model + model->md3model);
+}
+
+/* A rigid rotor is drawn about its MD3 tag; no per-frame vertex copies. */
+qbool R_MD3RotateSurface(const entity_t* ent, md3Header_t* header, md3Surface_t* surface, int frame)
+{
+    md3tag_t* tag;
+    vec3_t pivot;
+    int index, i;
+    if (!ent->model->tf_sentry_rig || frame < 10 || frame >= 13) return false;
+    if (!strncmp(surface->name, "tfrotor_l", sizeof(surface->name))) index = 0;
+    else if (!strncmp(surface->name, "tfrotor_r", sizeof(surface->name))) index = 1;
+    else return false;
+    tag = (md3tag_t*)((char*)header + header->ofsTags) + frame * 2 + index;
+    for (i = 0; i < 3; ++i) pivot[i] = LittleFloat(tag->org[i]);
+    R_TranslateModelview(pivot[0], pivot[1], pivot[2]);
+    R_RotateModelview(fmod(cl.time, .5) * 720, 1, 0, 0);
+    R_TranslateModelview(-pivot[0], -pivot[1], -pivot[2]);
+    return true;
 }

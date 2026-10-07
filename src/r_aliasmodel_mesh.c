@@ -149,6 +149,60 @@ extern cvar_t gl_program_aliasmodels;
 #define R_GLSLAliasModelRendering() (1)
 #endif
 
+/* The GPU buffer is reusable across maps as long as every requested model
+ * still occupies its recorded slot. CPU buffers are a bounded rebuild cache. */
+extern model_t mod_known[];
+extern int mod_numknown;
+cvar_t r_modelcache = { "r_modelcache", "1" };
+cvar_t r_modelcache_mb = { "r_modelcache_mb", "256" };
+cvar_t r_modelcache_stats = { "r_modelcache_stats", "0" };
+static qbool alias_vbo_cached;
+static qbool alias_vbo_shader_mode;
+static unsigned alias_vbo_generation = 1;
+static size_t alias_cpu_kept;
+
+void R_InvalidateAliasModelCache(void)
+{
+    alias_vbo_cached = false;
+    ++alias_vbo_generation;
+    if (!alias_vbo_generation) ++alias_vbo_generation;
+}
+
+static qbool R_ModelSlotResident(model_t* mod)
+{
+    return !mod || (mod->type != mod_alias && mod->type != mod_alias3)
+        || (!mod->needload && mod->cached_data && mod->alias_vbo_generation == alias_vbo_generation);
+}
+
+qbool R_AliasModelCacheReusable(void)
+{
+    int i;
+    if (!r_modelcache.integer || !alias_vbo_cached || !buffers.supported
+        || !buffers.IsValid(r_buffer_aliasmodel_vertex_data)
+        || alias_vbo_shader_mode != !!R_GLSLAliasModelRendering()) return false;
+    for (i = 1; i < MAX_MODELS; ++i) if (!R_ModelSlotResident(cl.model_precache[i])) return false;
+    for (i = 0; i < MAX_VWEP_MODELS; ++i) if (!R_ModelSlotResident(cl.vw_model_precache[i])) return false;
+    for (i = 0; i < custom_model_count; ++i) if (!R_ModelSlotResident(cl_custommodels[i])) return false;
+    return true;
+}
+
+static void R_TrimAliasCPUCache(void)
+{
+    size_t kept = 0, budget = (size_t)bound(0, r_modelcache_mb.integer, 2048) * 1024 * 1024;
+    int i;
+    if (!R_GLSLAliasModelRendering()) return; /* Immediate mode draws from CPU memory. */
+    for (i = 0; i < mod_numknown; ++i) {
+        model_t* mod = &mod_known[i];
+        size_t bytes = (size_t)mod->vertsInVBO * sizeof(vbo_model_vert_t);
+        if (!mod->temp_vbo_buffer) continue;
+        if (!r_modelcache.integer || mod->alias_vbo_generation != alias_vbo_generation || bytes > budget - kept) {
+            Q_free(mod->temp_vbo_buffer);
+        }
+        else kept += bytes;
+    }
+    alias_cpu_kept = kept;
+}
+
 void R_AliasModelPopulateVBO(model_t* mod, vbo_model_vert_t* aliasModelBuffer, int position)
 {
 	// Don't delete if using immediate mode as we loop over them ourselves
@@ -156,7 +210,7 @@ void R_AliasModelPopulateVBO(model_t* mod, vbo_model_vert_t* aliasModelBuffer, i
 		memcpy(aliasModelBuffer + position, mod->temp_vbo_buffer, mod->vertsInVBO * sizeof(vbo_model_vert_t));
 
 		mod->vbo_start = position;
-		Q_free(mod->temp_vbo_buffer);
+		mod->alias_vbo_generation = alias_vbo_generation;
 	}
 }
 
@@ -205,10 +259,21 @@ static void R_ImportModelToVBO(model_t* mod, vbo_model_vert_t* aliasmodel_data, 
 
 void R_CreateAliasModelVBO(void)
 {
+	double started = Sys_DoubleTime();
 	vbo_model_vert_t* aliasModelData;
 	int new_vbo_position = 0;
 	int required_vbo_length = 4;
 	int i;
+
+    if (R_AliasModelCacheReusable()) {
+#ifdef RENDERER_OPTION_MODERN_OPENGL
+        if (R_UseModernOpenGL()) GLM_CreateAliasModelVAO();
+#endif
+        R_TrimAliasCPUCache();
+        if (r_modelcache_stats.integer) Com_Printf("ModelCache GPU hit: %.3f ms, CPU %.1f MiB\n", (Sys_DoubleTime()-started)*1000, alias_cpu_kept/1048576.0);
+        return;
+    }
+    R_InvalidateAliasModelCache();
 
 	for (i = 1; i < MAX_MODELS; ++i) {
 		model_t* mod = cl.model_precache[i];
@@ -276,6 +341,11 @@ void R_CreateAliasModelVBO(void)
 	}
 #endif
 	Q_free(aliasModelData);
+    alias_vbo_shader_mode = !!R_GLSLAliasModelRendering();
+    alias_vbo_cached = alias_vbo_shader_mode;
+    R_TrimAliasCPUCache();
+    if (r_modelcache_stats.integer) Com_Printf("ModelCache GPU build: %.3f ms, GPU %.1f MiB, CPU %.1f MiB\n", (Sys_DoubleTime()-started)*1000, (double)required_vbo_length*sizeof(vbo_model_vert_t)/1048576.0, alias_cpu_kept/1048576.0);
+
 
 #ifdef RENDERER_OPTION_CLASSIC_OPENGL
 	if (R_UseImmediateOpenGL()) {

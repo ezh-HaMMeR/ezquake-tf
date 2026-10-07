@@ -487,6 +487,9 @@ typedef struct model_s {
 	modhint_t			modhint_trail;
 
 	modtype_t			type;
+	byte                md3_source_digest[16];
+	unsigned            alias_vbo_generation;
+	qbool               tf_sentry_rig;
 	qbool               tf_sentry_spin; // validated, explicitly marked MD3 rotor frames
 	int					numframes;
 	synctype_t			synctype;
@@ -640,4 +643,10 @@ extern mplane_t frustum[4];
 
 #define DEFAULT_LMSHIFT     4
 
-#endif	// __MODEL__
+extern cvar_t r_modelcache, r_modelcache_mb, r_modelcache_stats;
+qbool R_AliasModelCacheReusable(void);
+void R_InvalidateAliasModelCache(void);
+
+extern cvar_t r_modelcache_disk;
+
+#endif // __MODEL__

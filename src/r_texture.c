@@ -117,8 +117,10 @@ static void R_ClearModelTextureReferences(model_t* mod, qbool all_textures)
 		md3model_t* md3Model = (md3model_t *)Mod_Extradata(mod);
 		surfinf_t* surfaceInfo = MD3_ExtraSurfaceInfoForModel(md3Model);
 
-		// One day there will be more than one of these...
-		R_TextureReferenceInvalidate(surfaceInfo->texnum);
+		md3Header_t* header = MD3_HeaderForModel(md3Model);
+		int i;
+		for (i = 0; i < header->numSkins * header->numSurfaces; ++i)
+			R_TextureReferenceInvalidate(surfaceInfo[i].texnum);
 	}
 }
 

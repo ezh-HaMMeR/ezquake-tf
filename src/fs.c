@@ -3036,6 +3036,9 @@ void FS_ReloadPackFilesFlags(FS_Load_File_Types reloadflags)
 
 	if (!fs_base_searchpaths)
 		fs_base_searchpaths = fs_searchpaths;
+
+	// Archive precedence/content may have changed. Drop decoded and GPU model caches.
+	Cache_Flush();
 }
 
 void FS_UnloadPackFiles(void)

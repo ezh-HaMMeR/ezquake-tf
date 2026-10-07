@@ -1015,6 +1015,14 @@ void R_AliasModelPrepare(entity_t* ent, int framecount, int* frame1_, int* frame
 
 	R_AliasSetupLighting(ent);
 
+    if (ent->model->type == mod_alias3 && ent->model->tf_sentry_rig && r_lerpframes.value
+        && TF_SentrySpinPoses(ent->frame, ent->oldframe, ent->framelerp, cl.time, frame1_, frame2_, lerpfrac)) {
+        *frame1_ = *frame2_ = 10 + ent->frame / 3;
+        *lerpfrac = 0;
+        *outline &= ent->r_modelalpha == 1;
+        return;
+    }
+
 	if (ent->model->type == mod_alias3 && ent->model->tf_sentry_spin && framecount == TF_SENTRY_SPIN_FRAMES
 		&& TF_SentrySpinPoses(ent->frame, ent->oldframe, ent->framelerp, cl.time, frame1_, frame2_, lerpfrac)) {
 		if (!r_lerpframes.value) *lerpfrac = 0;

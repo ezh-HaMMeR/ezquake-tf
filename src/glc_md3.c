@@ -129,9 +129,10 @@ static void GLC_DrawMD3Frame(const entity_t* ent, const float* modelColor, md3He
 	}
 
 	MD3_ForEachSurface(pheader, surf, surfnum) {
+		float surface_matrix[16];
 		vec3_t interpolated_verts;
 		// FIXME: hack for not reading shader types
-		qbool additive_surface = ((ent->model && ent->model->modhint & MOD_VMODEL) && surfnum >= 1);
+		qbool additive_surface = ((ent->model && ent->model->modhint == MOD_VMODEL) && surfnum >= 1);
 		numverts = surf->numTriangles * 3;
 
 		if (additive_surface != additive_pass) {
@@ -144,6 +145,8 @@ static void GLC_DrawMD3Frame(const entity_t* ent, const float* modelColor, md3He
 			renderer.TextureUnitBind(0, surface_info[surfnum].texnum);
 		}
 
+		R_PushModelviewMatrix(surface_matrix);
+		R_MD3RotateSurface(ent, pheader, surf, frame1);
 		GLC_Begin(GL_TRIANGLES);
 		for (i = 0; i < numverts; ++i) {
 			float lerpfrac = lerpfracDefault;
@@ -176,9 +179,28 @@ static void GLC_DrawMD3Frame(const entity_t* ent, const float* modelColor, md3He
 			++verts2;
 		}
 		GLC_End();
+		R_PopModelviewMatrix(surface_matrix);
 
 		frameStats.classic.polycount[polyTypeAliasModel] += surf->numTriangles;
 	}
+}
+
+static void GLC_DrawMD3Surface(entity_t* ent, md3Header_t* header, md3Surface_t* surface, int frame, int first, qbool lighting)
+{
+    float matrix[16];
+    float yaw = -ent->angles[YAW] * M_PI / 180.0;
+    vec3_t light = { cos(yaw), sin(yaw), 1 }, rotated;
+    qbool spinning;
+    R_PushModelviewMatrix(matrix);
+    spinning = R_MD3RotateSurface(ent, header, surface, frame);
+    if (spinning && lighting) {
+        VectorCopy(light, rotated);
+        R_RotateVector(rotated, -fmod(cl.time, .5) * 720, 1, 0, 0);
+        R_ProgramUniform3fv(r_program_uniform_aliasmodel_std_glc_angleVector, rotated);
+    }
+    GL_DrawArrays(GL_TRIANGLES, first, 3 * surface->numTriangles);
+    if (spinning && lighting) R_ProgramUniform3fv(r_program_uniform_aliasmodel_std_glc_angleVector, light);
+    R_PopModelviewMatrix(matrix);
 }
 
 static void GLC_DrawAlias3ModelProgram(entity_t* ent, int frame1, qbool invalidate_texture, float* vertexColor, float lerpfrac, qbool outline, qbool additive_pass)
@@ -209,14 +231,14 @@ static void GLC_DrawAlias3ModelProgram(entity_t* ent, int frame1, qbool invalida
 		vert_index = first_vert;
 		MD3_ForEachSurface(pheader, surf, surfnum) {
 			// FIXME: hack for not reading shader types
-			qbool additive_surface = ((mod->modhint & MOD_VMODEL) && surfnum >= 1);
+			qbool additive_surface = ((mod->modhint == MOD_VMODEL) && surfnum >= 1);
 
 			// don't outline these
 			if (additive_surface) {
 				continue;
 			}
 
-			GL_DrawArrays(GL_TRIANGLES, vert_index, 3 * surf->numTriangles);
+			GLC_DrawMD3Surface(ent, pheader, surf, frame1, vert_index, !outline);
 			vert_index += 3 * surf->numTriangles;
 		}
 	}
@@ -237,7 +259,7 @@ static void GLC_DrawAlias3ModelProgram(entity_t* ent, int frame1, qbool invalida
 			GLC_StateBeginDrawAliasZPass(ent->renderfx & RF_WEAPONMODEL);
 			vert_index = first_vert;
 			MD3_ForEachSurface(pheader, surf, surfnum) {
-				GL_DrawArrays(GL_TRIANGLES, vert_index, 3 * surf->numTriangles);
+				GLC_DrawMD3Surface(ent, pheader, surf, frame1, vert_index, !outline);
 				vert_index += 3 * surf->numTriangles;
 			}
 		}
@@ -246,7 +268,7 @@ static void GLC_DrawAlias3ModelProgram(entity_t* ent, int frame1, qbool invalida
 		vert_index = first_vert;
 		MD3_ForEachSurface(pheader, surf, surfnum) {
 			// FIXME: hack for not reading shader types
-			qbool additive_surface = ((mod->modhint & MOD_VMODEL) && surfnum >= 1);
+			qbool additive_surface = ((mod->modhint == MOD_VMODEL) && surfnum >= 1);
 
 			if (additive_surface == additive_pass) {
 				if (additive_pass) {
@@ -259,7 +281,7 @@ static void GLC_DrawAlias3ModelProgram(entity_t* ent, int frame1, qbool invalida
 					renderer.TextureUnitBind(0, sinf[surfnum].texnum);
 				}
 
-				GL_DrawArrays(GL_TRIANGLES, vert_index, 3 * surf->numTriangles);
+				GLC_DrawMD3Surface(ent, pheader, surf, frame1, vert_index, !outline);
 			}
 			vert_index += 3 * surf->numTriangles;
 		}
@@ -347,7 +369,14 @@ static void GLC_DrawAlias3ModelPowerupShellProgram(model_t * mod, md3Header_t * 
 	R_ProgramUniform4fv(r_program_uniform_aliasmodel_shell_glc_fsBaseColor2, color2);
 	R_ProgramUniform4fv(r_program_uniform_aliasmodel_shell_glc_scroll, GLC_PowerupShell_ScrollParams());
 	R_ProgramUniform1f(r_program_uniform_aliasmodel_shell_glc_lerpFraction, lerpfrac);
-	GL_DrawArrays(GL_TRIANGLES, first_vert, vertsPerFrame);
+    {
+        md3Surface_t* surf;
+        int surfnum;
+        MD3_ForEachSurface(pheader, surf, surfnum) {
+            GLC_DrawMD3Surface(ent, pheader, surf, frame1, first_vert, false);
+            first_vert += 3 * surf->numTriangles;
+        }
+    }
 	R_ProgramUse(r_program_none);
 }
 
@@ -364,6 +393,7 @@ static void GLC_DrawAlias3ModelPowerupShellImmediate(model_t * mod, md3Header_t 
 		 
 		MD3_ForEachSurface(pheader, surf, surfnum) {
 			// loop through the surfaces.
+			float surface_matrix[16];
 			int pose1 = frame1 * surf->numVerts;
 			int pose2 = frame2 * surf->numVerts;
 			int numtris, i;
@@ -379,6 +409,8 @@ static void GLC_DrawAlias3ModelPowerupShellImmediate(model_t * mod, md3Header_t 
 			numtris = surf->numTriangles * 3;
 
 			GLC_SetPowerupShellColor(layer_no, ent->effects);
+			R_PushModelviewMatrix(surface_matrix);
+			R_MD3RotateSurface(ent, pheader, surf, frame1);
 			GLC_Begin(GL_TRIANGLES);
 			for (i = 0; i < numtris; i++) {
 				float s, t;
@@ -402,6 +434,7 @@ static void GLC_DrawAlias3ModelPowerupShellImmediate(model_t * mod, md3Header_t 
 				tris++;
 			}
 			GLC_End();
+			R_PopModelviewMatrix(surface_matrix);
 		}
 	}
 }

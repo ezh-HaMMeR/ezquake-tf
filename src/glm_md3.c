@@ -58,12 +58,16 @@ void GLM_DrawAlias3Model(entity_t* ent, qbool outline, qbool additive_pass)
 	v2 = mod->vbo_start + vertsPerFrame * frame2;
 	MD3_ForEachSurface(pHeader, surf, surfnum) {
 		// FIXME: hack for not reading different shader types
-		int extra_fx = ((mod->modhint & MOD_VMODEL) && surfnum >= 1 ? RF_ADDITIVEBLEND : 0);
+		float surface_matrix[16];
+		int extra_fx = ((mod->modhint == MOD_VMODEL) && surfnum >= 1 ? RF_ADDITIVEBLEND : 0);
 
+		R_PushModelviewMatrix(surface_matrix);
+		R_MD3RotateSurface(ent, pHeader, surf, frame1);
 		GLM_DrawAliasModelFrame(
 			ent, mod, v1, v2, 3 * surf->numTriangles,
 			surfaceInfo[surfnum].texnum, outline, ent->effects, ent->renderfx | extra_fx, lerpfrac
 		);
+		R_PopModelviewMatrix(surface_matrix);
 		v1 += 3 * surf->numTriangles;
 		v2 += 3 * surf->numTriangles;
 	}

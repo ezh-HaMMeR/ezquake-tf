@@ -54,6 +54,10 @@ int		mod_numknown;
 void Mod_Init(void)
 {
 	memset(mod_novis, 0xff, sizeof(mod_novis));
+	Cvar_Register(&r_modelcache);
+	Cvar_Register(&r_modelcache_mb);
+	Cvar_Register(&r_modelcache_stats);
+	Cvar_Register(&r_modelcache_disk);
 }
 
 //Caches the data if needed
@@ -154,8 +158,11 @@ void Mod_FreeAllCachedData(void)
 	int i;
 	model_t	*mod;
 
+	R_InvalidateAliasModelCache();
 	for (i = 0, mod = mod_known; i < mod_numknown; i++, mod++) {
 		Q_free(mod->cached_data);
+		Q_free(mod->temp_vbo_buffer);
+		mod->alias_vbo_generation = 0;
 	}
 }
 
@@ -193,14 +200,18 @@ void Mod_TouchModel(char *name)
 
 void Mod_ReloadModels(qbool vid_restart)
 {
+    double started = Sys_DoubleTime();
+    qbool reuse;
 	int i;
+    if (vid_restart) Mod_FreeAllCachedData();
+    reuse = R_AliasModelCacheReusable();
 
 	for (i = 1; i < MAX_MODELS; ++i) {
 		model_t* mod = cl.model_precache[i];
 
 		if (mod && (mod == cl.worldmodel || !mod->isworldmodel)) {
 			if (mod->type == mod_alias || mod->type == mod_alias3) {
-				if (mod->vertsInVBO && !mod->temp_vbo_buffer) {
+				if (mod->vertsInVBO && !mod->temp_vbo_buffer && !reuse) {
 					// Invalidate cache so VBO buffer gets refilled
 					Q_free(mod->cached_data);
 				}
@@ -214,7 +225,7 @@ void Mod_ReloadModels(qbool vid_restart)
 
 		if (mod) {
 			if (mod->type == mod_alias || mod->type == mod_alias3) {
-				if (mod->vertsInVBO && !mod->temp_vbo_buffer) {
+				if (mod->vertsInVBO && !mod->temp_vbo_buffer && !reuse) {
 					// Invalidate cache so VBO buffer gets refilled
 					Q_free(mod->cached_data);
 				}
@@ -228,7 +239,7 @@ void Mod_ReloadModels(qbool vid_restart)
 
 		if (mod) {
 			if (mod->type == mod_alias || mod->type == mod_alias3) {
-				if (mod->vertsInVBO && !mod->temp_vbo_buffer) {
+				if (mod->vertsInVBO && !mod->temp_vbo_buffer && !reuse) {
 					// Invalidate cache so VBO buffer gets refilled
 					Q_free(mod->cached_data);
 				}
@@ -236,11 +247,13 @@ void Mod_ReloadModels(qbool vid_restart)
 			Mod_LoadModel(mod, true);
 		}
 	}
+    if (r_modelcache_stats.integer) Com_Printf("ModelCache reload: %.3f ms, reuse %d\n", (Sys_DoubleTime()-started)*1000, reuse);
 }
 
 //Loads a model into the cache
 model_t *Mod_LoadModel(model_t *mod, qbool crash)
 {
+	double started = Sys_DoubleTime();
 	unsigned *buf;
 	int namelen;
 	int filesize;
@@ -284,6 +297,8 @@ model_t *Mod_LoadModel(model_t *mod, qbool crash)
 
 	// call the apropriate loader
 	mod->needload = false;
+	mod->alias_vbo_generation = 0;
+	Q_free(mod->temp_vbo_buffer);
 
 	switch (LittleLong(*((unsigned *)buf))) {
 	case IDPOLYHEADER:
@@ -303,6 +318,7 @@ model_t *Mod_LoadModel(model_t *mod, qbool crash)
 		break;
 	}
 
+	if (r_modelcache_stats.integer && mod->type == mod_alias3) Com_Printf("ModelCache MD3 total: %s %.3f ms\n", mod->name, (Sys_DoubleTime()-started)*1000);
 	return mod;
 }
 

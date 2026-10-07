@@ -139,4 +139,6 @@ md3Header_t* MD3_HeaderForModel(md3model_t* model);
 #define MD3_ForEachSurface(header, surface, surfnum) \
 	for ((surfnum) = 0, (surface) = MD3_FirstSurface(header); (surfnum) < (header)->numSurfaces; ++(surfnum), (surface) = MD3_NextSurface(surface))
 
+qbool R_MD3RotateSurface(const struct entity_s* ent, md3Header_t* header, md3Surface_t* surface, int frame);
+
 #endif
