@@ -4836,6 +4836,12 @@
       "group-id": "15",
       "type": "boolean"
     },
+    "gl_fb_tfmodels": {
+      "default": "0",
+      "desc": "In Team Fortress, allow forced fullbright on buildings, building debris, detpacks, grenades and shared nail projectiles. 0 uses normal map and dynamic lighting regardless of gl_fb_models or custom grenade fullbright; 1 restores their existing fullbright settings. Applies to MDL/MD3 from archives and loose files. Players, weapon viewmodels and flames are unaffected.",
+      "group-id": "15",
+      "type": "boolean"
+    },
     "gl_finish": {
       "default": "0",
       "desc": "Toggles the calling of the gl_finish() OpenGL function after each rendered frame.",

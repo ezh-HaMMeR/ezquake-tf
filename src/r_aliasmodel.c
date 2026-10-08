@@ -40,6 +40,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_lighting.h"
 #include "r_renderer.h"
 #include "tf_sentry_animation.h"
+#include "tf_model_lighting.h"
+
+extern cvar_t gl_fb_tfmodels;
 
 texture_ref shelltexture;
 model_t* cl_custommodels[custom_model_count];
@@ -547,6 +550,7 @@ void R_AliasSetupLighting(entity_t *ent)
 	qbool player_model = (clmodel->modhint == MOD_PLAYER || ent->renderfx & RF_PLAYERMODEL ||
 		(cl.teamfortress && TF_ModelSkinTeam(clmodel->name)));
 	qbool calculate_lighting = true;
+	qbool tf_map_lighting = TF_UseMapLighting(clmodel->name, cl.teamfortress, gl_fb_tfmodels.integer);
 
 	//VULT COLOURED MODEL LIGHTING
 	ent->custom_model = NULL;
@@ -565,7 +569,7 @@ void R_AliasSetupLighting(entity_t *ent)
 		ent->custom_model = NULL;
 	}
 
-	if (ent->custom_model && ent->custom_model->fullbright_cvar.integer) {
+	if (!tf_map_lighting && ent->custom_model && ent->custom_model->fullbright_cvar.integer) {
 		ent->ambientlight = 4096;
 		ent->shadelight = 0;
 		ent->full_light = true;
@@ -600,7 +604,7 @@ void R_AliasSetupLighting(entity_t *ent)
 			calculate_lighting = true;
 		}
 	}
-	else if (Rulesets_FullbrightModel(clmodel)) {
+	else if (!tf_map_lighting && Rulesets_FullbrightModel(clmodel)) {
 		ent->ambientlight = ent->shadelight = 4096;
 		calculate_lighting = (r_shadows.integer);
 	}
@@ -988,7 +992,9 @@ void R_AliasModelColor(const entity_t* ent, float* color, qbool* invalidate_text
 	else {
 		VectorScale(ent->custom_model->color_cvar.color, 1.0f / 255, color);
 
-		*invalidate_texture = (ent->custom_model->fullbright_cvar.integer || ent->custom_model->disable_texturing);
+		*invalidate_texture = ((ent->custom_model->fullbright_cvar.integer
+			&& !TF_UseMapLighting(ent->model->name, cl.teamfortress, gl_fb_tfmodels.integer))
+			|| ent->custom_model->disable_texturing);
 	}
 	VectorScale(color, ent->r_modelalpha, color);
 	color[3] = ent->r_modelalpha;

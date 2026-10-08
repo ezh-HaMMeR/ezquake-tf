@@ -765,6 +765,9 @@ source_group(TREE ${SOURCE_DIR} PREFIX "Header Files/client" FILES ${client_head
 
 if(BUILD_CFG_EDITOR_TESTS)
     enable_testing()
+    add_executable(tf_model_lighting_tests EXCLUDE_FROM_ALL ${PROJECT_SOURCE_DIR}/tests/tf_model_lighting_tests.c)
+    target_include_directories(tf_model_lighting_tests PRIVATE ${SOURCE_DIR})
+    add_test(NAME tf_model_lighting COMMAND tf_model_lighting_tests)
     add_executable(tf_sentry_animation_tests EXCLUDE_FROM_ALL ${PROJECT_SOURCE_DIR}/tests/tf_sentry_animation_tests.c)
     target_include_directories(tf_sentry_animation_tests PRIVATE ${SOURCE_DIR})
     if(NOT WIN32)
