@@ -39,6 +39,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_buffers.h"
 #include "r_draw.h"
 #include "r_aliasmodel.h"
+#include "r_model_groups.h"
 #include "r_lightmaps.h"
 #include "r_trace.h"
 #include "r_renderer.h"
@@ -232,7 +233,6 @@ cvar_t gl_simpleitems_orientation          = {"gl_simpleitems_orientation", "2"}
 cvar_t gl_modulate                         = {"gl_modulate", "1"};
 
 cvar_t gl_outline                          = {"gl_outline", "0"};
-cvar_t gl_outline_onlyplayers              = {"gl_outline_onlyplayers", "0"};
 cvar_t gl_outline_color_world              = {"gl_outline_color_world", "0 0 0"};
 cvar_t gl_outline_color_model              = {"gl_outline_color_model", "0 0 0"};
 cvar_t gl_outline_scale_world              = {"gl_outline_scale_world", "1"};
@@ -695,6 +695,7 @@ void R_Init(void)
 	Cvar_Register(&gl_fb_bmodels);
 	Cvar_Register(&gl_fb_models);
 	Cvar_Register(&gl_fb_tfmodels);
+	R_ModelGroupsInit();
 	Cvar_Register(&gl_lightmode);
 	Cvar_Register(&gl_flashblend);
 	Cvar_Register(&gl_rl_globe);
@@ -726,7 +727,6 @@ void R_Init(void)
 	Cvar_Register(&gl_modulate);
 
 	Cvar_Register(&gl_outline);
-	Cvar_Register(&gl_outline_onlyplayers);
 	Cvar_Register(&gl_outline_color_world);
 	Cvar_Register(&gl_outline_color_model);
 	// Cvar_Register(&gl_outline_scale_world);

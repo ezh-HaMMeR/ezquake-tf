@@ -38,7 +38,7 @@ extern cvar_t vid_framebuffer_hdr;
 extern cvar_t vid_framebuffer_blit;
 extern cvar_t vid_framebuffer_smooth;
 extern cvar_t vid_framebuffer_multisample;
-extern cvar_t gl_outline, gl_outline_onlyplayers;
+extern cvar_t gl_outline;
 
 static framebuffer_id VID_MultisampledAlternateId(framebuffer_id id);
 
@@ -477,7 +477,7 @@ qbool GL_FramebufferStartWorldNormals(framebuffer_id id)
 	GLenum buffers[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
 	float clearValue[] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
-	if (gl_outline_onlyplayers.integer || !(gl_outline.integer & 2) || !GL_Supported(R_SUPPORT_FRAMEBUFFERS) || !RuleSets_AllowEdgeOutline()) {
+	if (!(gl_outline.integer & 2) || !GL_Supported(R_SUPPORT_FRAMEBUFFERS) || !RuleSets_AllowEdgeOutline()) {
 		return false;
 	}
 

@@ -4838,7 +4838,7 @@
     },
     "gl_fb_tfmodels": {
       "default": "0",
-      "desc": "In Team Fortress, allow forced fullbright on buildings, building debris, detpacks, grenades and shared nail projectiles. 0 uses normal map and dynamic lighting regardless of gl_fb_models or custom grenade fullbright; 1 restores their existing fullbright settings. Applies to MDL/MD3 from archives and loose files. Players, weapon viewmodels and flames are unaffected.",
+      "desc": "In Team Fortress, 0 uses map lighting for model groups and 1 restores existing fullbright settings. gl_fb_tfmodels_filter inverts this choice for listed groups. Applies to MDL/MD3 regardless of storage; weapon attachments, effects and BSP geometry are excluded. Player server restrictions remain in effect.",
       "group-id": "15",
       "type": "boolean"
     },
@@ -5156,11 +5156,106 @@
         }
       ]
     },
-    "gl_outline_onlyplayers": {
-      "default": "0",
-      "desc": "Restricts model outlines to players and their corpses, including TF server body models. Other objects and world outlines are disabled when enabled.",
+    "gl_fb_tfmodels_filter": {
+      "default": "players pickups objectives props",
+      "desc": "Invert gl_fb_tfmodels for these categories: players grenades buildings projectiles pickups objectives props. Space or comma separated, case insensitive. Empty string inverts none. Unknown tokens are ignored.",
+      "group-id": "15",
+      "type": "string"
+    },
+    "gl_outline_group1": {
+      "default": "",
+      "desc": "Model categories in this outline style: players grenades buildings projectiles pickups objectives props. First matching slot (1 to 4) wins, including disabled slots. Empty means unused. Requires gl_outline 1 or 3; ruleset limits still apply. MDL/MD3 only; unassigned objects keep existing styles.",
       "group-id": "35",
-      "remarks": "Requires gl_outline 1 or 3. Disabled by default to preserve normal outline behavior. Applies to both OpenGL renderers.",
+      "type": "string"
+    },
+    "gl_outline_group1_color": {
+      "default": "0 0 0",
+      "desc": "Group outline RGB (0 to 255). Overrides global and player/team outline colors for matching models in both renderers.",
+      "group-id": "35",
+      "type": "string"
+    },
+    "gl_outline_group1_scale": {
+      "default": "1",
+      "desc": "Group outline thickness, clamped to 0-5 (0-1 in restricted rulesets). 0 hides the outline. Replaces the global model scale for this slot; apparent thickness differs between renderers.",
+      "group-id": "35",
+      "type": "float"
+    },
+    "gl_outline_group1_enable": {
+      "default": "1",
+      "desc": "Enable outlines for this slot. 0 excludes matching models; later slots do not override this exclusion.",
+      "group-id": "35",
+      "type": "boolean"
+    },
+    "gl_outline_group2": {
+      "default": "",
+      "desc": "Model categories in this outline style: players grenades buildings projectiles pickups objectives props. First matching slot (1 to 4) wins, including disabled slots. Empty means unused. Requires gl_outline 1 or 3; ruleset limits still apply. MDL/MD3 only; unassigned objects keep existing styles.",
+      "group-id": "35",
+      "type": "string"
+    },
+    "gl_outline_group2_color": {
+      "default": "0 0 0",
+      "desc": "Group outline RGB (0 to 255). Overrides global and player/team outline colors for matching models in both renderers.",
+      "group-id": "35",
+      "type": "string"
+    },
+    "gl_outline_group2_scale": {
+      "default": "1",
+      "desc": "Group outline thickness, clamped to 0-5 (0-1 in restricted rulesets). 0 hides the outline. Replaces the global model scale for this slot; apparent thickness differs between renderers.",
+      "group-id": "35",
+      "type": "float"
+    },
+    "gl_outline_group2_enable": {
+      "default": "1",
+      "desc": "Enable outlines for this slot. 0 excludes matching models; later slots do not override this exclusion.",
+      "group-id": "35",
+      "type": "boolean"
+    },
+    "gl_outline_group3": {
+      "default": "",
+      "desc": "Model categories in this outline style: players grenades buildings projectiles pickups objectives props. First matching slot (1 to 4) wins, including disabled slots. Empty means unused. Requires gl_outline 1 or 3; ruleset limits still apply. MDL/MD3 only; unassigned objects keep existing styles.",
+      "group-id": "35",
+      "type": "string"
+    },
+    "gl_outline_group3_color": {
+      "default": "0 0 0",
+      "desc": "Group outline RGB (0 to 255). Overrides global and player/team outline colors for matching models in both renderers.",
+      "group-id": "35",
+      "type": "string"
+    },
+    "gl_outline_group3_scale": {
+      "default": "1",
+      "desc": "Group outline thickness, clamped to 0-5 (0-1 in restricted rulesets). 0 hides the outline. Replaces the global model scale for this slot; apparent thickness differs between renderers.",
+      "group-id": "35",
+      "type": "float"
+    },
+    "gl_outline_group3_enable": {
+      "default": "1",
+      "desc": "Enable outlines for this slot. 0 excludes matching models; later slots do not override this exclusion.",
+      "group-id": "35",
+      "type": "boolean"
+    },
+    "gl_outline_group4": {
+      "default": "",
+      "desc": "Model categories in this outline style: players grenades buildings projectiles pickups objectives props. First matching slot (1 to 4) wins, including disabled slots. Empty means unused. Requires gl_outline 1 or 3; ruleset limits still apply. MDL/MD3 only; unassigned objects keep existing styles.",
+      "group-id": "35",
+      "type": "string"
+    },
+    "gl_outline_group4_color": {
+      "default": "0 0 0",
+      "desc": "Group outline RGB (0 to 255). Overrides global and player/team outline colors for matching models in both renderers.",
+      "group-id": "35",
+      "type": "string"
+    },
+    "gl_outline_group4_scale": {
+      "default": "1",
+      "desc": "Group outline thickness, clamped to 0-5 (0-1 in restricted rulesets). 0 hides the outline. Replaces the global model scale for this slot; apparent thickness differs between renderers.",
+      "group-id": "35",
+      "type": "float"
+    },
+    "gl_outline_group4_enable": {
+      "default": "1",
+      "desc": "Enable outlines for this slot. 0 excludes matching models; later slots do not override this exclusion.",
+      "group-id": "35",
       "type": "boolean"
     },
     "gl_outline_color_enemy": {

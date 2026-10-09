@@ -109,6 +109,7 @@ struct AliasModel {
 	float lerpFraction;
 	float minLumaMix;
 	float outlineNormalScale;
+	vec4 outlineStyle;
 };
 
 struct model_surface {

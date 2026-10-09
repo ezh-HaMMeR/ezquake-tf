@@ -29,6 +29,7 @@ flat out int fsMaterialSampler;
 flat out float fsMinLumaMix;
 flat out vec4 plrtopcolor;
 flat out vec4 plrbotcolor;
+flat out vec4 fsOutlineStyle;
 
 void main()
 {
@@ -43,6 +44,7 @@ void main()
 
 	plrtopcolor = models[_instanceId].topcolor;
 	plrbotcolor = models[_instanceId].bottomcolor;
+	fsOutlineStyle = models[_instanceId].outlineStyle;
 
 #ifdef EZQ_ALIASMODEL_MUZZLEHACK
 	lerpFrac = sign(lerpFrac) * max(lerpFrac, (vboFlags & AM_VERTEX_NOLERP));
@@ -72,7 +74,8 @@ void main()
 		}
 	}
 	else if (mode == EZQ_ALIAS_MODE_OUTLINES || mode == EZQ_ALIAS_MODE_OUTLINES_SPEC) {
-		gl_Position = projectionMatrix * models[_instanceId].modelView * vec4(position + /*models[_instanceId].outlineNormalScale **/ normalCoords * outline_scale, 1);
+		float scale = mode == EZQ_ALIAS_MODE_OUTLINES && fsOutlineStyle.a >= 0 ? fsOutlineStyle.a : outline_scale;
+		gl_Position = projectionMatrix * models[_instanceId].modelView * vec4(position + normalCoords * scale, 1);
 		fsTextureCoord = vec2(tex.x, tex.y);
 	}
 	else {

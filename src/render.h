@@ -100,6 +100,7 @@ typedef struct entity_s {
 
 	// outlining
 	float     outlineScale;
+	float     outlineStyle[4]; // RGB and group scale; negative scale means legacy style
 } entity_t;
 
 // !!! if this is changed, it must be changed in asm_draw.h too !!!

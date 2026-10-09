@@ -7,31 +7,45 @@
 
 int main(void)
 {
-    const char *lit[] = {
-        "progs/turrgun.mdl", "progs/turrbase.md3", "progs/disp.mdl",
-        "progs/detpack.md3", "progs/coil.mdl", "progs/tesla.md3",
-        "progs/dgib1.md3", "progs/tgib3.mdl", "progs/tesgib4.mdl",
-        "progs/grenade.mdl", "progs/hgren2.md3", "progs/biggren.mdl",
-        "progs/grenade2.mdl", "progs/grenade3.md3", "progs/flare.mdl",
-        "progs/caltrop.mdl", "progs/spike.md3"
+    struct { const char *name; tf_model_group_t group; } cases[] = {
+        {"progs/player.mdl", TF_GROUP_PLAYERS}, {"progs/tfheadless4.md3", TF_GROUP_PLAYERS},
+        {"progs/tfhead1.mdl", TF_GROUP_PLAYERS}, {"progs/tfbody2.md3", TF_GROUP_PLAYERS},
+        {"progs/gib3.mdl", TF_GROUP_PLAYERS}, {"progs/headless.mdl", TF_GROUP_PLAYERS},
+        {"progs/turrgun.md3", TF_GROUP_BUILDINGS}, {"progs/turrbase.mdl", TF_GROUP_BUILDINGS},
+        {"progs/disp.md3", TF_GROUP_BUILDINGS}, {"progs/dgib1.md3", TF_GROUP_BUILDINGS},
+        {"progs/tesgib4.mdl", TF_GROUP_BUILDINGS}, {"progs/coil.mdl", TF_GROUP_BUILDINGS},
+        {"progs/grenade.mdl", TF_GROUP_GRENADES}, {"progs/detpack.md3", TF_GROUP_GRENADES},
+        {"progs/hgren2.mdl", TF_GROUP_GRENADES}, {"progs/biggren.md3", TF_GROUP_GRENADES},
+        {"progs/grenade2.mdl", TF_GROUP_GRENADES}, {"progs/grenade3.md3", TF_GROUP_GRENADES},
+        {"progs/caltrop.mdl", TF_GROUP_GRENADES}, {"progs/flare.mdl", TF_GROUP_GRENADES},
+        {"progs/spike.md3", TF_GROUP_PROJECTILES}, {"progs/missile.mdl", TF_GROUP_PROJECTILES},
+        {"progs/backpack.mdl", TF_GROUP_PICKUPS}, {"progs/g_rock2.md3", TF_GROUP_PICKUPS},
+        {"progs/tf_stan.mdl", TF_GROUP_OBJECTIVES}, {"progs/w_g_key.md3", TF_GROUP_OBJECTIVES},
+        {"progs/turrgun.mdl.backup", TF_GROUP_NONE}, {"progs/tfheadless5.mdl", TF_GROUP_NONE},
+        {"progs/disp", TF_GROUP_NONE}, {"progs/d", TF_GROUP_NONE}, {"", TF_GROUP_NONE}, {NULL, TF_GROUP_NONE}
     };
-    const char *unchanged[] = {
-        "progs/player.mdl", "progs/tf_stan.mdl", "progs/tf_sold.mdl",
-        "progs/v_rock.mdl", "progs/flame2.mdl", "progs/flame.mdl",
-        "progs/missile.mdl", "progs/backpack.mdl", "progs/eyes.mdl",
-        "progs/turrgun.mdl.backup", "progs/turrgun", "progs/disp2.md3",
-        "other/progs/disp.mdl", "progs/d", "", NULL
-    };
+    unsigned defaults = TF_ModelGroupMask(TF_FB_DEFAULT_FILTER);
+    unsigned g, fb, mask;
     size_t i;
-    for (i=0; i<sizeof(lit)/sizeof(lit[0]); ++i) {
-        assert(TF_UseMapLighting(lit[i],1,0));
-        assert(!TF_UseMapLighting(lit[i],1,1));
-        assert(!TF_UseMapLighting(lit[i],1,2));
-        assert(!TF_UseMapLighting(lit[i],0,0));
+    for (i=0; i<sizeof(cases)/sizeof(cases[0]); ++i) assert(TF_ModelNameGroup(cases[i].name)==cases[i].group);
+    assert(TF_ModelGroupMask(" PLAYERS, grenades\tBUILDINGS  projectiles pickups objectives props ")==TF_GROUP_ALL);
+    assert(TF_ModelGroupMask("players players")==TF_GROUP_PLAYERS);
+    assert(TF_ModelGroupMask("player grenades2 all unknown")==0);
+    assert(TF_ModelGroupMask(NULL)==0);
+    assert(TF_ModelNameExcluded("progs/flame2.md3"));
+    assert(TF_ModelNameExcluded("progs/v_rock.mdl"));
+    assert(TF_ModelNameExcluded("progs/eyes.md3"));
+    assert(!TF_ModelNameExcluded("progs/flare.mdl"));
+    assert(!TF_ModelNameExcluded("progs/flame2.md3.backup"));
+    for(g=1;g<=TF_GROUP_PROPS;g<<=1) for(fb=0;fb<2;++fb) for(mask=0;mask<=TF_GROUP_ALL;++mask) {
+        assert(TF_GroupUsesMapLighting(g,1,fb,mask)==(fb==!!(mask&g)));
+        assert(!TF_GroupUsesMapLighting(g,0,fb,mask));
     }
-    for (i=0; i<sizeof(unchanged)/sizeof(unchanged[0]); ++i) {
-        assert(!TF_UseMapLighting(unchanged[i],1,0));
-    }
-    puts("TF model lighting scope and opt-out passed");
+    assert(!TF_GroupUsesMapLighting(TF_GROUP_NONE,1,0,0));
+    assert(TF_GroupUsesMapLighting(TF_GROUP_BUILDINGS,1,0,defaults));
+    assert(TF_GroupUsesMapLighting(TF_GROUP_GRENADES,1,0,defaults));
+    assert(!TF_GroupUsesMapLighting(TF_GROUP_PLAYERS,1,0,defaults));
+    assert(!TF_GroupUsesMapLighting(TF_GROUP_PICKUPS,1,0,defaults));
+    puts("Model categories, token parsing, defaults and all inversion combinations passed");
     return 0;
 }

@@ -104,15 +104,19 @@ qbool RuleSets_DisallowModelOutline(struct model_s *mod)
 
 // gl_outline_scale_model
 // 0-1 for smackdown and qcon, 0-5 for others
-float RuleSets_ModelOutlineScale(void) {
-	extern cvar_t gl_outline_scale_model;
+float RuleSets_ClampModelOutlineScale(float scale) {
 	switch(rulesetDef.ruleset) {
 		case rs_smackdown:
 		case rs_qcon:
-			return bound(0.0f, gl_outline_scale_model.value, 1.0f);
+			return bound(0.0f, scale, 1.0f);
 		default:
-			return bound(0.0f, gl_outline_scale_model.value, 5.0f);
+			return bound(0.0f, scale, 5.0f);
 	}
+}
+
+float RuleSets_ModelOutlineScale(void) {
+	extern cvar_t gl_outline_scale_model;
+	return RuleSets_ClampModelOutlineScale(gl_outline_scale_model.value);
 }
 
 // for edges (gl_outline 2 and 3)

@@ -93,6 +93,7 @@ typedef struct uniform_block_aliasmodel_s {
 	float lerpFraction;
 	float minLumaMix;
 	float outline_normal_scale;
+	float outline_style[4];
 } uniform_block_aliasmodel_t;
 
 typedef struct block_aliasmodels_s {
@@ -391,6 +392,7 @@ static void GLM_QueueAliasModelDrawImpl(
 	uniform->materialSamplerMapping = textureSampler;
 	uniform->minLumaMix = 1.0f - (ent->full_light ? bound(0, gl_fb_models.integer, 1) : 0);
 	uniform->outline_normal_scale = ent->outlineScale;
+	memcpy(uniform->outline_style, ent->outlineStyle, sizeof(uniform->outline_style));
 	appearance = ent->scoreboard;
 	tf_model = R_TFModelAppearance(ent, &tf_appearance);
 	memset(uniform->plrtopcolor, 0, sizeof(uniform->plrtopcolor));

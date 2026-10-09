@@ -49,7 +49,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_renderer.h"
 
 static void GLC_DrawAliasModelShadowDrawCall(entity_t* ent, vec3_t shadevector);
-static void GLC_DrawCachedAliasOutlineFrame(model_t* model, GLenum primitive, int firstVert, int verts, qbool weaponmodel);
+static void GLC_DrawCachedAliasOutlineFrame(model_t* model, GLenum primitive, int firstVert, int verts, const entity_t *ent);
 
 extern float r_avertexnormals[NUMVERTEXNORMALS][3];
 
@@ -374,7 +374,7 @@ static void GLC_DrawAliasFrameImpl_Program(entity_t* ent, model_t* model, int po
 			R_ProgramUse(r_program_aliasmodel_outline_glc);
 			R_ProgramUniform1f(r_program_uniform_aliasmodel_outline_glc_lerpFraction, lerpfrac);
 			R_ProgramUniform1f(r_program_uniform_aliasmodel_outline_glc_outlineScale, ent->outlineScale);
-			GLC_DrawCachedAliasOutlineFrame(model, GL_TRIANGLES, firstVert, paliashdr->vertsPerPose, ent->renderfx & RF_WEAPONMODEL);
+			GLC_DrawCachedAliasOutlineFrame(model, GL_TRIANGLES, firstVert, paliashdr->vertsPerPose, ent);
 		}
 	}
 	else {
@@ -429,7 +429,13 @@ static void GLC_DrawAliasFrameImpl_Immediate_Cache(aliashdr_t* paliashdr, entity
 			lerpfrac = 1;
 		}
 
-		GLC_AliasModelLightPoint(color, ent, verts1, verts2, lerpfrac);
+		if (outline) {
+			VectorCopy(ent->outlineStyle, color);
+			color[3] = 1;
+		}
+		else {
+			GLC_AliasModelLightPoint(color, ent, verts1, verts2, lerpfrac);
+		}
 		if (outline) {
 			vec3_t v1, v2;
 			VectorMA(verts1->position, ent->outlineScale, verts1->normal, v1);
@@ -506,7 +512,7 @@ static void GLC_DrawAliasFrameImpl_Immediate(entity_t* ent, model_t* model, int 
 	}
 
 	if (outline) {
-		GLC_StateBeginAliasOutlineFrame(is_weapon_model);
+		GLC_StateBeginAliasOutlineFrame(ent);
 	}
 	else if (render_effects & RF_CAUSTICS) {
 		GLC_StateBeginUnderwaterAliasModelCaustics(texture, fb_texture);
@@ -556,9 +562,9 @@ void GLC_DrawAliasFrame(entity_t* ent, model_t* model, int pose1, int pose2, tex
 }
 
 // This can be used with program or immediate mode
-static void GLC_DrawCachedAliasOutlineFrame(model_t* model, GLenum primitive, int firstVert, int verts, qbool weaponmodel)
+static void GLC_DrawCachedAliasOutlineFrame(model_t* model, GLenum primitive, int firstVert, int verts, const entity_t *ent)
 {
-	GLC_StateBeginAliasOutlineFrame(weaponmodel);
+	GLC_StateBeginAliasOutlineFrame(ent);
 
 	GL_DrawArrays(primitive, firstVert, verts);
 }

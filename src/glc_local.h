@@ -7,7 +7,7 @@ void GLC_Shutdown(r_shutdown_mode_t mode);
 
 void GLC_PreRenderView(void);
 void GLC_SetupGL(void);
-void GLC_StateBeginAliasOutlineFrame(qbool weaponmodel);
+void GLC_StateBeginAliasOutlineFrame(const entity_t *ent);
 void GLC_StateBeginBrightenScreen(void);
 void GLC_StateBeginFastSky(qbool world);
 void GLC_StateBeginSkyZBufferPass(void);

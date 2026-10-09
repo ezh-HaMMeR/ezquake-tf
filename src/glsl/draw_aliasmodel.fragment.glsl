@@ -26,6 +26,7 @@ flat in int fsMaterialSampler;
 flat in float fsMinLumaMix;
 flat in vec4 plrtopcolor;
 flat in vec4 plrbotcolor;
+flat in vec4 fsOutlineStyle;
 
 out vec4 frag_colour;
 
@@ -65,6 +66,10 @@ void main()
 		}
 	} else {
 		frag_colour = vec4(outline_color, 1.0f);
+	}
+
+	if (mode == EZQ_ALIAS_MODE_OUTLINES && fsOutlineStyle.a >= 0) {
+		frag_colour = vec4(fsOutlineStyle.rgb, 1);
 	}
 
 	if (mode != EZQ_ALIAS_MODE_OUTLINES && mode != EZQ_ALIAS_MODE_OUTLINES_SPEC) {

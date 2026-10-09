@@ -459,6 +459,7 @@ set(common_renderer_headers
 )
 set(common_renderer
         ${SOURCE_DIR}/r_aliasmodel.c
+        ${SOURCE_DIR}/r_model_groups.c
         ${SOURCE_DIR}/r_aliasmodel_md3.c
         ${SOURCE_DIR}/r_aliasmodel_mesh.c
         ${SOURCE_DIR}/alias_model_normals.c

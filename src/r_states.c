@@ -292,6 +292,8 @@ static void R_InitialiseEntityStates(void)
 	state->fog.mode = r_fogmode_enabled;
 	state->blendingEnabled = false;
 	state->cullface.mode = r_cullface_back;
+	// Solid outline colors must not be multiplied by the previous model texture.
+	R_GLC_TextureUnitSet(state, 0, false, r_texunit_mode_modulate);
 
 	state = R_CopyRenderingState(r_state_aliasmodel_outline_spec, r_state_aliasmodel_outline, "aliasmodel-outline-spec");
 	state->cullface.mode = r_cullface_front;

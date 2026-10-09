@@ -536,11 +536,14 @@ void GLC_StateBeginImageDrawNonGLSL(qbool is_text)
 	}
 }
 
-void GLC_StateBeginAliasOutlineFrame(qbool weaponmodel)
+void GLC_StateBeginAliasOutlineFrame(const entity_t *ent)
 {
-	R_ApplyRenderingState(weaponmodel ? r_state_weaponmodel_outline : r_state_aliasmodel_outline);
+	R_ApplyRenderingState((ent->renderfx & RF_WEAPONMODEL) ? r_state_weaponmodel_outline : r_state_aliasmodel_outline);
 	R_GLC_DisableColorPointer();
-	R_CustomColor(0, 0, 0, 1);
+	if (ent->outlineStyle[3] >= 0)
+		R_CustomColor(ent->outlineStyle[0], ent->outlineStyle[1], ent->outlineStyle[2], 1);
+	else
+		R_CustomColor(0, 0, 0, 1);
 }
 
 #endif // #ifdef RENDERER_OPTION_CLASSIC_OPENGL

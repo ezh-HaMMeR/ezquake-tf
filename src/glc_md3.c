@@ -34,6 +34,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "r_program.h"
 #include "tr_types.h"
 #include "rulesets.h"
+#include "r_model_groups.h"
 
 const float* GLC_PowerupShell_ScrollParams(void);
 void GLC_SetPowerupShellColor(int layer_no, int effects);
@@ -123,6 +124,10 @@ static void GLC_DrawMD3Frame(const entity_t* ent, const float* modelColor, md3He
 	vbo_model_vert_t* verts1 = &vbo_buffer[first_vert_f1];
 	vbo_model_vert_t* verts2 = &vbo_buffer[first_vert_f2];
 	qbool limit_lerp = false; // r_lerpmuzzlehack.integer && (ent->model->renderfx & RF_LIMITLERP);
+	qbool map_lighting = R_ModelUsesMapLighting(ent);
+	float yaw = -ent->angles[YAW] * M_PI / 180.0;
+	vec3_t light_direction = { cos(yaw), sin(yaw), 1 };
+	VectorNormalize(light_direction);
 
 	if (!vbo_buffer) {
 		return;
@@ -165,8 +170,12 @@ static void GLC_DrawMD3Frame(const entity_t* ent, const float* modelColor, md3He
 				VectorInterpolate(verts1->position, lerpfrac, verts2->position, interpolated_verts);
 				// FIXME: another hack!
 				if (!additive_pass) {
-					//GLC_AliasModelLightPointMD3(vertexColor, ent, verts1, verts2, lerpfrac);
-					R_CustomColor(modelColor[0], modelColor[1], modelColor[2], modelColor[3]);
+					float light = 1;
+					if (map_lighting) {
+						float dot = FloatInterpolate(DotProduct(light_direction, verts1->normal), lerpfrac, DotProduct(light_direction, verts2->normal));
+						light = bound(0, ((dot + 1) * ent->shadelight + ent->ambientlight) / 256.0f, 1);
+					}
+					R_CustomColor(modelColor[0] * light, modelColor[1] * light, modelColor[2] * light, modelColor[3]);
 				}
 				else {
 					R_CustomColor(ent->r_modelalpha, ent->r_modelalpha, ent->r_modelalpha, ent->r_modelalpha);
@@ -227,7 +236,7 @@ static void GLC_DrawAlias3ModelProgram(entity_t* ent, int frame1, qbool invalida
 		R_ProgramUse(r_program_aliasmodel_outline_glc);
 		R_ProgramUniform1f(r_program_uniform_aliasmodel_outline_glc_lerpFraction, lerpfrac);
 		R_ProgramUniform1f(r_program_uniform_aliasmodel_outline_glc_outlineScale, ent->outlineScale);
-		GLC_StateBeginAliasOutlineFrame(weaponmodel);
+		GLC_StateBeginAliasOutlineFrame(ent);
 		vert_index = first_vert;
 		MD3_ForEachSurface(pheader, surf, surfnum) {
 			// FIXME: hack for not reading shader types
@@ -303,7 +312,7 @@ static void GLC_DrawAlias3ModelImmediate(entity_t* ent, int frame1, int frame2, 
 	// Immediate mode
 	R_ProgramUse(r_program_none);
 	if (outline) {
-		GLC_StateBeginAliasOutlineFrame(ent->renderfx & RF_WEAPONMODEL);
+		GLC_StateBeginAliasOutlineFrame(ent);
 		GLC_DrawMD3Frame(ent, vertexColor, pheader, frame1, frame2, lerpfrac, sinf, true, true, additive_pass);
 	}
 	else {

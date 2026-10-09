@@ -522,7 +522,7 @@ static void R_TurbSurfacesEmitParticleEffects(msurface_t* s)
 
 qbool R_DrawWorldOutlines(void)
 {
-	extern cvar_t gl_outline, gl_outline_onlyplayers;
+	extern cvar_t gl_outline;
 
-	return !gl_outline_onlyplayers.integer && (gl_outline.integer & 2) && !RuleSets_DisallowModelOutline(NULL);
+	return (gl_outline.integer & 2) && !RuleSets_DisallowModelOutline(NULL);
 }
