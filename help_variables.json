@@ -4836,6 +4836,12 @@
       "group-id": "15",
       "type": "boolean"
     },
+    "r_texture_decode_threads": {
+      "default": "4",
+      "desc": "Parallel PNG/TGA decoding for external MDL/MD3 skins. 0 uses the original serial loader; 1 uses the memory decoder on one thread; 2-8 allow parallel decoding, capped by CPU and batch size. Applies to subsequently loaded models. VFS and GPU work stay on the main thread. Temporary encoded and decoded batches are limited to 128 MiB; other formats and overflow use serial loading.",
+      "group-id": "15",
+      "type": "float"
+    },
     "gl_fb_tfmodels": {
       "default": "0",
       "desc": "In Team Fortress, 0 uses map lighting for model groups and 1 restores existing fullbright settings. gl_fb_tfmodels_filter inverts this choice for listed groups. Applies to MDL/MD3 regardless of storage; weapon attachments, effects and BSP geometry are excluded. Player server restrictions remain in effect.",

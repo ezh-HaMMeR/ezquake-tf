@@ -26,6 +26,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "crc.h"
 #include "gl_texture.h"
 #include "r_trace.h"
+#include "r_texture_decode.h"
+#include "image_decode_memory.h"
+#include <SDL.h>
+#include "gl_model.h"
 
 static void R_LoadTextureData(gltexture_t* glt, int width, int height, byte *data, int mode, int bpp);
 
@@ -265,67 +269,11 @@ typedef struct image_load_format_s {
 	int filter_mask;
 } image_load_format_t;
 
-byte* R_LoadImagePixels(const char *filename, int matchwidth, int matchheight, int mode, int *real_width, int *real_height)
+
+/* Shared by serial loading and batch preparation: preserve format and loose-file precedence. */
+static vfsfile_t *R_OpenImageFile(const char *basename, int mode, image_load_format_t **format)
 {
-	char basename[MAX_QPATH], name[MAX_QPATH];
-	byte *c, *data = NULL;
-	vfsfile_t *f;
-
-	COM_StripExtension(filename, basename, sizeof(basename));
-	for (c = (byte *)basename; *c; c++) {
-		if (*c == '*') {
-			*c = '#';
-		}
-	}
-
-	snprintf(name, sizeof(name), "%s.link", basename);
-	if ((f = FS_OpenVFS(name, "rb", FS_ANY))) {
-		char link[128];
-		int len;
-		VFS_GETS(f, link, sizeof(link));
-
-		len = strlen(link);
-
-		// Strip endline.
-		if (link[len - 1] == '\n') {
-			link[len - 1] = '\0';
-			--len;
-		}
-
-		if (link[len - 1] == '\r') {
-			link[len - 1] = '\0';
-			--len;
-		}
-
-		snprintf(name, sizeof(name), "textures/%s", link);
-		if ((f = FS_OpenVFS(name, "rb", FS_ANY))) {
-			if (!data && !strcasecmp(link + len - 3, "tga")) {
-				data = Image_LoadTGA(f, name, matchwidth, matchheight, real_width, real_height);
-			}
-
-#ifdef WITH_PNG
-			if (!data && !strcasecmp(link + len - 3, "png")) {
-				data = Image_LoadPNG(f, name, matchwidth, matchheight, real_width, real_height);
-			}
-#endif // WITH_PNG
-
-#ifdef WITH_JPEG
-			if (!data && !strcasecmp(link + len - 3, "jpg")) {
-				data = Image_LoadJPEG(f, name, matchwidth, matchheight, real_width, real_height);
-			}
-#endif // WITH_JPEG
-
-			// TEX_NO_PCX - preventing loading skins here
-			if (!(mode & TEX_NO_PCX) && !data && !strcasecmp(link + len - 3, "pcx")) {
-				data = Image_LoadPCX_As32Bit(f, name, matchwidth, matchheight, real_width, real_height);
-			}
-
-			if (data)
-				return data;
-		}
-	}
-
-	image_load_format_t formats[] = {
+	static image_load_format_t formats[] = {
 		{ "tga", Image_LoadTGA, 0 },
 #ifdef WITH_PNG
 		{ "png", Image_LoadPNG, 0 },
@@ -338,6 +286,9 @@ byte* R_LoadImagePixels(const char *filename, int matchwidth, int matchheight, i
 	int i = 0;
 
 	image_load_format_t* best = NULL;
+	vfsfile_t *f = NULL;
+	char name[MAX_QPATH];
+	char selected_path[MAX_OSPATH] = {0};
 	for (i = 0; i < sizeof(formats) / sizeof(formats[0]); ++i) {
 		vfsfile_t *file = NULL;
 
@@ -353,12 +304,201 @@ byte* R_LoadImagePixels(const char *filename, int matchwidth, int matchheight, i
 				}
 				f = file;
 				best = &formats[i];
+				strlcpy(selected_path, fs_netpath, sizeof(selected_path));
 			}
 			else {
 				VFS_CLOSE(file);
 			}
 		}
 	}
+
+    if (best) strlcpy(fs_netpath, selected_path, sizeof(fs_netpath));
+    *format = best;
+    return f;
+}
+
+#define DECODE_JOBS 32
+#define DECODE_BUDGET (128u * 1024u * 1024u)
+static cvar_t r_texture_decode_threads = { "r_texture_decode_threads", "4" };
+typedef struct {
+    char name[MAX_QPATH], netpath[MAX_OSPATH];
+    byte *encoded, *pixels;
+    size_t length, decoded_size;
+    int png, width, height, mode;
+} texture_decode_job_t;
+static texture_decode_job_t decode_jobs[DECODE_JOBS];
+static int decode_count;
+static size_t decode_bytes;
+static SDL_atomic_t decode_next;
+
+void R_TextureDecodeInit(void) { Cvar_Register(&r_texture_decode_threads); }
+
+void R_TextureDecodeEnd(void)
+{
+    int i;
+    /* Run joins every worker before returning; cleanup never races a worker. */
+    for (i = 0; i < decode_count; ++i) {
+        free(decode_jobs[i].encoded);
+        free(decode_jobs[i].pixels);
+    }
+    memset(decode_jobs, 0, sizeof(decode_jobs));
+    decode_count = 0; decode_bytes = 0;
+}
+
+void R_TextureDecodeBegin(void) { R_TextureDecodeEnd(); }
+
+int R_TextureDecodeQueue(const char *filename, int mode)
+{
+    char basename[MAX_QPATH], link[MAX_QPATH];
+    image_load_format_t *format;
+    vfsfile_t *f;
+    texture_decode_job_t *job;
+    size_t length, decoded;
+    byte header[33], *encoded;
+    int i, png, header_length;
+    if (r_texture_decode_threads.integer <= 0 || Block24BitTextures || !filename[0]) return 0;
+    COM_StripExtension(filename, basename, sizeof(basename));
+    for (i = 0; basename[i]; ++i) if (basename[i] == '*') basename[i] = '#';
+    for (i = 0; i < decode_count; ++i)
+        if (!strcmp(basename, decode_jobs[i].name) && (mode & TEX_NO_PCX) == decode_jobs[i].mode) return 1;
+    snprintf(link, sizeof(link), "%s.link", basename);
+    if ((f = FS_OpenVFS(link, "rb", FS_ANY))) { VFS_CLOSE(f); return 1; }
+    f = R_OpenImageFile(basename, mode, &format);
+    if (!f) return 0;
+    if (CheckTextureLoaded(R_FindTexture(filename))) { VFS_CLOSE(f); return 1; }
+    if (decode_count == DECODE_JOBS || (strcmp(format->extension, "png") && strcmp(format->extension, "tga"))) {
+        VFS_CLOSE(f); return 1;
+    }
+    png = !strcmp(format->extension, "png");
+    length = VFS_GETLEN(f);
+    header_length = (int)min(length, sizeof(header));
+    if (VFS_READ(f, header, header_length, NULL) != header_length ||
+        !(decoded = Image_MemoryDecodeSize(header, header_length, png)) ||
+        length > DECODE_BUDGET || decoded > DECODE_BUDGET - length ||
+        decode_bytes > DECODE_BUDGET - length - decoded) {
+        VFS_CLOSE(f); return 1;
+    }
+    encoded = malloc(length);
+    if (!encoded) { VFS_CLOSE(f); return 1; }
+    memcpy(encoded, header, header_length);
+    if (VFS_READ(f, encoded + header_length, (int)(length - header_length), NULL) != (int)(length - header_length)) {
+        free(encoded); VFS_CLOSE(f); return 1;
+    }
+    VFS_CLOSE(f);
+    job = &decode_jobs[decode_count++];
+    strlcpy(job->name, basename, sizeof(job->name));
+    strlcpy(job->netpath, fs_netpath, sizeof(job->netpath));
+    job->encoded = encoded; job->length = length; job->decoded_size = decoded;
+    job->png = png; job->mode = mode & TEX_NO_PCX;
+    decode_bytes += length + decoded;
+    return 1;
+}
+
+static int SDLCALL R_TextureDecodeWorker(void *unused)
+{
+    int index;
+    (void)unused;
+    while ((index = SDL_AtomicAdd(&decode_next, 1)) < decode_count) {
+        texture_decode_job_t *job = &decode_jobs[index];
+        job->pixels = Image_DecodeMemory(job->encoded, job->length, job->png, &job->width, &job->height);
+        free(job->encoded); job->encoded = NULL;
+    }
+    return 0;
+}
+
+void R_TextureDecodeRun(void)
+{
+    SDL_Thread *threads[7];
+    int count, i, started = 0;
+    double start;
+    if (!decode_count) return;
+    count = min(decode_count, min(8, min(SDL_GetCPUCount(), r_texture_decode_threads.integer)));
+    count = max(1, count);
+    start = Sys_DoubleTime();
+    SDL_AtomicSet(&decode_next, 0);
+    for (i = 1; i < count; ++i) {
+        SDL_Thread *thread = SDL_CreateThread(R_TextureDecodeWorker, "texture-decode", NULL);
+        if (thread) threads[started++] = thread;
+    }
+    R_TextureDecodeWorker(NULL);
+    for (i = 0; i < started; ++i) SDL_WaitThread(threads[i], NULL);
+    if (r_modelcache_stats.integer)
+        Com_Printf("TextureDecode: %d images, %d threads, %.2f ms\n", decode_count, started + 1, (Sys_DoubleTime() - start) * 1000);
+}
+
+static byte *R_TextureDecodeTake(const char *basename, int mode, int matchwidth, int matchheight, int *width, int *height)
+{
+    int i;
+    for (i = 0; i < decode_count; ++i) {
+        texture_decode_job_t *job = &decode_jobs[i];
+        if (job->pixels && !strcmp(job->name, basename) && job->mode == (mode & TEX_NO_PCX) &&
+            (!matchwidth || matchwidth == job->width) && (!matchheight || matchheight == job->height)) {
+            /* Renderer mutates the result and frees it with the engine allocator. */
+            byte *result;
+#ifdef DEBUG_MEMORY_ALLOCATIONS
+            result = Q_malloc(job->decoded_size);
+            memcpy(result, job->pixels, job->decoded_size);
+            free(job->pixels);
+#else
+            /* Q_free uses free in normal builds; transfer ownership without a 2K/4K copy. */
+            result = job->pixels;
+#endif
+            job->pixels = NULL;
+            if (width) *width = job->width;
+            if (height) *height = job->height;
+            strlcpy(fs_netpath, job->netpath, sizeof(fs_netpath));
+            return result;
+        }
+    }
+    return NULL;
+}
+
+byte* R_LoadImagePixels(const char *filename, int matchwidth, int matchheight, int mode, int *real_width, int *real_height)
+{
+	char basename[MAX_QPATH], name[MAX_QPATH];
+	byte *c, *data = NULL;
+	vfsfile_t *f;
+
+	COM_StripExtension(filename, basename, sizeof(basename));
+	for (c = (byte *)basename; *c; c++) {
+		if (*c == '*') {
+			*c = '#';
+		}
+	}
+
+	data = R_TextureDecodeTake(basename, mode, matchwidth, matchheight, real_width, real_height);
+    if (data) return data;
+
+	snprintf(name, sizeof(name), "%s.link", basename);
+	if ((f = FS_OpenVFS(name, "rb", FS_ANY))) {
+        char link[128] = {0};
+        size_t len;
+        ImageLoadFunction load = NULL;
+        VFS_GETS(f, link, sizeof(link));
+        VFS_CLOSE(f);
+        len = strlen(link);
+        while (len && (link[len - 1] == '\n' || link[len - 1] == '\r')) link[--len] = 0;
+        if (len >= 3) {
+            const char *extension = link + len - 3;
+            if (!strcasecmp(extension, "tga")) load = Image_LoadTGA;
+#ifdef WITH_PNG
+            if (!strcasecmp(extension, "png")) load = Image_LoadPNG;
+#endif
+#ifdef WITH_JPEG
+            if (!strcasecmp(extension, "jpg")) load = Image_LoadJPEG;
+#endif
+            if (!(mode & TEX_NO_PCX) && !strcasecmp(extension, "pcx")) load = Image_LoadPCX_As32Bit;
+        }
+        snprintf(name, sizeof(name), "textures/%s", link);
+        if (load && (f = FS_OpenVFS(name, "rb", FS_ANY))) {
+            /* All image loaders own and close their input handle. */
+            data = load(f, name, matchwidth, matchheight, real_width, real_height);
+            if (data) return data;
+        }
+    }
+
+	image_load_format_t *best = NULL;
+	f = R_OpenImageFile(basename, mode, &best);
 
 	if (best && f) {
 		snprintf(name, sizeof(name), "%s.%s", basename, best->extension);

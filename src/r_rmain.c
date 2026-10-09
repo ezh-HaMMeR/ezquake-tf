@@ -18,6 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
+#include "r_texture_decode.h"
 #include "gl_model.h"
 #include "vx_stuff.h"
 #include "vx_vertexlights.h"
@@ -694,6 +695,7 @@ void R_Init(void)
 	Cvar_Register(&r_dynamic);
 	Cvar_Register(&gl_fb_bmodels);
 	Cvar_Register(&gl_fb_models);
+	R_TextureDecodeInit();
 	Cvar_Register(&gl_fb_tfmodels);
 	R_ModelGroupsInit();
 	Cvar_Register(&gl_lightmode);

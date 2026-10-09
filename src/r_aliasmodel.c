@@ -73,7 +73,7 @@ int			posenum;
 
 static void* Mod_LoadAliasFrame(void* pin, maliasframedesc_t *frame, int* posenum);
 static void* Mod_LoadAliasGroup(void* pin, maliasframedesc_t *frame, int* posenum);
-void* Mod_LoadAllSkins(model_t* loadmodel, int numskins, daliasskintype_t *pskintype);
+void* Mod_LoadAllSkins(model_t* loadmodel, int numskins, daliasskintype_t *pskintype, const byte *end);
 
 static cvar_t    gl_shaftlight = { "gl_shaftlight", "1" };
 cvar_t    r_lerpmuzzlehack = { "r_lerpmuzzlehack", "1" };
@@ -813,7 +813,7 @@ void Mod_LoadAliasModel(model_t *mod, void *buffer, int filesize, const char* lo
 
 	// load the skins
 	pskintype = (daliasskintype_t *)&pinmodel[1];
-	pskintype = Mod_LoadAllSkins(mod, pheader->numskins, pskintype);
+	pskintype = Mod_LoadAllSkins(mod, pheader->numskins, pskintype, (const byte*)buffer + filesize);
 
 	// load base s and t vertices
 	pinstverts = (stvert_t *)pskintype;

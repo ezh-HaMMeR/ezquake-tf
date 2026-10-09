@@ -35,6 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #include <SDL.h>
 #include "quakedef.h"
+#include "r_texture_decode.h"
 #include "EX_browser.h"
 #include "fs.h"
 #include "gl_model.h"
@@ -390,6 +391,7 @@ void SYSINFO_Init(void)
 
 void Host_Abort (void)
 {
+	R_TextureDecodeEnd();
 	longjmp (host_abort, 1);
 }
 
@@ -462,6 +464,7 @@ void Host_InitMemory (int memsize)
 //Can only be called when changing levels!
 void Host_ClearMemory (void)
 {
+	R_TextureDecodeEnd();
 	// FIXME, move to CL_ClearState
 	Mod_ClearAll ();
 

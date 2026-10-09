@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // Most code taken from gl_rmain.c
 
 #include "quakedef.h"
+#include "r_texture_decode.h"
 #include "gl_model.h"
 #include "rulesets.h"
 #include "r_texture.h"
@@ -136,7 +137,55 @@ static texture_ref Mod_LoadExternalSkin(model_t* loadmodel, char *identifier, te
 	return texnum;
 }
 
-void* Mod_LoadAllSkins(model_t* loadmodel, int numskins, daliasskintype_t* pskintype)
+
+static void Mod_QueueExternalSkin(model_t *model, const char *identifier)
+{
+    char path[MAX_QPATH];
+    snprintf(path, sizeof(path), "textures/models/%s", identifier);
+    if (!R_TextureDecodeQueue(path, 0)) {
+        snprintf(path, sizeof(path), "textures/%s", identifier);
+        R_TextureDecodeQueue(path, 0);
+    }
+    if (Ruleset_IsLumaAllowed(model)) {
+        strlcat(path, "_luma", sizeof(path));
+        R_TextureDecodeQueue(path, 0);
+    }
+}
+
+static void Mod_PredecodeSkins(model_t *model, int numskins, const byte *cursor, const byte *end, int size, const char *basename)
+{
+    int i, j, count, type;
+    char identifier[64];
+    R_TextureDecodeBegin();
+    if (gl_no24bit.integer || RuleSets_DisallowExternalTexture(model) || size <= 0) return;
+    for (i = 0; i < numskins; ++i) {
+        if (cursor > end || (size_t)(end - cursor) < sizeof(daliasskintype_t)) goto invalid;
+        memcpy(&type, cursor, sizeof(type)); type = LittleLong(type);
+        cursor += sizeof(daliasskintype_t);
+        count = 1;
+        if (type != ALIAS_SKIN_SINGLE) {
+            if ((size_t)(end - cursor) < sizeof(daliasskingroup_t)) goto invalid;
+            memcpy(&count, cursor, sizeof(count)); count = LittleLong(count);
+            cursor += sizeof(daliasskingroup_t);
+            if (count <= 0 || (size_t)count > (size_t)(end - cursor) / sizeof(daliasskininterval_t)) goto invalid;
+            cursor += (size_t)count * sizeof(daliasskininterval_t);
+        }
+        if ((size_t)count > (size_t)(end - cursor) / size) goto invalid;
+        for (j = 0; j < count; ++j) {
+            if (type == ALIAS_SKIN_SINGLE) snprintf(identifier, sizeof(identifier), "%s_%i", basename, i);
+            else snprintf(identifier, sizeof(identifier), "%s_%i_%i", basename, i, j);
+            Mod_QueueExternalSkin(model, identifier);
+        }
+        cursor += (size_t)count * size;
+    }
+    R_TextureDecodeRun();
+    return;
+invalid:
+    R_TextureDecodeEnd();
+    Host_Error("Mod_PredecodeSkins: truncated skins in %s", model->name);
+}
+
+void* Mod_LoadAllSkins(model_t* loadmodel, int numskins, daliasskintype_t* pskintype, const byte *end)
 {
 	int i, j, k, s, groupskins, texmode = 0;
 	texture_ref gl_texnum, fb_texnum;
@@ -154,6 +203,7 @@ void* Mod_LoadAllSkins(model_t* loadmodel, int numskins, daliasskintype_t* pskin
 	s = pheader->skinwidth * pheader->skinheight;
 
 	COM_StripExtension(COM_SkipPath(loadmodel->name), basename, sizeof(basename));
+	Mod_PredecodeSkins(loadmodel, numskins, (const byte*)pskintype, end, s, basename);
 
 	texmode |= TEX_MIPMAP;
 	texmode |= (loadmodel->modhint == MOD_VMODEL ? TEX_VIEWMODEL : 0);
@@ -237,6 +287,7 @@ void* Mod_LoadAllSkins(model_t* loadmodel, int numskins, daliasskintype_t* pskin
 			}
 		}
 	}
+	R_TextureDecodeEnd();
 	return pskintype;
 }
 

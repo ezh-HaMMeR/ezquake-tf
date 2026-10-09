@@ -710,6 +710,7 @@ set(client
         ${SOURCE_DIR}/host.c
         ${SOURCE_DIR}/ignore.c
         ${SOURCE_DIR}/image.c
+        ${SOURCE_DIR}/image_decode_memory.c
         ${SOURCE_DIR}/in_sdl2.c
         ${SOURCE_DIR}/irc.c
         ${SOURCE_DIR}/irc_filter.c
@@ -766,6 +767,13 @@ source_group(TREE ${SOURCE_DIR} PREFIX "Header Files/client" FILES ${client_head
 
 if(BUILD_CFG_EDITOR_TESTS)
     enable_testing()
+    add_executable(image_decode_memory_tests EXCLUDE_FROM_ALL
+            ${PROJECT_SOURCE_DIR}/tests/image_decode_memory_tests.c
+            ${SOURCE_DIR}/image_decode_memory.c)
+    target_include_directories(image_decode_memory_tests PRIVATE ${SOURCE_DIR})
+    target_compile_definitions(image_decode_memory_tests PRIVATE SDL_MAIN_HANDLED _CRT_SECURE_NO_WARNINGS)
+    target_link_libraries(image_decode_memory_tests PRIVATE Dep::PNG Dep::SDL2)
+    add_test(NAME image_decode_memory COMMAND image_decode_memory_tests)
     add_executable(tf_model_lighting_tests EXCLUDE_FROM_ALL ${PROJECT_SOURCE_DIR}/tests/tf_model_lighting_tests.c)
     target_include_directories(tf_model_lighting_tests PRIVATE ${SOURCE_DIR})
     add_test(NAME tf_model_lighting COMMAND tf_model_lighting_tests)

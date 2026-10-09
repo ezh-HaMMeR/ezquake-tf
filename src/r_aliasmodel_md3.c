@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // Code to load MD3 files
 
 #include "quakedef.h"
+#include "r_texture_decode.h"
 #include "gl_model.h"
 #include "r_aliasmodel_md3.h"
 #include "vx_vertexlights.h" 
@@ -283,6 +284,11 @@ void Mod_LoadAlias3Model(model_t *mod, void *buffer, int filesize)
 	}
 
 	Mod_MD3LoadSkins(mod, mem, pheader);
+    R_TextureDecodeBegin();
+    sinf = (surfinf_t*)((char*)pheader + pheader->surfinf);
+    for (i = 0; i < mem->numSkins * mem->numSurfaces; ++i)
+        R_TextureDecodeQueue(sinf[i].name, 0);
+    R_TextureDecodeRun();
 	{
 		sinf = (surfinf_t*)((char *)pheader + pheader->surfinf);
 		surf = (md3Surface_t *)((char *)mem + mem->ofsSurfaces);
@@ -386,6 +392,7 @@ void Mod_LoadAlias3Model(model_t *mod, void *buffer, int filesize)
 		}
 	}
 
+	R_TextureDecodeEnd();
 	end = Hunk_LowMark();
 	total = end - start;
 
