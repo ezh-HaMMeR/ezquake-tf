@@ -48,6 +48,7 @@ void Sys_ActiveAppChanged (void);
 #include "keys.h"
 #include "tr_types.h"
 #include "input.h"
+#include "frame_capture.h"
 #include "rulesets.h"
 #include "utils.h"
 #include "textencoding.h"
@@ -368,10 +369,12 @@ static void IN_Frame(void)
 		return;
 	}
 
+	FrameCapture_InputBegin();
 	HandleEvents();
 
 	if (!ActiveApp || Minimized || IN_OSMouseCursorRequired()) {
 		IN_DeactivateMouse();
+		FrameCapture_InputEnd(0, 0);
 		return;
 	}
 	else {
@@ -385,7 +388,7 @@ static void IN_Frame(void)
 		SDL_GetRelativeMouseState(&mx, &my);
 #endif
 	}
-	
+	FrameCapture_InputEnd(mx, my);
 }
 
 void Sys_SendDeferredKeyEvents(void)
@@ -947,6 +950,7 @@ void VID_SoftRestart(void)
 
 void VID_Shutdown(qbool restart)
 {
+	VID_ResetVSyncTimings();
 	IN_DeactivateMouse();
 
 	SDL_StopTextInput();
@@ -1614,12 +1618,14 @@ void R_EndRendering(void)
     }
 
 	if (!scr_skipupdate || block_drawing) {
+		FrameCapture_SwapBegin();
 		if (vid_vsync_lag_fix.integer > 0) {
 			VID_SwapBuffersWithVsyncFix();
 		}
 		else {
 			VID_SwapBuffers(); 
 		}
+		FrameCapture_SwapEnd();
 	}
 
 	buffers.EndFrame();

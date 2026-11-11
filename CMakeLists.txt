@@ -729,6 +729,7 @@ set(client
         ${SOURCE_DIR}/mvd_utils.c
         ${SOURCE_DIR}/mvd_xmlstats.c
         ${SOURCE_DIR}/netlog.c
+        ${SOURCE_DIR}/frame_capture.c
         ${SOURCE_DIR}/qtv.c
         ${SOURCE_DIR}/rulesets.c
         ${SOURCE_DIR}/sbar.c
@@ -767,6 +768,9 @@ source_group(TREE ${SOURCE_DIR} PREFIX "Header Files/client" FILES ${client_head
 
 if(BUILD_CFG_EDITOR_TESTS)
     enable_testing()
+    add_executable(vid_vsync_timing_tests EXCLUDE_FROM_ALL ${PROJECT_SOURCE_DIR}/tests/vid_vsync_timing_tests.c)
+    target_include_directories(vid_vsync_timing_tests PRIVATE ${SOURCE_DIR})
+    add_test(NAME vid_vsync_timing COMMAND vid_vsync_timing_tests)
     add_executable(image_decode_memory_tests EXCLUDE_FROM_ALL
             ${PROJECT_SOURCE_DIR}/tests/image_decode_memory_tests.c
             ${SOURCE_DIR}/image_decode_memory.c)

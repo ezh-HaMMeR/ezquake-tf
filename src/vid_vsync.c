@@ -22,14 +22,20 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "quakedef.h"
 #include "tr_types.h"
+#include "vid_vsync_timing.h"
 
 extern cvar_t r_swapInterval;
 extern cvar_t vid_vsync_lag_fix;
 extern cvar_t vid_vsync_lag_tweak;
 
-#define NUMTIMINGS 5
-static double timings[NUMTIMINGS];
-static double render_frame_start, render_frame_end;
+static vsync_timings_t timings;
+static int timing_frequency;
+
+void VID_ResetVSyncTimings(void)
+{
+	VSyncTimings_Reset(&timings);
+	timing_frequency = 0;
+}
 
 qbool VID_VSyncIsOn(void)
 {
@@ -43,10 +49,8 @@ qbool VID_VsyncLagEnabled(void)
 
 void VID_RenderFrameEnd(void)
 {
-	extern double render_frame_end;
-
 	if (VID_VsyncLagEnabled()) {
-		render_frame_end = Sys_DoubleTime();
+		VSyncTimings_EndFrame(&timings, Sys_DoubleTime());
 	}
 }
 
@@ -54,45 +58,33 @@ void VID_RenderFrameEnd(void)
 qbool VID_VSyncLagFix(void)
 {
 	extern double vid_last_swap_time;
-	double avg_rendertime, tmin, tmax;
-
-	static int timings_idx;
-	int i;
+	double longest_rendertime, now, time_left;
 
 	if (!VID_VSyncIsOn() || !vid_vsync_lag_fix.integer) {
+		VID_ResetVSyncTimings();
 		return false;
 	}
 
 	if (!glConfig.displayFrequency) {
+		VID_ResetVSyncTimings();
 		Com_Printf("VID_VSyncLagFix: displayFrequency isn't set, can't enable vsync lag fix\n");
 		return false;
 	}
 
-	// collect statistics so that
-	timings[timings_idx] = render_frame_end - render_frame_start;
-	timings_idx = (timings_idx + 1) % NUMTIMINGS;
-	avg_rendertime = tmin = tmax = 0;
-	for (i = 0; i < NUMTIMINGS; i++) {
-		if (timings[i] == 0) {
-			return false;   // not enough statistics yet
-		}
-
-		avg_rendertime += timings[i];
-
-		if (timings[i] < tmin || !tmin) {
-			tmax = timings[i];
-		}
-
-		if (timings[i] > tmax) {
-			tmax = timings[i];
-		}
+	if (timing_frequency != glConfig.displayFrequency) {
+		VID_ResetVSyncTimings();
+		timing_frequency = glConfig.displayFrequency;
 	}
-	avg_rendertime /= NUMTIMINGS;
-	// if (tmax and tmin differ too much) do_something(); ?
-	avg_rendertime = tmax;  // better be on the safe side
-
-	double time_left = vid_last_swap_time + 1.0 / glConfig.displayFrequency - Sys_DoubleTime();
-	time_left -= avg_rendertime;
+	/* Only VID_RenderFrameEnd appends samples: wait-loop iterations are not frames. */
+	now = Sys_DoubleTime();
+	longest_rendertime = VSyncTimings_Max(&timings);
+	if (!longest_rendertime) {
+		/* Start timing warmup frames too, without inventing a duration at startup. */
+		VSyncTimings_StartFrame(&timings, now);
+		return false;
+	}
+	time_left = vid_last_swap_time + 1.0 / glConfig.displayFrequency - now;
+	time_left -= longest_rendertime;
 	time_left -= vid_vsync_lag_tweak.value * 0.001;
 	if (time_left > 0) {
 		extern cvar_t sys_yieldcpu;
@@ -104,6 +96,6 @@ qbool VID_VSyncLagFix(void)
 		return true;    // don't run a frame yet
 	}
 
-	render_frame_start = Sys_DoubleTime();
+	VSyncTimings_StartFrame(&timings, Sys_DoubleTime());
 	return false;
 }

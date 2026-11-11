@@ -44,6 +44,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "stats_grid.h"
 #include "fmod.h"
 #include "netlog.h"
+#include "frame_capture.h"
 #include "sbar.h"
 #include "utils.h"
 #include "qsound.h"
@@ -1732,6 +1733,7 @@ static void CL_InitLocal(void)
 
 	Cl_Messages_Init();
 	Netlog_Init();
+	FrameCapture_Init();
 
 	Cvar_SetCurrentGroup(CVAR_GROUP_CHAT);
 	Cvar_Register(&cl_parseWhiteText);
@@ -2371,6 +2373,7 @@ void CL_Frame(double time)
 		return;
 	}
 
+	FrameCapture_FrameStart();
 	cls.trueframetime = extratime - 0.001;
 	cls.trueframetime = max(cls.trueframetime, minframetime);
 	extratime -= cls.trueframetime;
@@ -2700,12 +2703,14 @@ void CL_Frame(double time)
 	R_ParticleEndFrame();
 
 	CL_UpdateCaption(false);
+	FrameCapture_FrameEnd();
 }
 
 //============================================================================
 
 void CL_Shutdown (void) 
 {
+	FrameCapture_Shutdown();
 	CL_Disconnect();
 	Netlog_Shutdown();
 	SList_Shutdown();

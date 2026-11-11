@@ -25,12 +25,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_local.h"
 #include "r_renderer.h"
 #include "r_trace.h"
+#include "frame_capture.h"
 
 static cvar_t* framestats_shown;
 
 void R_PerformanceBeginFrame(void)
 {
 	qbool frameStatsVisible;
+	FrameCapture_RenderBegin();
 
 	if (!framestats_shown) {
 		framestats_shown = Cvar_Find("hud_framestats_show");
@@ -55,6 +57,7 @@ void R_PerformanceBeginFrame(void)
 void R_PerformanceEndFrame(void)
 {
 	qbool frameStatsVisible;
+	FrameCapture_RenderEnd();
 
 	if (!framestats_shown) {
 		framestats_shown = Cvar_Find("hud_framestats_show");
